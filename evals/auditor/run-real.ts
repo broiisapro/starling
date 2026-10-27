@@ -36,7 +36,16 @@ export interface RealEvalOptions {
   out?: string;
   /** Print each case as it finishes; the run takes minutes against a real model. */
   progress?: boolean;
+  /**
+   * Re-audits a case when the reviewer did not answer at all (`LLM_BAD_JSON`, a closed session, a
+   * rate limit). One retry by default: the eval measures the auditor's judgment, and a provider
+   * hiccup is not a judgment. Every retry is counted in the report so a flaky run is still visible.
+   */
+  retries?: number;
 }
+
+/** One re-audit after the reviewer failed to answer; more would hide a genuinely broken reviewer. */
+export const DEFAULT_REVIEW_RETRIES = 1;
 
 export interface RealEvalReport {
   suite: 'auditor';
@@ -55,6 +64,10 @@ export interface RealEvalReport {
     falseFailRate: number;
     fixQuality: number;
     laneDetection: number;
+    /** Cases where the reviewer did not answer; a non-zero count means the run is not trustworthy. */
+    reviewerSkipped: number;
+    /** Extra audits run because the reviewer did not answer; `0` is a first-try run. */
+    reviewerRetries: number;
     passed: boolean;
   };
 }
@@ -76,6 +89,7 @@ export function parseRealArgs(argv: string[]): RealEvalOptions {
   let caseName: string | undefined;
   let out: string | undefined;
   let progress = true;
+  let retries = DEFAULT_REVIEW_RETRIES;
 
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i] ?? '';
@@ -101,6 +115,13 @@ export function parseRealArgs(argv: string[]): RealEvalOptions {
       out = next();
     } else if (flag === '--quiet') {
       progress = false;
+    } else if (flag === '--retries') {
+      const raw = next();
+      const parsed = Number.parseInt(raw, 10);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        throw new Error(`--retries must be a non-negative integer, got "${raw}"`);
+      }
+      retries = parsed;
     } else {
       throw new Error(`Unknown argument "${arg}"`);
     }
@@ -110,6 +131,7 @@ export function parseRealArgs(argv: string[]): RealEvalOptions {
     set,
     tag,
     progress,
+    retries,
     ...(caseName === undefined ? {} : { caseName }),
     ...(out === undefined ? {} : { out }),
   };
@@ -119,6 +141,33 @@ export function casesForSet(set: CaseSet, caseName?: string): AuditorCase[] {
   const pool =
     set === 'seeded' ? loadAuditorCases() : set === 'heldout' ? loadHeldOutAuditorCases() : allAuditorCases();
   return caseName === undefined ? pool : [findAuditorCase(pool, caseName)];
+}
+
+/**
+ * A reviewer was configured and did not answer. The auditor fails the `llm-review` check in that
+ * case, which is how this differs from a *deliberate* skip: an empty diff, or no reviewer in an
+ * offline demo, leaves the check passing with a `skipped:` detail.
+ */
+export function reviewerDidNotAnswer(verdict: AuditVerdict): boolean {
+  return verdict.checks.some(
+    (check) => check.name === 'llm-review' && !check.ok && check.detail.startsWith('skipped:'),
+  );
+}
+
+/**
+ * The run's pass rule: accurate, no false pass, and every case actually judged. A `MISS` caused by a
+ * silent provider error is not evidence about the prompt, so it fails the run even at 100% accuracy.
+ */
+export function realReportPassed(summary: {
+  accuracy: number;
+  falsePassRate: number;
+  reviewerSkipped: number;
+}): boolean {
+  return (
+    summary.accuracy >= AUDITOR_ACCURACY_THRESHOLD &&
+    summary.falsePassRate <= AUDITOR_FALSE_PASS_LIMIT &&
+    summary.reviewerSkipped === 0
+  );
 }
 
 /**
@@ -133,11 +182,18 @@ export async function runRealEval(options: RealEvalOptions): Promise<RealEvalRep
   const llm = createLLMFromEnv();
   const auditor = createAuditor({ llm });
   const verdicts: Array<{ testCase: AuditorCase; verdict: AuditVerdict }> = [];
+  const retries = options.retries ?? DEFAULT_REVIEW_RETRIES;
+  let reviewerRetries = 0;
   let model = 'unknown';
 
   try {
     for (const testCase of cases) {
-      const verdict = await auditor.audit(makeAuditInputFor(testCase));
+      let verdict = await auditor.audit(makeAuditInputFor(testCase));
+      for (let attempt = 0; attempt < retries && reviewerDidNotAnswer(verdict); attempt += 1) {
+        reviewerRetries += 1;
+        process.stderr.write(`  retry ${testCase.name} — the reviewer did not answer\n`);
+        verdict = await auditor.audit(makeAuditInputFor(testCase));
+      }
       verdicts.push({ testCase, verdict });
       model = `${verdict.model.provider}/${verdict.model.model}`;
       if (options.progress === true) {
@@ -161,6 +217,21 @@ export async function runRealEval(options: RealEvalOptions): Promise<RealEvalRep
         verdict?.checks.map((check) => ({ name: check.name, ok: check.ok, detail: check.detail })) ?? [],
     };
   });
+  const reviewerSkipped = caseResults.filter((result) =>
+    result.checks.some(
+      (check) => check.name === 'llm-review' && !check.ok && check.detail.startsWith('skipped:'),
+    ),
+  ).length;
+  const summary = {
+    caseCount: score.caseCount,
+    accuracy: score.accuracy,
+    falsePassRate: score.falsePassRate,
+    falseFailRate: score.falseFailRate,
+    fixQuality: score.fixQuality,
+    laneDetection: score.laneDetection,
+    reviewerSkipped,
+    reviewerRetries,
+  };
   const report: RealEvalReport = {
     suite: 'auditor',
     impl: 'real',
@@ -170,15 +241,7 @@ export async function runRealEval(options: RealEvalOptions): Promise<RealEvalRep
     date: new Date().toISOString().slice(0, 10),
     model,
     cases: caseResults,
-    summary: {
-      caseCount: score.caseCount,
-      accuracy: score.accuracy,
-      falsePassRate: score.falsePassRate,
-      falseFailRate: score.falseFailRate,
-      fixQuality: score.fixQuality,
-      laneDetection: score.laneDetection,
-      passed: score.accuracy >= AUDITOR_ACCURACY_THRESHOLD && score.falsePassRate <= AUDITOR_FALSE_PASS_LIMIT,
-    },
+    summary: { ...summary, passed: realReportPassed(summary) },
   };
   return report;
 }
@@ -198,7 +261,8 @@ export function formatRealReport(report: RealEvalReport): string {
     formatTable(headers, rows),
     `${s.caseCount} case(s) · accuracy ${s.accuracy.toFixed(3)} · false-pass ${s.falsePassRate.toFixed(3)}` +
       ` · false-fail ${s.falseFailRate.toFixed(3)} · fix ${s.fixQuality.toFixed(3)}` +
-      ` · lane ${s.laneDetection.toFixed(3)} · ${s.passed ? 'PASS' : 'FAIL'}`,
+      ` · lane ${s.laneDetection.toFixed(3)} · reviewer-skipped ${s.reviewerSkipped}` +
+      ` · retries ${s.reviewerRetries} · ${s.passed ? 'PASS' : 'FAIL'}`,
     ...report.cases
       .filter((result) => !result.correct)
       .map(

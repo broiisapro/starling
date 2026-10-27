@@ -363,7 +363,7 @@ describe('createAuditor — reviewer verdict', () => {
     expect(verdict.dod).toBeUndefined();
   });
 
-  test('an unavailable reviewer is skipped and the verdict stays deterministic', async () => {
+  test('a configured reviewer that does not answer fails the audit: un-reviewed work never merges', async () => {
     const llm = new MockLLM({
       responder: () => {
         throw new StarlingError('LLM_ERROR', 'ollama is not running');
@@ -371,13 +371,24 @@ describe('createAuditor — reviewer verdict', () => {
     });
     const verdict = await createAuditor({ llm, exec: fakeExec(() => okOutput()).fn }).audit(makeAuditInput());
 
-    expect(verdict.pass).toBe(true);
+    expect(verdict.pass).toBe(false);
     const review = verdict.checks.find((check) => check.name === 'llm-review');
-    expect(review?.ok).toBe(true);
-    expect(review?.detail).toContain('skipped');
+    expect(review?.ok).toBe(false);
+    expect(review?.detail).toContain('reviewer unavailable');
     expect(review?.detail).toContain('LLM_ERROR');
     expect(verdict.model).toEqual({ provider: 'starling', model: 'deterministic' });
-    expect(verdict.summary).toContain('deterministic');
+    expect(verdict.summary).toContain('did not answer');
+    // The fix instruction must not send the agent off to rewrite working code.
+    expect(verdict.fixInstructions).toContain('infrastructure failure, not a problem with the diff');
+    expect(verdict.fixInstructions).toContain('do not rewrite working code');
+  });
+
+  test('reviewer-unavailable is only an infrastructure retry: a clean diff plus no reviewer still passes', async () => {
+    const verdict = await createAuditor({ llm: 'off', exec: fakeExec(() => okOutput()).fn }).audit(
+      makeAuditInput(),
+    );
+    expect(verdict.pass).toBe(true);
+    expect(verdict.fixInstructions).toBeUndefined();
   });
 
   test('without a configured LLM the audit is deterministic and says so', async () => {

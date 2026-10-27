@@ -57,6 +57,8 @@ export interface FixInstructionInput {
   lintBlocking: boolean;
   commandTimeoutMs: number;
   llmVerdict?: AuditorLlmVerdict;
+  /** Set when a configured reviewer did not answer: an infrastructure retry, not a code fix. */
+  reviewerFailure?: string;
 }
 
 function stripListMarker(line: string): string {
@@ -160,6 +162,12 @@ export function buildFixInstructions(input: FixInstructionInput): string | undef
     }
   }
 
+  if (input.reviewerFailure !== undefined) {
+    items.push(
+      `The audit could not be completed: ${input.reviewerFailure}. This is an infrastructure failure, not a problem with the diff — do not rewrite working code. The audit must be re-run, and it fails while the reviewer is unreachable because un-reviewed work is never merged.`,
+    );
+  }
+
   const unique = dedupe(items);
   if (unique.length === 0) return undefined;
   return unique.map((item, index) => `${index + 1}. ${item}`).join('\n');
@@ -172,6 +180,8 @@ export interface SummaryInput {
   llmSummary?: string;
   llmConsulted: boolean;
   llmSkippedReason?: string;
+  /** A reviewer was configured and did not answer; the audit cannot pass unjudged work. */
+  reviewerFailed?: boolean;
 }
 
 export function buildSummary(input: SummaryInput): string {
@@ -187,6 +197,9 @@ export function buildSummary(input: SummaryInput): string {
   const failed = input.checks.filter((check) => !check.ok).map((check) => check.name);
   const reason = failed.length > 0 ? `failed ${failed.join(', ')}` : 'failed the audit';
   const parts = [`Audit ${reason}.`];
+  if (input.reviewerFailed === true) {
+    parts.push('The reviewer model did not answer, so the diff is un-reviewed and cannot pass.');
+  }
   if (input.laneViolations.length > 0) {
     parts.push(`${input.laneViolations.length} lane violation(s).`);
   }

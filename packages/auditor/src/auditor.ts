@@ -29,7 +29,12 @@ import {
   missingTestsDetail,
 } from './verdict';
 
-const LLM_MAX_TOKENS = 1_400;
+/**
+ * Output budget for one review. The verdict is small, but reasoning models bill their thinking
+ * against this cap: at 1 400 a long DoD occasionally came back truncated, which surfaced as
+ * `LLM_BAD_JSON` and (correctly) failed the audit as un-reviewed (Epic 44 measurement).
+ */
+const LLM_MAX_TOKENS = 2_000;
 
 /** Resolve the reviewer once, memoised: a run audits many tasks with the same model. */
 function lazyReviewer(mode: AuditorLlmOption, opts: CreateAuditorOptions): () => Promise<LLM | undefined> {
@@ -83,6 +88,12 @@ interface LlmOutcome {
   model?: ModelRef;
   checked: boolean;
   skippedReason?: string;
+  /**
+   * True when a reviewer was configured for this audit, so a skip means "the model did not answer"
+   * rather than "nobody was asked". That distinction is the difference between an offline demo and
+   * a silently un-reviewed merge, so it decides whether the check passes (Epic 44).
+   */
+  expected: boolean;
 }
 
 function errorMessage(err: unknown): string {
@@ -101,16 +112,21 @@ async function reviewWithLlm(
   missing: MissingTestsSignal,
 ): Promise<LlmOutcome> {
   if (input.diff.patch.trim() === '') {
-    return { checked: false, skippedReason: 'empty diff, nothing to review' };
+    // The empty diff already fails `non-empty`; adding a reviewer failure would only be noise.
+    return { checked: false, expected: false, skippedReason: 'empty diff, nothing to review' };
   }
   let llm: LLM | undefined;
   try {
     llm = await opts.llmFor();
   } catch (err) {
-    return { checked: false, skippedReason: `reviewer unavailable (${errorMessage(err)})` };
+    return {
+      checked: false,
+      expected: true,
+      skippedReason: `reviewer unavailable (${errorMessage(err)})`,
+    };
   }
   if (llm === undefined) {
-    return { checked: false, skippedReason: 'no reviewer model configured' };
+    return { checked: false, expected: false, skippedReason: 'no reviewer model configured' };
   }
 
   const signals = signalsFor(input.diff, files);
@@ -153,13 +169,18 @@ async function reviewWithLlm(
     if (verdict === undefined) {
       return {
         checked: false,
+        expected: true,
         skippedReason: 'reviewer returned no parsed JSON verdict',
         model: response.model,
       };
     }
-    return { verdict, model: response.model, checked: true };
+    return { verdict, model: response.model, checked: true, expected: true };
   } catch (err) {
-    return { checked: false, skippedReason: `reviewer unavailable (${errorMessage(err)})` };
+    return {
+      checked: false,
+      expected: true,
+      skippedReason: `reviewer unavailable (${errorMessage(err)})`,
+    };
   }
 }
 
@@ -230,7 +251,8 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
   const outcome = await reviewWithLlm(input, opts, files, tests, lint, lane.violations, missing);
   const llmVerdict = outcome.verdict;
   const allDodMet = llmVerdict === undefined || llmVerdict.dod.every((entry) => entry.met);
-  const llmOk = llmVerdict === undefined ? true : llmVerdict.pass && allDodMet;
+  const llmOk = llmVerdict === undefined ? !outcome.expected : llmVerdict.pass && allDodMet;
+  const reviewerFailed = llmVerdict === undefined && outcome.expected;
   const contradiction =
     llmVerdict?.pass === true && !allDodMet ? ' [rejected: reviewer passed while a DoD item was unmet]' : '';
   let llmDetail: string;
@@ -244,7 +266,7 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
   }
   checks.push(makeCheck('llm-review', llmOk, llmDetail, performance.now() - llmStarted));
 
-  const llmPass = outcome.checked && llmVerdict !== undefined ? llmOk : true;
+  const llmPass = llmOk;
   const pass =
     lane.ok && !emptyDiff && testsOk && !missing.missing && (!opts.lintBlocking || lintOk) && llmPass;
 
@@ -262,6 +284,9 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
         lintBlocking: opts.lintBlocking,
         commandTimeoutMs: opts.commandTimeoutMs,
         llmVerdict,
+        ...(reviewerFailed
+          ? { reviewerFailure: outcome.skippedReason ?? 'the reviewer did not answer' }
+          : {}),
       });
 
   const summary = buildSummary({
@@ -271,6 +296,7 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
     llmSummary: llmVerdict !== undefined && (pass || !llmVerdict.pass) ? llmVerdict.summary : undefined,
     llmConsulted: outcome.checked,
     llmSkippedReason: outcome.checked ? undefined : outcome.skippedReason,
+    reviewerFailed,
   });
 
   const verdict: AuditVerdict = {
