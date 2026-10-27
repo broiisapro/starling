@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-10-27T20:01:04.502Z",
+  "mode": {
+    "tasks": 5,
+    "maxParallel": 3,
+    "eventsPerTask": 60,
+    "replaySpeed": 8,
+    "serialisedMerges": true,
+    "doubleRecord": false,
+    "retimeReplayEvents": true,
+    "sessionHeadroom": 0,
+    "nodeMaxSessions": 3,
+    "peakSessions": 3,
+    "testCommand": "bun run test"
+  },
+  "runId": "01m5zf7bk70zrfchgtkqqnbthj",
+  "status": "finished",
+  "wallMs": 3136.2,
+  "events": {
+    "total": 281,
+    "agentEvents": 240,
+    "perSecond": 89.6,
+    "peakPerSecond": 384,
+    "gap": {
+      "count": 280,
+      "minMs": 0.0003329999999550637,
+      "p50Ms": 0.38866649999999936,
+      "p95Ms": 22.97072115000005,
+      "p99Ms": 327.29286629,
+      "maxMs": 563.961292,
+      "meanMs": 10.538747025000001,
+      "totalMs": 2950.8491670000003
+    }
+  },
+  "store": {
+    "append": {
+      "count": 281,
+      "minMs": 0,
+      "p50Ms": 0.0009169999998448475,
+      "p95Ms": 0.005249999999932697,
+      "p99Ms": 0.015191400000003321,
+      "maxMs": 0.55662499999994,
+      "meanMs": 0.003830978647688846,
+      "totalMs": 1.0765050000005658
+    },
+    "flush": {
+      "count": 40,
+      "minMs": 0.0007920000000467553,
+      "p50Ms": 0.0026665000000321015,
+      "p95Ms": 0.006516350000208579,
+      "p99Ms": 0.0225018800000339,
+      "maxMs": 0.027458000000024185,
+      "meanMs": 0.003719825000024457,
+      "totalMs": 0.14879300000097828
+    },
+    "saveRun": {
+      "count": 55,
+      "minMs": 0.0892910000000029,
+      "p50Ms": 0.3944170000000895,
+      "p95Ms": 9.03709559999997,
+      "p99Ms": 31.589761500000023,
+      "maxMs": 54.99720900000011,
+      "meanMs": 2.1218159454545003,
+      "totalMs": 116.69987699999751
+    },
+    "read": {
+      "count": 1,
+      "minMs": 4.72766700000011,
+      "p50Ms": 4.72766700000011,
+      "p95Ms": 4.72766700000011,
+      "p99Ms": 4.72766700000011,
+      "maxMs": 4.72766700000011,
+      "meanMs": 4.72766700000011,
+      "totalMs": 4.72766700000011
+    },
+    "appendCalls": 281,
+    "savedRuns": 55,
+    "readCalls": 1,
+    "recordedEvents": 281,
+    "dbBytes": 3526536,
+    "staleAgentEvents": 0
+  },
+  "audit": {
+    "verdicts": 4,
+    "passed": 4,
+    "latency": {
+      "count": 4,
+      "minMs": 461.603709,
+      "p50Ms": 503.3135209999999,
+      "p95Ms": 599.6581563000003,
+      "p99Ms": 607.6044312600003,
+      "maxMs": 609.5910000000003,
+      "meanMs": 519.4554377500001,
+      "totalMs": 2077.8217510000004
+    }
+  },
+  "merge": {
+    "merged": 4,
+    "failed": 1,
+    "conflict": 0,
+    "other": 0,
+    "latency": {
+      "count": 4,
+      "minMs": 326.9586250000002,
+      "p50Ms": 608.4926875,
+      "p95Ms": 1266.9387624499998,
+      "p99Ms": 1332.41765249,
+      "maxMs": 1348.7873749999999,
+      "meanMs": 723.1828437500001,
+      "totalMs": 2892.7313750000003
+    },
+    "service": {
+      "count": 4,
+      "minMs": 326.55787499999997,
+      "p50Ms": 430.4584789999999,
+      "p95Ms": 554.0609230999999,
+      "p99Ms": 569.03651822,
+      "maxMs": 572.7804169999999,
+      "meanMs": 440.0638124999999,
+      "totalMs": 1760.2552499999997
+    },
+    "queueWait": {
+      "count": 4,
+      "minMs": 0.1801669999999831,
+      "p50Ms": 174.4957290000001,
+      "p95Ms": 711.85083315,
+      "p99Ms": 763.1115330300001,
+      "maxMs": 775.9267080000002,
+      "meanMs": 281.2745832500001,
+      "totalMs": 1125.0983330000004
+    }
+  },
+  "taskDurations": {
+    "count": 5,
+    "minMs": 1299.0172499999999,
+    "p50Ms": 1753.090417,
+    "p95Ms": 2592.3876584,
+    "p99Ms": 2646.86173168,
+    "maxMs": 2660.48025,
+    "meanMs": 1866.5038084,
+    "totalMs": 9332.519042
+  },
+  "memory": {
+    "rssMb": 30.6,
+    "heapUsedMb": 11.8,
+    "heapTotalMb": 6.2,
+    "externalMb": 8.2,
+    "peakRssMb": 31.2,
+    "peakHeapUsedMb": 28.9
+  },
+  "plan": {
+    "tasks": 5,
+    "issues": 0,
+    "errors": 0,
+    "warnings": 0
+  },
+  "errors": ["startTask failed for t04-fix-the-overdue-calculation: Node hub is at capacity (3 sessions)"]
+}

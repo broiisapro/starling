@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-10-27T20:07:03.466Z",
+  "runId": "01m5zfh9zm4ex0022gsvcnvpax",
+  "status": "finished",
+  "tasksMerged": 30,
+  "wallMs": 34726.2,
+  "clients": 20,
+  "events": {
+    "stored": 9247,
+    "framesDelivered": 184940,
+    "expectedPerClient": 9247,
+    "perSecond": 266.3
+  },
+  "timestamps": {
+    "staleAgentEvents": 0,
+    "oldestAgentTs": 1793131588850,
+    "newestTs": 1793131621153
+  },
+  "liveLatency": {
+    "count": 184900,
+    "minMs": 0,
+    "p50Ms": 63,
+    "p95Ms": 417,
+    "p99Ms": 594,
+    "maxMs": 1041,
+    "meanMs": 123.65073553272039,
+    "totalMs": 22863021
+  },
+  "backlog": {
+    "eventsPerClient": 2,
+    "drainMs": {
+      "count": 20,
+      "minMs": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "maxMs": 0,
+      "meanMs": 0,
+      "totalMs": 0
+    }
+  },
+  "drops": {
+    "missing": 0,
+    "duplicates": 0,
+    "clientsWithDrops": 0,
+    "maxMissingPerClient": 0
+  },
+  "connection": {
+    "delayMs": {
+      "count": 20,
+      "minMs": 11,
+      "p50Ms": 14,
+      "p95Ms": 14,
+      "p99Ms": 14,
+      "maxMs": 14,
+      "meanMs": 13.85,
+      "totalMs": 277
+    },
+    "liveEventsPerClient": 9245
+  },
+  "since": {
+    "midRun": {
+      "sinceTs": 1793131588482,
+      "expected": 9202,
+      "received": 9202,
+      "missing": 0,
+      "duplicates": 0,
+      "ok": true
+    },
+    "tail": {
+      "sinceTs": 1793131588072,
+      "expected": 9213,
+      "received": 9213,
+      "missing": 0,
+      "duplicates": 0,
+      "ok": true,
+      "drainMs": 1101.7
+    },
+    "latency": {
+      "count": 9202,
+      "minMs": 0,
+      "p50Ms": 44.5,
+      "p95Ms": 391.9499999999989,
+      "p99Ms": 568.9899999999998,
+      "maxMs": 1041,
+      "meanMs": 110.27363616605086,
+      "totalMs": 1014738
+    }
+  },
+  "peakSessions": 20,
+  "memory": {
+    "peakRssMb": 155.7,
+    "peakHeapUsedMb": 139.9
+  },
+  "errors": []
+}

@@ -1,0 +1,349 @@
+{
+  "generatedAt": "2026-10-27T20:07:03.726Z",
+  "quick": false,
+  "engine": {
+    "generatedAt": "2026-10-27T20:06:27.293Z",
+    "mode": {
+      "tasks": 30,
+      "maxParallel": 20,
+      "eventsPerTask": 300,
+      "replaySpeed": 4,
+      "serialisedMerges": true,
+      "doubleRecord": false,
+      "retimeReplayEvents": true,
+      "sessionHeadroom": 4,
+      "nodeMaxSessions": 24,
+      "peakSessions": 20,
+      "testCommand": "bun run test"
+    },
+    "runId": "01m5zfgpvfzgf12n1xha1d5gn4",
+    "status": "finished",
+    "wallMs": 19412.9,
+    "events": {
+      "total": 9235,
+      "agentEvents": 9000,
+      "perSecond": 475.7,
+      "peakPerSecond": 1820,
+      "gap": {
+        "count": 9234,
+        "minMs": 0.0001249999986612238,
+        "p50Ms": 0.0004169999992882367,
+        "p95Ms": 3.0083714999993405,
+        "p99Ms": 48.605372689999626,
+        "maxMs": 548.2072080000003,
+        "meanMs": 2.08393780236084,
+        "totalMs": 19243.081667
+      }
+    },
+    "store": {
+      "append": {
+        "count": 9235,
+        "minMs": 0,
+        "p50Ms": 0.00004199999966658652,
+        "p95Ms": 0.0008749999997235136,
+        "p99Ms": 0.001916660000097181,
+        "maxMs": 6.617500000000291,
+        "meanMs": 0.0011315216025997105,
+        "totalMs": 10.449602000008326
+      },
+      "flush": {
+        "count": 225,
+        "minMs": 0.000499999998282874,
+        "p50Ms": 0.0012499999975261744,
+        "p95Ms": 0.0052165999997669105,
+        "p99Ms": 0.04122491999863981,
+        "maxMs": 3.1647090000005846,
+        "meanMs": 0.021524244444481155,
+        "totalMs": 4.84295500000826
+      },
+      "saveRun": {
+        "count": 808,
+        "minMs": 0.06275000000005093,
+        "p50Ms": 0.4105625000004238,
+        "p95Ms": 12.852004400000254,
+        "p99Ms": 44.98762156000095,
+        "maxMs": 131.81520900000032,
+        "meanMs": 2.538155374999987,
+        "totalMs": 2050.8295429999894
+      },
+      "read": {
+        "count": 1,
+        "minMs": 44.093667000001005,
+        "p50Ms": 44.093667000001005,
+        "p95Ms": 44.093667000001005,
+        "p99Ms": 44.093667000001005,
+        "maxMs": 44.093667000001005,
+        "meanMs": 44.093667000001005,
+        "totalMs": 44.093667000001005
+      },
+      "appendCalls": 9235,
+      "savedRuns": 808,
+      "readCalls": 1,
+      "recordedEvents": 9235,
+      "dbBytes": 5846880,
+      "staleAgentEvents": 0
+    },
+    "audit": {
+      "verdicts": 30,
+      "passed": 30,
+      "latency": {
+        "count": 30,
+        "minMs": 424.4709589999984,
+        "p50Ms": 1199.850417,
+        "p95Ms": 1657.4636229499995,
+        "p99Ms": 1749.9933196800005,
+        "maxMs": 1775.7970000000005,
+        "meanMs": 1239.5967264,
+        "totalMs": 37187.901792000004
+      }
+    },
+    "merge": {
+      "merged": 30,
+      "failed": 0,
+      "conflict": 0,
+      "other": 0,
+      "latency": {
+        "count": 30,
+        "minMs": 1113.5995000000003,
+        "p50Ms": 6540.6938125,
+        "p95Ms": 7478.62208355,
+        "p99Ms": 7813.552426679999,
+        "maxMs": 7944.742541999999,
+        "meanMs": 6011.704548666667,
+        "totalMs": 180351.13646
+      },
+      "service": {
+        "count": 30,
+        "minMs": 232.97300000000178,
+        "p50Ms": 374.5674999999992,
+        "p95Ms": 1284.2345270499993,
+        "p99Ms": 1368.6654781799991,
+        "maxMs": 1392.388915999999,
+        "meanMs": 556.0753861666665,
+        "totalMs": 16682.261584999993
+      },
+      "queueWait": {
+        "count": 30,
+        "minMs": 42.20854200000031,
+        "p50Ms": 5751.962833499998,
+        "p95Ms": 7150.6876399500015,
+        "p99Ms": 7247.7887549,
+        "maxMs": 7285.174623999998,
+        "meanMs": 5448.611169433333,
+        "totalMs": 163458.33508299998
+      }
+    },
+    "taskDurations": {
+      "count": 30,
+      "minMs": 3334.2159999999994,
+      "p50Ms": 10611.224624999999,
+      "p95Ms": 15322.705956399997,
+      "p99Ms": 15672.493187499998,
+      "maxMs": 15742.848999999998,
+      "meanMs": 10634.273420933334,
+      "totalMs": 319028.202628
+    },
+    "memory": {
+      "rssMb": 52.8,
+      "heapUsedMb": 36.6,
+      "heapTotalMb": 12.9,
+      "externalMb": 31.1,
+      "peakRssMb": 61.2,
+      "peakHeapUsedMb": 126.7
+    },
+    "plan": {
+      "tasks": 30,
+      "issues": 1,
+      "errors": 0,
+      "warnings": 1
+    },
+    "errors": []
+  },
+  "sse": {
+    "generatedAt": "2026-10-27T20:07:03.466Z",
+    "runId": "01m5zfh9zm4ex0022gsvcnvpax",
+    "status": "finished",
+    "tasksMerged": 30,
+    "wallMs": 34726.2,
+    "clients": 20,
+    "events": {
+      "stored": 9247,
+      "framesDelivered": 184940,
+      "expectedPerClient": 9247,
+      "perSecond": 266.3
+    },
+    "timestamps": {
+      "staleAgentEvents": 0,
+      "oldestAgentTs": 1793131588850,
+      "newestTs": 1793131621153
+    },
+    "liveLatency": {
+      "count": 184900,
+      "minMs": 0,
+      "p50Ms": 63,
+      "p95Ms": 417,
+      "p99Ms": 594,
+      "maxMs": 1041,
+      "meanMs": 123.65073553272039,
+      "totalMs": 22863021
+    },
+    "backlog": {
+      "eventsPerClient": 2,
+      "drainMs": {
+        "count": 20,
+        "minMs": 0,
+        "p50Ms": 0,
+        "p95Ms": 0,
+        "p99Ms": 0,
+        "maxMs": 0,
+        "meanMs": 0,
+        "totalMs": 0
+      }
+    },
+    "drops": {
+      "missing": 0,
+      "duplicates": 0,
+      "clientsWithDrops": 0,
+      "maxMissingPerClient": 0
+    },
+    "connection": {
+      "delayMs": {
+        "count": 20,
+        "minMs": 11,
+        "p50Ms": 14,
+        "p95Ms": 14,
+        "p99Ms": 14,
+        "maxMs": 14,
+        "meanMs": 13.85,
+        "totalMs": 277
+      },
+      "liveEventsPerClient": 9245
+    },
+    "since": {
+      "midRun": {
+        "sinceTs": 1793131588482,
+        "expected": 9202,
+        "received": 9202,
+        "missing": 0,
+        "duplicates": 0,
+        "ok": true
+      },
+      "tail": {
+        "sinceTs": 1793131588072,
+        "expected": 9213,
+        "received": 9213,
+        "missing": 0,
+        "duplicates": 0,
+        "ok": true,
+        "drainMs": 1101.7
+      },
+      "latency": {
+        "count": 9202,
+        "minMs": 0,
+        "p50Ms": 44.5,
+        "p95Ms": 391.9499999999989,
+        "p99Ms": 568.9899999999998,
+        "maxMs": 1041,
+        "meanMs": 110.27363616605086,
+        "totalMs": 1014738
+      }
+    },
+    "peakSessions": 20,
+    "memory": {
+      "peakRssMb": 155.7,
+      "peakHeapUsedMb": 139.9
+    },
+    "errors": []
+  },
+  "reducer": {
+    "generatedAt": "2026-10-27T20:06:07.741Z",
+    "totalEvents": 20000,
+    "taskCount": 29,
+    "wallMs": 2053.3,
+    "perEvent": {
+      "count": 20000,
+      "minMs": 0.0002920000000017353,
+      "p50Ms": 0.004207999999977119,
+      "p95Ms": 0.011790999999968221,
+      "p99Ms": 0.24734425000002194,
+      "maxMs": 261.477917,
+      "meanMs": 0.10249061859999987,
+      "totalMs": 2049.8123719999976
+    },
+    "msPerEvent": 0.1027,
+    "eventsPerSecond": 9741,
+    "mix": {
+      "run.created": 1,
+      "plan.created": 1,
+      "agent.event": 14500,
+      "audit.verdict": 600,
+      "merge.result": 700,
+      "metrics": 3000,
+      "node.joined": 200,
+      "node.stats": 400,
+      "log": 300,
+      "task.status": 297,
+      "run.finished": 1
+    },
+    "caps": {
+      "events": {
+        "name": "events",
+        "cap": 5000,
+        "actual": 5000,
+        "ok": true
+      },
+      "agentLog": {
+        "name": "agentLog/task",
+        "cap": 500,
+        "actual": 500,
+        "ok": true
+      },
+      "verdicts": {
+        "name": "verdicts/task",
+        "cap": 100,
+        "actual": 100,
+        "ok": true
+      },
+      "merges": {
+        "name": "merges",
+        "cap": 500,
+        "actual": 500,
+        "ok": true
+      },
+      "metricsHistory": {
+        "name": "metricsHistory",
+        "cap": 2000,
+        "actual": 2000,
+        "ok": true
+      },
+      "allOk": true
+    },
+    "state": {
+      "runs": 1,
+      "tasks": 30,
+      "agentLogEntries": 6000,
+      "agentLogMaxPerTask": 500,
+      "verdictsMaxPerTask": 100,
+      "merges": 500,
+      "metricsHistory": 2000,
+      "jsonBytes": 3503972
+    },
+    "memory": {
+      "before": {
+        "rssMb": 43,
+        "heapUsedMb": 8.7,
+        "heapTotalMb": 12.3,
+        "externalMb": 1.1
+      },
+      "after": {
+        "rssMb": 47.4,
+        "heapUsedMb": 9.1,
+        "heapTotalMb": 12.6,
+        "externalMb": 1.1
+      },
+      "peakRssMb": 47.4,
+      "peakHeapUsedMb": 9.1,
+      "heapDeltaMb": 0.4
+    }
+  }
+}
