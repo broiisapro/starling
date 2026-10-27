@@ -76,7 +76,15 @@ exist would be red on every PR.
 The profile defaults from real RAM (≥ 24 GB → `mbp`), and warns if the flag disagrees with the
 hardware. On an 8 GB Air it drops to the 4B fallback automatically.
 
-`tools/local-models/smoke.ts` is the measuring instrument — a Bun script with no dependencies:
+`tools/local-models/smoke.ts` is the measuring instrument — a Bun script with no dependencies,
+split into three files so each stays readable: `host.ts` (shell, hardware, memory probes),
+`ollama.ts` (the two transport calls, SSE parsing and verdict checks) and `smoke.ts` (the seeded
+diff, the run order, the result file and the printed report). `ollama.test.ts` covers the parsing
+offline with a stubbed `fetch` — normal stream, malformed chunk, mid-stream failure (partial text
+*and* an error), non-200, request shape — so `bun test tools/local-models` is the gate that needs no
+model and no network.
+
+What it does:
 
 1. **Cold call** on `/v1/chat/completions` (the OpenAI-compatible surface `@starling/llm` will use),
    streamed, with `response_format: {type: "json_schema", json_schema: {..., strict: true}}` and an
@@ -118,12 +126,13 @@ footprint measurement below says an **18 GB** model already takes 32 GB down to 
 (≈ 8.6 GB) with nothing else running. A 23 GB model would leave ≈ 6 GB for macOS *and* 8 opencode
 sessions — exactly the squeeze the PRD's risk table calls out, and exactly what would make the demo
 stall. `qwen3.8:27b-mlx` is Apache-2.0, a newer family than 3.6, was already resident on this
-machine, and produced a correct sane verdict in the smoke test. The 35B-A3B pull was also throttled
-to 2–4 MB/s on this network (≈ 2 h ETA), so it could not be validated in this session; the pull was
-left running and `ollama pull` resumes. `candidates.json` keeps 35B-A3B, `gpt-oss:20b` (14 GB, MoE,
-Apache-2.0) and `gemma4:26b-a4b-it-qat` (16 GB) as Epic 28 bench candidates, with the RAM arithmetic
-written down so the benchmark has a budget to respect. Flipping back is a one-line change to
-`.profiles.mbp.primary`.
+machine, and produced a correct sane verdict in the smoke test. The 35B-A3B pull was throttled to
+2–4 MB/s on this network (≈ 2 h ETA) and was **aborted at ~42%**, so that model could not be
+validated in this session; partial blobs from that aborted pull may still sit in `~/.ollama`
+(check free disk before pulling it again). `candidates.json` keeps 35B-A3B, `gpt-oss:20b` (14 GB,
+MoE, Apache-2.0) and `gemma4:26b-a4b-it-qat` (16 GB) as Epic 28 bench candidates, with the RAM
+arithmetic written down so the benchmark has a budget to respect — **Epic 28 decides the final
+auditor model.** Flipping back is a one-line change to `.profiles.mbp.primary`.
 
 **Air primary is `qwen3.5:9b`, slightly above the "4B–8B class" the brief suggested.** Qwen 3.6 has
 no small variant (only 27b/35b), so the newest Qwen that fits an Air is 3.5. At 6.6 GB (q4_K_M) it
@@ -167,14 +176,41 @@ Ollama 0.40.8 (installed as `Ollama.app`, not the Homebrew formula), Bun 1.4.4.
 | wired memory | 3.3 GB | **20.6 GB** (+17.3 GB) |
 | system-wide free RAM | 75 % (24 GB) | **27 % (≈ 8.6 GB)** |
 | `ollama ps` resident | — | 18 GB |
-| ollama process RSS | 45 MB | 162–614 MB |
+| ollama process RSS | 43 MB | 242–306 MB |
 
 The last row is the interesting one: on Apple silicon the MLX weights are **wired GPU memory, not
 process RSS**, so `ps` is useless here and `ollama ps` + `vm_stat` wired pages are the honest
-sources. With ~8.6 GB free and `opencode` itself measured at 442 MB RSS, the mbp can run the model
-plus roughly 8–10 opencode sessions before it starts swapping — which matches the configured
-`flock.hubMaxSessions: 8`. **A 23 GB model would leave ~6 GB, i.e. 4–6 sessions.** That is the whole
-argument for the primary choice above.
+sources. With ~8.6 GB free and `opencode` itself measured at 442 MB RSS, the arithmetic says the mbp
+can run the model plus roughly 8–10 opencode sessions — which is where `flock.hubMaxSessions: 8`
+comes from. **That arithmetic did not survive contact with a real wave; see the memory warning
+below.**
+
+## Memory warning
+
+Measured model: **`qwen3.8:27b-mlx`**, **~18–19 tok/s warm** on the M5 Pro (100% GPU, 18–19 GB
+resident), and it **correctly failed the seeded no-test diff** (`pass: false`, missing DoD item
+called out). The model is good enough to audit; the *machine* is the problem.
+
+Loading it **while opencode agents are running** drove this 32 GB laptop to **4% free RAM and 33 GB
+of swap**, and stalled a working session mid-edit. The ~8.6 GB headroom in the table above is
+headroom for *one* model and a handful of small processes, not for 20 agents plus their test runs
+and builds. Wired memory cannot be swapped out, so the pressure lands on everything else.
+
+**Recommendation for the rest of the build:**
+
+- **No local model during build waves.** The planner/worker/resolver roles are API models
+  (ARCHITECTURE §2); auditing is the only role that needs Ollama, and Wave 0/1 epics do not audit.
+  `setup.sh` without `--pull` and `smoke.ts` are the only tools that need a model at all.
+- **Local-model runs belong to the audit/bench epics** (10, 16, 28), with **≤ 8 agents running** on
+  the hub while the model is resident, and preferably `--think off` (same verdict, 21.8 s → 5.8 s per
+  verdict).
+- If the model is resident when you are *not* measuring, unload it: `ollama stop qwen3.8:27b-mlx`
+  (or `keep_alive: "5m"` will do it for you).
+
+**The `qwen3.6:35b-a3b` pull was aborted at ~42%.** Partial blobs from that pull may remain in
+`~/.ollama`; check free disk before pulling it again, and note that at 23 GB it is exactly the model
+that would make the squeeze above worse. **Epic 28 decides the final auditor model** by measuring
+candidates with opencode sessions running — not by picking from the registry.
 
 ## Interfaces for future epics
 
@@ -191,6 +227,11 @@ argument for the primary choice above.
   rather than hard-coding a tag; Epic 28 owns replacing the primary with a measured winner.
 - **`results/smoke-*.json`** — one file per (host, model, think) with `timings`, `memory`, `checks`,
   `verdict`. Epic 28 can reuse the shape for its benchmark matrix.
+- **`ollama.ts`** — `callV1` (OpenAI-compatible, streamed), `callNative` (native `/api/chat` with
+  exact eval counters) and `validateVerdict` are dependency-free reference implementations. Epic 10
+  builds the real router in `@starling/llm`; read this file for the two things the smoke test proved:
+  usage is not always reported on the compatible stream, and `think: false` is native-only. These are
+  dev tools, not product code — nothing in `packages/` should import from `tools/`.
 - **The verdict schema** `{pass, summary, fixInstructions?}` used in `smoke.ts` is a *proposal* for the
   auditor's structured-output contract (Epic 16). It is not a locked contract — it lives in
   `tools/`, not in `packages/core`.
@@ -222,8 +263,8 @@ the Air's local model is an optimisation for its *own* worker sessions, not a re
 ## Deviations from plan
 
 1. **mbp primary is `qwen3.8:27b-mlx`, not `qwen3.6:35b-a3b`.** Reason and reversal path above
-   (measured RAM headroom; the 23 GB pull was throttled to ~2 h). The 35B-A3B pull was left running
-   in the background — `ollama pull qwen3.6:35b-a3b` resumes it.
+   (measured RAM headroom; the 23 GB pull was throttled to ~2 h). The 35B-A3B pull was **aborted at
+   ~42%** — `ollama pull qwen3.6:35b-a3b` resumes it if Epic 28 wants that model after all.
 2. **Air primary is 9B, not 4–8B.** Qwen 3.6 has no small tag; 9B q4 fits 16 GB and judges better
    than 4B. 4B is the automatic fallback under 12 GB of RAM.
 3. **`gh repo edit` cannot disable merge methods**, so "squash-merge only" is applied with
@@ -242,7 +283,8 @@ the Air's local model is an optimisation for its *own* worker sessions, not a re
 - **No CI.** Deliberate (Epic 52).
 - **`bun run test` / `bun run check` do not exist yet** at the repo root: Epic 00 owns root config and
   is running in parallel. This epic adds no package and no root file, so there is nothing for those
-  scripts to run here; `bun -e` / `bash -n` were used as the local gate instead (see handback).
+  scripts to run here; the local gate is `bun test tools/local-models` (14 tests, offline, stubbed
+  `fetch`), plus `bun build tools/local-models/smoke.ts` and `bash -n` on the shell scripts.
 - **One model per profile was measured.** The rest of `candidates.json` is researched, not benchmarked
   — that is Epic 28, which should also re-measure *with opencode sessions running*, since that is the
   real demo condition.

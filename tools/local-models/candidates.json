@@ -10,7 +10,7 @@
     "mbp": {
       "ramGb": 32,
       "primary": "qwen3.8:27b-mlx",
-      "primaryWhy": "Chosen from measurement, not from the tag list. The brief's first pick was qwen3.6:35b-a3b (23-24 GB, MoE, ~3B active) and it is the fastest per token — but on this 32 GB machine an 18 GB model already leaves 21.2 GB wired and only 27% of RAM free (measured, docs/epic-02-repo-ops.md), which is the exact squeeze the PRD flags for demo day: 8 opencode sessions next to a 23 GB model means swap. qwen3.8:27b-mlx is Apache-2.0, newer than 3.6, already resident on the mbp, and passed the smoke test with a correct sane verdict at ~17 tok/s. Swap this line back to qwen3.6:35b-a3b once Epic 28 has measured both with opencode sessions running; the 23 GB pull was still in flight when this was written (2-4 MB/s on this network).",
+      "primaryWhy": "Chosen from measurement, not from the tag list. The brief's first pick was qwen3.6:35b-a3b (23-24 GB, MoE, ~3B active) and it is the fastest per token — but on this 32 GB machine an 18 GB model already leaves 21.2 GB wired and only 27% of RAM free (measured, docs/epic-02-repo-ops.md), which is the exact squeeze the PRD flags for demo day: 8 opencode sessions next to a 23 GB model means swap. qwen3.8:27b-mlx is Apache-2.0, newer than 3.6, already resident on the mbp, and passed the smoke test with a correct sane verdict at ~17 tok/s. Swap this line back to qwen3.6:35b-a3b once Epic 28 has measured both with opencode sessions running; the 23 GB pull was aborted at ~42% (2-4 MB/s on this network), so that model was never validated — Epic 28 decides the final auditor model.",
       "candidates": [
         {
           "name": "qwen3.8",
