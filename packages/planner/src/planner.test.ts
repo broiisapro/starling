@@ -36,7 +36,7 @@ describe('createPlanner — the happy path', () => {
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.role).toBe('planner');
     expect(llm.calls[0]?.maxTokens).toBe(8192);
-    expect(llm.calls[0]?.temperature).toBe(0.2);
+    expect(llm.calls[0]?.temperature).toBe(0);
     expect(llm.calls[0]?.messages[0]?.content).toContain('Ship launch-day polish');
   });
 
@@ -70,9 +70,9 @@ describe('createPlanner — the happy path', () => {
     const planner = createPlanner({ llm: llmWith([draft]) });
     const { plan } = await planner.plan(makeGoal(), loadRepoMapFixture());
 
-    expect(plan.tasks.map((entry) => entry.key)).toEqual(['dates-fix', 'csv-export']);
+    expect(plan.tasks.map((entry) => entry.key)).toEqual(['t01-dates-fix', 't02-csv-export']);
     expect(plan.tasks[0]?.lane.owns).toEqual(['src/lib/dates.ts']);
-    expect(plan.tasks[1]?.dependsOn).toEqual(['dates-fix']);
+    expect(plan.tasks[1]?.dependsOn).toEqual(['t01-dates-fix']);
     expect(plan.tasks[1]?.lane.owns).toEqual(['src/features/Export']);
   });
 });
@@ -129,7 +129,7 @@ describe('createPlanner — deterministic repair', () => {
     const { plan, issues } = await planner.plan(makeGoal(), loadRepoMapFixture());
 
     expect(llm.calls).toHaveLength(1);
-    expect(plan.tasks.find((entry) => entry.key === 'beta')?.dependsOn).toEqual(['alpha']);
+    expect(plan.tasks.find((entry) => entry.key.endsWith('-beta'))?.dependsOn).toEqual(['t01-alpha']);
     expect(issues.some((issue) => issue.code === 'lane-overlap')).toBe(true);
     expect(errorIssues(issues)).toEqual([]);
   });
@@ -143,7 +143,7 @@ describe('createPlanner — deterministic repair', () => {
 
     const { plan, issues } = await planner.plan(makeGoal(), loadRepoMapFixture());
 
-    expect(plan.tasks.find((entry) => entry.key === 'beta')?.dependsOn).toEqual([]);
+    expect(plan.tasks.find((entry) => entry.key.endsWith('-beta'))?.dependsOn).toEqual([]);
     expect(issues.some((issue) => issue.code === 'cycle')).toBe(true);
     expect(errorIssues(issues)).toEqual([]);
   });
@@ -176,7 +176,7 @@ describe('createPlanner — deterministic repair', () => {
 
     const { plan, issues } = await planner.plan(makeGoal(), loadRepoMapFixture());
 
-    expect(plan.tasks.map((entry) => entry.key)).toEqual(['keeper']);
+    expect(plan.tasks.map((entry) => entry.key)).toEqual(['t01-keeper']);
     expect(issues.filter((issue) => issue.message.includes('dropped task'))).toHaveLength(2);
     expect(errorIssues(issues)).toEqual([]);
   });

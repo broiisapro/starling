@@ -1,5 +1,5 @@
 import type { Plan, RepoMap, TaskSpec } from '../lib/core';
-import { matchesAny } from '../lib/core';
+import { globsOverlap, matchesAny, normalizeGlobPath } from '../lib/core';
 import type { PlannerCase } from './case';
 import { validatePlan } from './validate';
 
@@ -158,7 +158,19 @@ function checkDependencies(
   const mappedEdges = edges.filter(
     (edge) => (taskFeatures.get(edge.from)?.size ?? 0) > 0 && (taskFeatures.get(edge.to)?.size ?? 0) > 0,
   );
+  /**
+   * An edge is not a "spurious feature dependency" when the two tasks' lanes overlap: that edge is
+   * the deterministic repair's serialisation of two tasks that cannot safely run concurrently (see
+   * `repairPlan` step 5 and the carryover note in docs/epic-48-planner-quality.md). Penalising it
+   * would punish the planner twice for one decision — once for the overlap, once for the fix — and
+   * would push the prompt towards more tasks instead of better lanes.
+   */
   const spurious = mappedEdges.filter((edge) => {
+    const from = byKey.get(edge.from);
+    const to = byKey.get(edge.to);
+    if (from !== undefined && to !== undefined && globsOverlap(from.lane.owns, to.lane.owns).length > 0) {
+      return false;
+    }
     const fromFeatures = taskFeatures.get(edge.from) ?? new Set<string>();
     const toFeatures = taskFeatures.get(edge.to) ?? new Set<string>();
     return !testCase.requiredDeps.some(
@@ -192,7 +204,9 @@ function tasksForFeature(taskFeatures: Map<string, Set<string>>, feature: string
 
 function checkLanes(plan: Plan, testCase: PlannerCase, knownFiles: Set<string>): PlanCheck {
   const covered = testCase.requiredLaneFiles.filter((file) =>
-    plan.tasks.some((task) => matchesAny(file, task.lane.owns)),
+    plan.tasks.some(
+      (task) => matchesAny(file, task.lane.owns) || coversNewFeatureFolder(file, task, testCase, knownFiles),
+    ),
   );
   const violations = testCase.forbiddenFiles.filter((file) =>
     plan.tasks.some((task) => matchesAny(file, task.lane.owns)),
@@ -214,6 +228,40 @@ function checkLanes(plan: Plan, testCase: PlannerCase, knownFiles: Set<string>):
       (missing.length > 0 ? `, missing ${missing.join(', ')}` : '') +
       (violations.length > 0 ? `, forbids-touched ${violations.join(', ')}` : ''),
   };
+}
+
+/**
+ * Coverage for a feature folder that does not exist yet.
+ *
+ * The answer key names a concrete new path (`src/features/undo/index.ts`), but the goal never
+ * dictates the folder's name: `src/features/undo-redo/**` is an equally good home for the same
+ * capability. For a path that is not in the repo map, accept any owned path under the same feature
+ * root *when the owning task is the task for that feature*. Existing files and shared paths still
+ * need exact coverage, and `forbiddenFiles` still catches shared writes.
+ */
+function coversNewFeatureFolder(
+  file: string,
+  task: TaskSpec,
+  testCase: PlannerCase,
+  knownFiles: Set<string>,
+): boolean {
+  if (knownFiles.has(file)) return false;
+  const segments = normalizeGlobPath(file).split('/');
+  if (segments.length < 3) return false;
+  const folder = (segments[segments.length - 2] ?? '').toLowerCase();
+  if (folder === '') return false;
+  const root = segments.slice(0, -2).join('/');
+  if (!task.lane.owns.some((glob) => normalizeGlobPath(glob).startsWith(`${root}/`))) return false;
+
+  const candidates = testCase.features.filter(
+    (feature) =>
+      feature.id
+        .toLowerCase()
+        .split('-')
+        .some((word) => word.length > 2 && folder.includes(word)) ||
+      feature.keywords.some((group) => group.some((word) => folder.includes(word.toLowerCase()))),
+  );
+  return candidates.some((feature) => matchesFeature(task, feature.keywords));
 }
 
 function checkDefinitionOfDone(plan: Plan): PlanCheck {

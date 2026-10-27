@@ -135,6 +135,8 @@
       "version": "0.0.0",
       "dependencies": {
         "@starling/core": "workspace:*",
+        "@starling/llm": "workspace:*",
+        "@starling/repomap": "workspace:*",
         "picomatch": "4.0.7",
         "zod": "4.6.7",
       },

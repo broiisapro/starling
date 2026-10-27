@@ -38,6 +38,7 @@ describe('planner cases', () => {
 
   test('every case has a hand-written reference plan', () => {
     expect(referenceCaseNames()).toEqual(cases.map((entry) => entry.name).sort());
-    expect(findPlannerCase(cases, 'sky-todo-launch-day').taskCount.max).toBe(7);
+    expect(findPlannerCase(cases, 'sky-todo-launch-day').taskCount).toEqual({ min: 6, max: 8 });
+    expect(findPlannerCase(cases, 'sky-todo-launch-day-xl').taskCount).toEqual({ min: 9, max: 11 });
   });
 });

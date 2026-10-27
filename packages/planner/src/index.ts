@@ -12,16 +12,26 @@
  */
 export const PACKAGE = '@starling/planner' as const;
 
+export {
+  createDefaultLlm,
+  discoverOpencodeService,
+  type OpencodeService,
+  serviceFileCandidates,
+} from './default-llm';
 export { type PlanDraft, PlanDraftSchema } from './draft';
 export { buildDepGraph, canRunConcurrently, findCycles, formatCycle, isAncestor } from './graph';
+export { assignTaskKeys, dependencyOrder, stripTaskNumber } from './keys';
 export { type CreatePlannerOptions, createPlanner, planFromDraft } from './planner';
 export {
   buildPlanPrompt,
   buildRepairMessages,
   buildRepairRequest,
+  DEFAULT_MAP_RENDERER,
+  type MapRenderer,
   PLANNER_SYSTEM_PROMPT,
   type PlanPrompt,
   type PlanPromptOptions,
+  renderMapFor,
 } from './prompt';
 export { type RenderRepoMapOptions, renderRepoMap } from './render-map';
 export { type RepairOutcome, repairPlan } from './repair';

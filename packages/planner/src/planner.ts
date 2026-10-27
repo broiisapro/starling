@@ -20,13 +20,20 @@ import {
   systemClock,
   type TaskSpec,
 } from '@starling/core';
+import { createDefaultLlm } from './default-llm';
 import { type PlanDraft, PlanDraftSchema } from './draft';
-import { buildPlanPrompt, buildRepairMessages, type PlanPrompt } from './prompt';
+import { assignTaskKeys } from './keys';
+import { buildPlanPrompt, buildRepairMessages, type MapRenderer, type PlanPrompt } from './prompt';
 import { repairPlan } from './repair';
 import { DEFAULT_MAX_TASKS, DEFAULT_MIN_TASKS, hasErrors, validatePlan, warningsOf } from './validate';
 
 export interface CreatePlannerOptions {
-  llm: LLM;
+  /**
+   * The model. Omit it to build the default router from the environment
+   * (`starling.config.yaml` + `STARLING_LLM_PROFILE`), which is what the CLI, the server and the
+   * eval harness do.
+   */
+  llm?: LLM;
   clock?: Clock;
   /** How many times the model is asked to fix validator errors. Default 2. */
   maxRepairs?: number;
@@ -36,8 +43,12 @@ export interface CreatePlannerOptions {
   maxTasks?: number;
   /** Token budget for each planner completion. */
   maxTokens?: number;
-  /** Low by default: planning should be repeatable, not creative. */
+  /** 0 by default: planning should be repeatable, not creative. */
   temperature?: number;
+  /** Repo-map renderer embedded in the prompt. Default `repomap` (see `docs/epic-48-planner-quality.md`). */
+  mapRenderer?: MapRenderer;
+  /** Approximate token budget for the repo-map block. Default 3000. */
+  mapTokens?: number;
 }
 
 function normalizeKey(raw: string): string {
@@ -114,13 +125,13 @@ function positiveInt(value: number | undefined, fallback: number): number {
 }
 
 export function createPlanner(options: CreatePlannerOptions): Planner {
-  const { llm } = options;
+  let llm = options.llm;
   const clock = options.clock ?? systemClock;
   const maxRepairs = positiveInt(options.maxRepairs, 2);
   const minTasks = options.minTasks ?? DEFAULT_MIN_TASKS;
   const maxTasks = options.maxTasks ?? DEFAULT_MAX_TASKS;
   const maxTokens = options.maxTokens ?? 8192;
-  const temperature = options.temperature ?? 0.2;
+  const temperature = options.temperature ?? 0;
 
   if (!Number.isInteger(minTasks) || minTasks < 1) {
     throw new StarlingError('INVALID_ARGUMENT', 'planner minTasks must be an integer >= 1', {
@@ -146,6 +157,9 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
     system: string,
     messages: { role: 'user' | 'assistant'; content: string }[],
   ): Promise<{ draft: PlanDraft; response: LLMResponse<PlanDraft> }> {
+    // Resolved once and cached: a caller that supplied an `LLM` never touches the environment, and
+    // a caller that did not pays the router construction exactly once.
+    llm ??= await createDefaultLlm();
     const response = await llm.completeJson<PlanDraft>(
       {
         role: 'planner',
@@ -166,7 +180,12 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
 
   async function plan(goal: Goal, map: RepoMap): Promise<{ plan: Plan; issues: PlanIssue[] }> {
     lastMap = map;
-    const prompt: PlanPrompt = buildPlanPrompt(goal, map, { minTasks, maxTasks });
+    const prompt: PlanPrompt = buildPlanPrompt(goal, map, {
+      minTasks,
+      maxTasks,
+      ...(options.mapRenderer === undefined ? {} : { mapRenderer: options.mapRenderer }),
+      ...(options.mapTokens === undefined ? {} : { mapTokens: options.mapTokens }),
+    });
     const validateOptions = { map, minTasks, maxTasks };
 
     const first = await requestPlan(prompt.system, [{ role: 'user', content: prompt.user }]);
@@ -190,7 +209,11 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       });
     }
 
-    const remaining = validatePlan(repaired.plan, validateOptions);
+    // Renumber only once the plan is final: validator errors and repair notices keep the model's
+    // own keys, so the repair transcript reads naturally, while every task branch and dashboard row
+    // gets the stable `tNN-kebab` key.
+    const finalPlan = assignTaskKeys(repaired.plan);
+    const remaining = validatePlan(finalPlan, validateOptions);
     const errors = remaining.filter((issue) => issue.severity === 'error');
     if (errors.length > 0) {
       // Defensive: the repair pass is designed to make this unreachable. If it ever fires, the plan
@@ -200,7 +223,7 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       });
     }
 
-    return { plan: repaired.plan, issues: [...repaired.notices, ...warningsOf(remaining)] };
+    return { plan: finalPlan, issues: [...repaired.notices, ...warningsOf(remaining)] };
   }
 
   function validate(planValue: Plan): PlanIssue[] {

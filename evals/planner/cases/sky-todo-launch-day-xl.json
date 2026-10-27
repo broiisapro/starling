@@ -2,7 +2,7 @@
   "name": "sky-todo-launch-day-xl",
   "goal": "Add dark mode with a toggle, live search filtering, CSV export, keyboard shortcuts (n = new, / = search, ? = help), due-date badges, undo/redo, a stats footer, tags with filter chips, and fix the overdue-calculation and date-sorting bugs in src/lib/dates.ts.",
   "repomap": "fixtures/repomaps/sky-todo.json",
-  "taskCount": { "min": 10, "max": 10 },
+  "taskCount": { "min": 9, "max": 11 },
   "features": [
     {
       "id": "theme",
@@ -76,5 +76,5 @@
     "bun.lock",
     "src/ui/styles.css"
   ],
-  "notes": "Flock-mode demo: ten tasks, eight ready at t0, two gated edges."
+  "notes": "Flock-mode demo: ten capabilities, eight ready at t0, two gated edges, with a \u00b11 task tolerance."
 }

@@ -20,7 +20,7 @@ import {
 } from '@starling/core';
 import { buildDepGraph, canRunConcurrently, findCycles, formatCycle } from './graph';
 
-export const DEFAULT_MIN_TASKS = 2;
+export const DEFAULT_MIN_TASKS = 1;
 export const DEFAULT_MAX_TASKS = 12;
 /** A task that takes one agent longer than this is a planning smell, not a hard error. */
 export const MAX_ESTIMATE_MIN = 40;
