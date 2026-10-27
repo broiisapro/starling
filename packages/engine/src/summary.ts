@@ -19,6 +19,12 @@ function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? '' : 's'}`;
 }
 
+/** Prefer the run's own stamps; `metrics.elapsedMs` can lag behind the final snapshot. */
+function elapsedOf(run: Run): number {
+  if (run.finishedAt !== undefined) return Math.max(0, run.finishedAt - run.startedAt);
+  return run.metrics.elapsedMs;
+}
+
 /** The template used without a `writer` model, and as the fallback when the writer fails. */
 export function renderRunSummary(run: Run, options: { reason?: string } = {}): string {
   if (options.reason !== undefined) {
@@ -29,7 +35,7 @@ export function renderRunSummary(run: Run, options: { reason?: string } = {}): s
     return `Dry run for ${shortId(run.id)}: planned ${plural(total, 'task')}; nothing was dispatched. 🐦`;
   }
   if (run.status === 'cancelled') {
-    return `Starling run ${shortId(run.id)} was cancelled after ${formatDuration(run.metrics.elapsedMs)}.`;
+    return `Starling run ${shortId(run.id)} was cancelled after ${formatDuration(elapsedOf(run))}.`;
   }
   const merged = countStatus(run, 'merged');
   const failed = countStatus(run, 'failed');
@@ -46,7 +52,7 @@ export function renderRunSummary(run: Run, options: { reason?: string } = {}): s
       ? 'no integration branch'
       : `Integration branch ${run.integrationBranch}`;
   return (
-    `The murmuration landed ${merged}/${total} tasks in ${formatDuration(run.metrics.elapsedMs)} ` +
+    `The murmuration landed ${merged}/${total} tasks in ${formatDuration(elapsedOf(run))} ` +
     `(${detail}). ${branch} is ready.`
   );
 }
@@ -62,7 +68,7 @@ export function writerPrompt(run: Run): string {
     `Goal: ${run.goal.text}`,
     `Tasks: ${Object.keys(run.tasks).length} total, ${merged} merged, ${failed} failed, ${conflicts} conflicted, ${cancelled} cancelled.`,
     `Integration branch: ${run.integrationBranch ?? 'none'}.`,
-    `Elapsed: ${formatDuration(run.metrics.elapsedMs)}.`,
+    `Elapsed: ${formatDuration(elapsedOf(run))}.`,
     `Plain text only, no markdown, no greeting.`,
   ].join('\n');
 }

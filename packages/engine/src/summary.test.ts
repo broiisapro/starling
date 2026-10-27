@@ -57,6 +57,16 @@ describe('renderRunSummary', () => {
     expect(renderRunSummary(run)).toContain('cancelled after 5s');
   });
 
+  test('uses the run stamps for the duration when they exist', () => {
+    const run = makeRun({
+      tasks: { a: makeTaskRun({ taskKey: 'a', status: 'merged' }) },
+      startedAt: 1_000,
+      finishedAt: 10_000,
+      status: 'finished',
+    });
+    expect(renderRunSummary(run)).toContain('in 9s');
+  });
+
   test('accepts a failure reason for a run that never planned', () => {
     const run = makeRun({ status: 'failed' });
     expect(renderRunSummary(run, { reason: 'planner exploded' })).toBe(
