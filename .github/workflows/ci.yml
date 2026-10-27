@@ -1,0 +1,108 @@
+name: CI
+
+# Every PR is checked the same way the integrator checks it locally:
+# Biome + per-workspace typecheck, then both halves of the test suite (packages/apps, then
+# apps/web in its own process because happy-dom owns the global fetch there).
+#
+# Linux is the primary gate. The macOS job re-runs the three packages whose behaviour depends on
+# git worktrees and OS probing (`scutil`, memory tools) on the platform most contributors use.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: '1.4.4'
+
+jobs:
+  check:
+    name: lint + typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun install
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Biome + typecheck
+        run: bun run check
+
+  test:
+    name: test (ubuntu-latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun install
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Root script: packages/apps/CLI/server/skills/integrations/tools/evals, then apps/web.
+      # `*.live.test.ts` files self-skip unless STARLING_LIVE=1.
+      - name: Tests
+        run: bun run test
+
+  test-macos:
+    name: test (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Cache Bun install
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Worktrees, merges and the perch daemon are the code paths that differ per OS.
+      - name: OS-specific package tests
+        run: bun test packages/workspace packages/merger packages/perch
