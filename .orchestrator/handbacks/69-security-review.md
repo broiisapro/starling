@@ -1,6 +1,6 @@
 ## Epic 69 Handback — Security & safety review
 
-**Status:** Complete (includes Fix 1). Branch `epic/69-security-review` @ `21a474f` (commits after that sha are docs-only).
+**Status:** Complete (includes Fix 1). Branch `epic/69-security-review` @ `5013c66` (commits after that sha are docs-only).
 
 **Fix 1 (probes promoted after the owner fixes landed):**
 
