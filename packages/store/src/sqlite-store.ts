@@ -9,14 +9,11 @@
  * at the end of the current microtask, or whenever something reads), which keeps the synchronous
  * `Store` API consistent while amortising the transaction cost of a replay burst.
  */
-import { Database } from 'bun:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { type Run, RunSchema, StarlingError, type StarlingEvent, type Store } from '@starling/core';
+import { detailOf, openStoreDatabase, storeError } from './db';
 import { writeJsonl } from './jsonl';
 
-/** Bumped only when the SQLite layout changes; `PRAGMA user_version` is the whole migration story. */
-export const STORE_SCHEMA_VERSION = 1;
+export { STORE_SCHEMA_VERSION } from './db';
 
 /** Events buffered before a transaction is forced. Small enough to bound crash loss, large enough to batch. */
 const FLUSH_THRESHOLD = 64;
@@ -35,75 +32,13 @@ interface JsonRow {
 interface CountRow {
   m: number;
 }
-interface MarkRow {
-  user_version: number;
-}
-
-function storeError(message: string, cause?: unknown): StarlingError {
-  return new StarlingError('STORE_ERROR', message, { cause });
-}
-
-function detailOf(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS runs (
-    id TEXT PRIMARY KEY,
-    status TEXT NOT NULL,
-    started_at INTEGER NOT NULL,
-    json TEXT NOT NULL
-  );
-  CREATE TABLE IF NOT EXISTS events (
-    run_id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
-    ts INTEGER NOT NULL,
-    type TEXT NOT NULL,
-    json TEXT NOT NULL,
-    PRIMARY KEY (run_id, seq)
-  );
-  CREATE INDEX IF NOT EXISTS events_run_seq ON events (run_id, seq);
-`;
 
 /**
  * Open (or create) a store at `path`. `':memory:'` gives an ephemeral store for tests.
  * A file store runs in WAL mode with `synchronous=NORMAL` and creates its parent directory.
  */
 export function createSqliteStore(path: string): SqliteStore {
-  if (path !== ':memory:') {
-    try {
-      mkdirSync(dirname(path), { recursive: true });
-    } catch (err) {
-      throw storeError(`could not create the directory for store ${path}: ${detailOf(err)}`, err);
-    }
-  }
-
-  let db: Database;
-  try {
-    db = new Database(path, { create: true, readwrite: true });
-  } catch (err) {
-    throw storeError(`could not open store ${path}: ${detailOf(err)}`, err);
-  }
-
-  try {
-    db.exec('PRAGMA journal_mode = WAL;');
-    db.exec('PRAGMA synchronous = NORMAL;');
-    db.exec('PRAGMA busy_timeout = 5000;');
-    db.exec(SCHEMA);
-
-    const mark = db.query('PRAGMA user_version').get() as MarkRow | null;
-    const version = mark?.user_version ?? 0;
-    if (version > STORE_SCHEMA_VERSION) {
-      throw storeError(
-        `store ${path} was written by a newer Starling (schema ${version} > ${STORE_SCHEMA_VERSION})`,
-      );
-    }
-    if (version < STORE_SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${STORE_SCHEMA_VERSION};`);
-  } catch (err) {
-    db.close();
-    if (err instanceof StarlingError) throw err;
-    throw storeError(`could not initialise store ${path}: ${detailOf(err)}`, err);
-  }
+  const db = openStoreDatabase(path);
 
   const upsertRun = db.prepare(
     `INSERT INTO runs (id, status, started_at, json) VALUES (?, ?, ?, ?)
@@ -343,10 +278,8 @@ function safeJson(json: string, what: string, id: string): unknown {
   try {
     return JSON.parse(json);
   } catch (err) {
-    throw storeError(
-      `stored ${what} ${id === '?' ? '' : `(${id}) `}is not valid JSON: ${detailOf(err)}`,
-      err,
-    );
+    const where = id === '?' ? '' : ` (${id})`;
+    throw storeError(`stored ${what}${where} is not valid JSON: ${detailOf(err)}`, err);
   }
 }
 
