@@ -2,9 +2,17 @@
  * Probe: `exec` is argv-only everywhere (ARCHITECTURE L13: shell out to `git`/`gh`, never a shell
  * string). This is a static probe: it reads the production sources and fails if a shell appears.
  *
- * Two allowed `bash -c` sites exist by design — the auditor runs the repo's test/lint command and the
- * merger runs the regression suite. Those commands come from config or from the repo map, never from
- * an HTTP request, so the probe asserts *that* rather than banning the pattern outright.
+ * Three allowed `sh -c`/`bash -c` sites exist by design, and all three take a config- or
+ * constant-derived string, never a request value:
+ *
+ *  - the auditor runs the repo's test/lint command (`packages/auditor/src/commands.ts`);
+ *  - the merger's regression suite, shared with the conflict resolver (`packages/merger/src/suite.ts`;
+ *    the site moved out of `merge.ts` in Epic 45);
+ *  - the CLI doctor reads the soft open-file limit with the constant `'ulimit -n'`
+ *    (`apps/cli/src/doctor.ts`, Epic 61).
+ *
+ * The probe asserts all three hold rather than banning the pattern outright, and surfaces a fourth
+ * site for review if one ever appears.
  */
 
 import { describe, expect, test } from 'bun:test';
@@ -61,11 +69,12 @@ describe('exec is argv-only', () => {
         sites.push({ file: rel(file), expression: match[1] ?? '' });
       }
     }
-    // The auditor and the merger are the only two callers today. If a third appears, this surfaces it
-    // for review rather than silently blessing a shell.
+    // The auditor, the merger's suite runner and the CLI doctor are the only callers today. If a
+    // fourth appears, this surfaces it for review rather than silently blessing a shell.
     expect(sites.map((site) => site.file).sort()).toEqual([
+      'apps/cli/src/doctor.ts',
       'packages/auditor/src/commands.ts',
-      'packages/merger/src/merge.ts',
+      'packages/merger/src/suite.ts',
     ]);
     for (const site of sites) {
       expect({ file: site.file, expression: site.expression }).not.toMatchObject({
