@@ -1,6 +1,6 @@
 ## Epic 00 Handback — Foundation & frozen contracts
 
-**Status:** Complete. Branch `epic/00-foundation` @ `555f233`.
+**Status:** Complete. Branch `epic/00-foundation` @ `1da6da2`.
 **Delivered:**
 - Bun 1.4.4 workspace pinned in `packageManager` + `.bun-version`; root scripts `test`, `check`, `typecheck`, `format`, `dev:web`, `dev:server`, `starling`. 18 workspaces (`packages/*`, `apps/*`), source-only exports, no inter-package build step.
 - `@starling/core` with every ARCHITECTURE §6 contract as a zod v4 schema (types via `z.infer`), every §6 port verbatim, and additive helpers (`StarlingEventOf`, `PlanIssueCode`, `NodeStatus`, `StartTaskOptionsRepo`).
@@ -26,7 +26,7 @@
 
 **Verification (exact commands + results):**
 - `bun run test` (root): **173 pass / 0 fail** — summary line: `173 pass, 0 fail, 726 expect() calls. Ran 173 tests across 34 files.`
-- `bun run check`: clean — `Checked 135 files … No fixes applied` and the per-workspace `tsc --noEmit -p` loop exits 0 for all 18 workspaces.
+- `bun run check`: clean — `Checked 134 files … No fixes applied` and the per-workspace `tsc --noEmit -p` loop exits 0 for all 18 workspaces.
 - Exclusion check: created `examples/throwaway/ignored.test.ts` asserting `1 === 2`; `bun run test` still reported `173 pass, 0 fail`; removed it (`examples/` absent before and after).
 - `bun run dev:web` then `curl http://localhost:5173/`: HTML `<title>Starling — the sky is loading 🐦</title>`; `bun run build` in `apps/web`: `✓ built in 266ms` (`dist/index.html`, CSS, JS).
 - `bun run dev:server` then `curl http://localhost:7777/api/health`: `{"ok":true,"version":"0.0.0"}`.

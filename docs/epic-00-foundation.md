@@ -116,7 +116,7 @@ Regenerate with `bun fixtures/scripts/generate-launch-day.ts`.
   package-local runs, but the root `bun run test` does not load nested bunfig files, so the test file
   registers it too. `@testing-library/react` is installed; the boot test drives `react-dom/client`
   directly with `act` to avoid RTL's import-time `beforeAll` inside Bun's test callback.
-- **Biome excludes `AGENTS.md` and `starling.config.example.yaml`.** Both are orchestrator-owned,
+- **Biome excludes `AGENTS.md`, `opencode.json` and `starling.config.example.yaml`.** Both are orchestrator-owned,
   whitespace-sensitive documents; a formatter run must not rewrite them (it did once during
   development and was reverted). `examples/`, `fixtures/`, `.orchestrator/` and JSONL logs are also
   excluded.
