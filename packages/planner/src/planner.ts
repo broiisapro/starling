@@ -22,7 +22,8 @@ import {
 } from '@starling/core';
 import { createDefaultLlm } from './default-llm';
 import { type PlanDraft, PlanDraftSchema } from './draft';
-import { buildPlanPrompt, buildRepairMessages, type PlanPrompt } from './prompt';
+import { assignTaskKeys } from './keys';
+import { buildPlanPrompt, buildRepairMessages, type MapRenderer, type PlanPrompt } from './prompt';
 import { repairPlan } from './repair';
 import { DEFAULT_MAX_TASKS, DEFAULT_MIN_TASKS, hasErrors, validatePlan, warningsOf } from './validate';
 
@@ -44,6 +45,8 @@ export interface CreatePlannerOptions {
   maxTokens?: number;
   /** 0 by default: planning should be repeatable, not creative. */
   temperature?: number;
+  /** Repo-map renderer embedded in the prompt. Default `repomap` (see `docs/epic-48-planner-quality.md`). */
+  mapRenderer?: MapRenderer;
 }
 
 function normalizeKey(raw: string): string {
@@ -175,7 +178,11 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
 
   async function plan(goal: Goal, map: RepoMap): Promise<{ plan: Plan; issues: PlanIssue[] }> {
     lastMap = map;
-    const prompt: PlanPrompt = buildPlanPrompt(goal, map, { minTasks, maxTasks });
+    const prompt: PlanPrompt = buildPlanPrompt(goal, map, {
+      minTasks,
+      maxTasks,
+      ...(options.mapRenderer === undefined ? {} : { mapRenderer: options.mapRenderer }),
+    });
     const validateOptions = { map, minTasks, maxTasks };
 
     const first = await requestPlan(prompt.system, [{ role: 'user', content: prompt.user }]);
@@ -199,7 +206,11 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       });
     }
 
-    const remaining = validatePlan(repaired.plan, validateOptions);
+    // Renumber only once the plan is final: validator errors and repair notices keep the model's
+    // own keys, so the repair transcript reads naturally, while every task branch and dashboard row
+    // gets the stable `tNN-kebab` key.
+    const finalPlan = assignTaskKeys(repaired.plan);
+    const remaining = validatePlan(finalPlan, validateOptions);
     const errors = remaining.filter((issue) => issue.severity === 'error');
     if (errors.length > 0) {
       // Defensive: the repair pass is designed to make this unreachable. If it ever fires, the plan
@@ -209,7 +220,7 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       });
     }
 
-    return { plan: repaired.plan, issues: [...repaired.notices, ...warningsOf(remaining)] };
+    return { plan: finalPlan, issues: [...repaired.notices, ...warningsOf(remaining)] };
   }
 
   function validate(planValue: Plan): PlanIssue[] {

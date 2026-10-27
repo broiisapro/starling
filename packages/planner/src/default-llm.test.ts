@@ -1,8 +1,58 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { isStarlingError } from '@starling/core';
 import { MockLLM, makeGoal } from '@starling/core/testing';
+import { discoverOpencodeService, serviceFileCandidates } from './default-llm';
 import { createPlanner } from './planner';
 import { loadDraftFixture, loadRepoMapFixture } from './test-fixtures';
+
+function fakeHome(files: Record<string, string>): string {
+  const home = mkdtempSync(join(tmpdir(), 'starling-planner-llm-'));
+  for (const [relative, content] of Object.entries(files)) {
+    const path = join(home, relative);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content, 'utf8');
+  }
+  return home;
+}
+
+describe('discoverOpencodeService', () => {
+  test('an explicit URL and password win over service.json', () => {
+    const service = discoverOpencodeService(
+      { STARLING_OPENCODE_URL: 'http://127.0.0.1:5000', OPENCODE_SERVER_PASSWORD: 'pw' },
+      fakeHome({ '.local/state/opencode/service.json': '{"url":"http://127.0.0.1:1"}' }),
+    );
+    expect(service).toEqual({ url: 'http://127.0.0.1:5000', password: 'pw' });
+  });
+
+  test('reads url and password from the running CLI service file', () => {
+    const home = fakeHome({
+      '.local/state/opencode/service.json': '{"url":"http://127.0.0.1:49374","password":"secret"}',
+    });
+    expect(discoverOpencodeService({}, home)).toEqual({
+      url: 'http://127.0.0.1:49374',
+      password: 'secret',
+    });
+  });
+
+  test('falls back to the config path and survives a half-written file', () => {
+    const home = fakeHome({
+      '.local/state/opencode/service.json': '{"url":',
+      '.config/opencode/service.json': '{"url":"http://127.0.0.1:7777"}',
+    });
+    expect(discoverOpencodeService({}, home)).toEqual({ url: 'http://127.0.0.1:7777' });
+  });
+
+  test('returns undefined when nothing is configured', () => {
+    expect(discoverOpencodeService({}, fakeHome({}))).toBeUndefined();
+    expect(serviceFileCandidates('/home/x')).toEqual([
+      '/home/x/.local/state/opencode/service.json',
+      '/home/x/.config/opencode/service.json',
+    ]);
+  });
+});
 
 describe('createPlanner without an explicit LLM', () => {
   test('is constructible: the model can be resolved from the environment later', () => {

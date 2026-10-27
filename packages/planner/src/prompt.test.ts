@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import { makeGoal } from '@starling/core/testing';
-import { buildPlanPrompt, buildRepairMessages, buildRepairRequest, PLANNER_SYSTEM_PROMPT } from './prompt';
+import {
+  buildPlanPrompt,
+  buildRepairMessages,
+  buildRepairRequest,
+  DEFAULT_MAP_RENDERER,
+  PLANNER_SYSTEM_PROMPT,
+  renderMapFor,
+} from './prompt';
 import { loadDraftFixture, loadRepoMapFixture } from './test-fixtures';
 
 const map = loadRepoMapFixture();
@@ -14,9 +21,13 @@ const goal = makeGoal({
 
 describe('PLANNER_SYSTEM_PROMPT', () => {
   test('encodes the planning doctrine', () => {
-    expect(PLANNER_SYSTEM_PROMPT).toContain('5-25 minutes');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('one task for every capability');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('Never split a capability by layer');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('Never create a task for wiring');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('25 minutes');
     expect(PLANNER_SYSTEM_PROMPT).toContain('disjoint owns globs');
-    expect(PLANNER_SYSTEM_PROMPT).toContain('Prefer new files inside a feature folder');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('Shared files are read-only');
+    expect(PLANNER_SYSTEM_PROMPT).toContain('A producer must come before its consumers');
     expect(PLANNER_SYSTEM_PROMPT).toContain('definitionOfDone');
     expect(PLANNER_SYSTEM_PROMPT).toContain('outOfScope');
     expect(PLANNER_SYSTEM_PROMPT).toContain('lockedDecisions');
@@ -31,9 +42,23 @@ describe('buildPlanPrompt', () => {
     expect(prompt.user).toContain('Ship the launch-day polish');
     expect(prompt.user).toContain('- No new runtime dependencies');
     expect(prompt.user).toContain('Test command: bun test');
-    expect(prompt.user).toContain('between 2 and 12 tasks');
-    expect(prompt.user).toContain('Root: examples/sky-todo');
+    expect(prompt.user).toContain('between 1 and 12 tasks');
+    expect(prompt.user).toContain('Repo root: examples/sky-todo');
+    expect(prompt.user).toContain('# Repo map: examples/sky-todo');
     expect(prompt.user).toContain('src/features/theme/index.ts');
+  });
+
+  test('defaults to the repomap renderer and can fall back to the verbose one', () => {
+    const compact = renderMapFor(map);
+    const verbose = renderMapFor(map, 'verbose');
+    expect(DEFAULT_MAP_RENDERER).toBe('repomap');
+    expect(compact).toBe(renderMapFor(map, 'repomap'));
+    expect(compact).toContain('# Repo map: examples/sky-todo');
+    expect(compact).not.toContain('Files (path (bytes');
+    expect(verbose).toContain('Files (path (bytes');
+    // The budgeted renderer must at least not be the bigger of the two on a real map.
+    expect(compact.length).toBeLessThan(verbose.length);
+    expect(buildPlanPrompt(goal, map, { mapRenderer: 'verbose' }).user).toContain(verbose);
   });
 
   test('snapshot: the full prompt is stable and reviewable', () => {
