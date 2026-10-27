@@ -15,6 +15,8 @@
 #              normal opencode sessions, so they also show up in `opencode`'s session list.
 #              run (default): headless `opencode run`, output tee'd to ../starling-wt/_logs/ (always used for bg)
 #   --resume   instead of NN-slug.md, run the newest NN-slug.fixK.md for each selected epic (worktree must exist)
+#   --continue reuse each epic's existing worktree and tell the agent to CONTINUE its original assignment from where it stopped
+#   (every agent also auto-resumes up to 3x by itself after provider/transport errors such as 'socket closed' or 'at capacity')
 #   --dry-run  print what would happen
 #
 # Env: STARLING_DEV_MODEL (bootstrap-mbp.sh saves it in .orchestrator/local.env)
@@ -30,7 +32,7 @@ WT_ROOT="$(cd "$REPO_ROOT/.." && pwd)/starling-wt"
 LOG_DIR="$WT_ROOT/_logs"
 
 WAVE="${1:-}"; shift || true
-ONLY=""; MODE=""; UI=""; RESUME=0; DRY=0; MACHINE=""
+ONLY=""; MODE=""; UI=""; RESUME=0; DRY=0; MACHINE=""; CONT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) ONLY="$2"; shift 2;;
@@ -38,6 +40,7 @@ while [ $# -gt 0 ]; do
     --mode) MODE="$2"; shift 2;;
     --ui) UI="$2"; shift 2;;
     --resume) RESUME=1; shift;;
+    --continue) CONT=1; shift;;
     --dry-run) DRY=1; shift;;
     *) echo "unknown arg: $1"; exit 1;;
   esac
@@ -48,6 +51,11 @@ done
 [ "$MODE" = bg ] && UI=run
 
 command -v opencode >/dev/null || { echo "opencode not found on PATH"; exit 1; }
+# Give every agent its own private opencode server (--standalone) so one crashed shared service can't kill the whole wave.
+# Override with ORCH_OPENCODE_FLAGS="" in .orchestrator/local.env.
+if [ -z "${ORCH_OPENCODE_FLAGS+x}" ]; then
+  if opencode run --standalone --help >/dev/null 2>&1; then ORCH_OPENCODE_FLAGS="--standalone"; else ORCH_OPENCODE_FLAGS=""; fi
+fi
 mkdir -p "$LOG_DIR"
 run() { if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$@"; fi; }
 
@@ -78,7 +86,7 @@ launch() { # $1=name  $2=worktree  $3=prompt path (relative to repo)  $4=index  
     cmd="OPENCODE_CONFIG_CONTENT='{\"model\":\"${MODEL}\"}' opencode --auto --prompt \"\$MSG\" ."
   else
     # Only flags proven by bootstrap's smoke test: run --model --auto
-    cmd="opencode run --model \"${MODEL}\" --auto \"\$MSG\" 2>&1 | tee -a \"$LOG_DIR/${name}.log\""
+    cmd="opencode run ${ORCH_OPENCODE_FLAGS} --model \"${MODEL}\" --auto \"\$MSG\" 2>&1 | tee -a \"$LOG_DIR/${name}.log\""
   fi
   # A tiny per-epic launcher script avoids nested-quote hell and pins PATH (iTerm/tmux may not load your shell profile).
   cat > "$script" <<EOF
@@ -86,11 +94,20 @@ launch() { # $1=name  $2=worktree  $3=prompt path (relative to repo)  $4=index  
 export PATH="$PATH"
 cd "$wt"
 printf '\033]0;🐦 epic ${name}\007'
-MSG="Your assignment is the file ${prompt} in this worktree. Read it completely, then read AGENTS.md and .orchestrator/ARCHITECTURE.md, then execute the assignment end to end. Do not stop to ask questions: decide, document, continue. Finish by opening the PR as AGENTS.md section 6 describes."
-echo "=== \$(date) :: ${name} :: model ${MODEL} :: ui ${UI} ===" >> "$LOG_DIR/${name}.log"
-${cmd}
-echo; echo "--- epic ${name}: opencode exited at \$(date) ---"
-osascript -e 'display notification "Agent for epic ${name} finished. Check its window / PR." with title "🐦 Starling" sound name "Glass"' >/dev/null 2>&1 || true
+FIRST="Your assignment is the file ${prompt} in this worktree. Read it completely, then read AGENTS.md and .orchestrator/ARCHITECTURE.md, then execute the assignment end to end. Do not stop to ask questions: decide, document, continue. Finish by opening the PR as AGENTS.md section 6 describes."
+CONT="You are RESUMING epic ${name} after an interruption (provider or transport error, or a restart). Your assignment is the file ${prompt} in this worktree: re-read it. Your earlier work is already here: run git log --oneline origin/main..HEAD and git status first, keep everything that is good, and continue from where it stopped without redoing finished work. Finish exactly as the assignment and AGENTS.md section 6 describe (epic doc, handback, PR)."
+MSG="\$FIRST"; [ "${CONT}" = 1 ] && MSG="\$CONT"
+for attempt in 1 2 3 4; do
+  echo "=== \$(date) :: ${name} :: model ${MODEL} :: ui ${UI} :: attempt \$attempt ===" >> "$LOG_DIR/${name}.log"
+  START=\$(wc -c < "$LOG_DIR/${name}.log")
+  ${cmd}
+  gh pr list --head "epic/${name}" --state all --json number --jq '.[0].number' 2>/dev/null | grep -q '[0-9]' && break
+  tail -c +\$((START+1)) "$LOG_DIR/${name}.log" | tail -c 4000 | sed \$'s/\\x1b\\[[0-9;?]*[A-Za-z]//g' | grep -qiE '^Error: .*(socket connection was closed|capacity|upstream request failed|ECONNRESET|rate.?limit|429|50[0-9]|timed out|fetch failed)' || break
+  echo "--- ${name}: transient provider/transport error, auto-resuming in 60s (attempt \$attempt) ---" >> "$LOG_DIR/${name}.log"
+  sleep \${ORCH_RETRY_SLEEP:-60}; MSG="\$CONT"
+done
+echo "--- epic ${name}: opencode exited at \$(date) ---" >> "$LOG_DIR/${name}.log"
+osascript -e 'display notification "Agent for epic ${name} finished. Check its PR." with title "🐦 Starling" sound name "Glass"' >/dev/null 2>&1 || true
 EOF
   chmod +x "$script"
   echo "🐦 launching ${name}  (${MODE}/${UI})"
@@ -171,10 +188,12 @@ for f in "$REPO_ROOT/$DIR"/[0-9][0-9]-*.md; do
     fix="$(ls "$REPO_ROOT/$DIR/${base}".fix*.md 2>/dev/null | sort | tail -1 || true)"
     [ -z "$fix" ] && { echo "skip ${base}: no fix prompt"; continue; }
     [ -d "$wt" ] || { echo "skip ${base}: worktree missing"; continue; }
+    if ps -axo command= | grep -F "_logs/run-${base}.sh" | grep -qv grep; then echo "skip ${base}: an agent is still running there (stop-agents.sh ${nn} first)"; continue; fi
     prompt="$DIR/$(basename "$fix")"
   else
+    if ps -axo command= | grep -F "_logs/run-${base}.sh" | grep -qv grep; then echo "skip ${base}: already running"; continue; fi
     if [ -d "$wt" ]; then
-      echo "♻️  ${base}: reusing existing worktree (close its old window first if that agent is still running)"
+      echo "♻️  ${base}: reusing existing worktree"
     elif git -C "$REPO_ROOT" show-ref --quiet "refs/heads/${branch}"; then
       run "git -C '$REPO_ROOT' worktree add '$wt' '${branch}'"
     else
@@ -197,7 +216,7 @@ while [ "$i" -lt "$TOTAL" ]; do
   sleep 2   # stagger the API burst
 done
 
-echo "✨ ${TOTAL} starling(s) in the air."
+echo "✨ ${TOTAL} starling(s) in the air.${ORCH_OPENCODE_FLAGS:+ (each on a private opencode server: ${ORCH_OPENCODE_FLAGS})}"
 case "$MODE" in
   terminal) echo "Each agent has its own window. Cmd-\` cycles windows; click into one to talk to that agent.";;
   tmux) echo "watch: tmux attach -t $SESSION   (Ctrl-b w to pick a window)";;
