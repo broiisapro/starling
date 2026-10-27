@@ -63,7 +63,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     part.code ? (
       <code
         key={`${keyPrefix}-c${index}`}
-        className="rounded bg-slate-800/80 px-1 py-0.5 font-mono text-[11px] text-sky-200"
+        className="rounded bg-slate-800/80 px-1 py-0.5 font-mono text-[12px] text-sky-200"
       >
         {part.text}
       </code>
@@ -81,12 +81,12 @@ export function MarkdownLite({ text }: { text: string }) {
         block.kind === 'code' ? (
           <pre
             key={`b${index}`}
-            className="overflow-x-auto rounded-md border border-slate-800 bg-slate-950/90 p-2 font-mono text-[11px] leading-relaxed text-slate-200"
+            className="overflow-x-auto rounded-md border border-slate-800 bg-slate-950/90 p-2 font-mono text-[12px] leading-relaxed text-slate-200"
           >
             <code data-lang={block.lang || undefined}>{block.code}</code>
           </pre>
         ) : (
-          <p key={`b${index}`} className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-200">
+          <p key={`b${index}`} className="whitespace-pre-wrap text-sm leading-relaxed text-slate-200">
             {renderInline(block.text, `b${index}`)}
           </p>
         ),

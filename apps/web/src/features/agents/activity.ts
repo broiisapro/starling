@@ -33,6 +33,8 @@ export interface TimelineEntry {
   file?: { path: string; added: number; removed: number };
   usage?: TimelineUsage;
   error?: string;
+  /** How many identical consecutive tool calls this row stands for ("ran tests ×3"). */
+  repeats?: number;
 }
 
 function asString(value: unknown): string | undefined {
@@ -175,4 +177,43 @@ export function buildTimeline(events: AgentEvent[]): TimelineEntry[] {
   });
 
   return entries;
+}
+
+/**
+ * Collapse repeated tool calls into one row: an agent that runs `bun test` three times in a row
+ * should read "bun test ×3", not three identical cards. Only *consecutive* entries with the same
+ * tool name and summary merge, so a test run between two edits never hides the edits.
+ *
+ * The merged row keeps the first call's timestamp and id (stable React keys), takes the last known
+ * detail, and fails if any repeat failed — a red badge must never hide a failure behind two passes.
+ */
+export function groupToolCalls(entries: readonly TimelineEntry[]): TimelineEntry[] {
+  const rows: TimelineEntry[] = [];
+  for (const entry of entries) {
+    const previous = rows[rows.length - 1];
+    const sameTool =
+      previous?.tool !== undefined &&
+      entry.tool !== undefined &&
+      previous.tool.name === entry.tool.name &&
+      previous.tool.summary === entry.tool.summary;
+
+    if (!sameTool || previous?.tool === undefined || entry.tool === undefined) {
+      rows.push(entry);
+      continue;
+    }
+
+    let ok: boolean | undefined;
+    if (previous.tool.ok === false || entry.tool.ok === false) ok = false;
+    else if (previous.tool.ok === true && entry.tool.ok === true) ok = true;
+    rows[rows.length - 1] = {
+      ...previous,
+      tool: {
+        ...previous.tool,
+        ok,
+        detail: entry.tool.detail ?? previous.tool.detail,
+      },
+      repeats: (previous.repeats ?? 1) + 1,
+    };
+  }
+  return rows;
 }
