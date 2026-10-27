@@ -1,6 +1,7 @@
 import type { AuditCheck, TaskSpec } from '@starling/core';
 import type { CommandResult } from './commands';
 import { describeCommand, tailText } from './commands';
+import type { MissingTestsSignal } from './diff';
 import type { LaneCheckResult } from './lane';
 import type { AuditorLlmVerdict } from './types';
 
@@ -26,6 +27,18 @@ export function diffDetail(files: number, added: number, removed: number, empty:
   return `diff touches ${files} file(s), +${added}/-${removed} lines`;
 }
 
+/** Human-readable detail for the deterministic missing-tests check (Epic 44). */
+export function missingTestsDetail(signal: MissingTestsSignal): string {
+  const first = signal.items[0];
+  if (first === undefined) return 'the definition of done does not ask for tests';
+  if (!signal.missing) {
+    return `the definition of done asks for tests ("${first}") and a test file changed`;
+  }
+  const files = signal.behaviourFiles.slice(0, 3).join(', ');
+  const more = signal.behaviourFiles.length > 3 ? ` and ${signal.behaviourFiles.length - 3} more` : '';
+  return `the definition of done requires tests ("${first}") but the diff changes ${files}${more} with no test file`;
+}
+
 export function commandDetail(result: CommandResult, label: string): string {
   const status = describeCommand(result);
   return result.ran ? `${label}: ${status}` : `${label}: skipped`;
@@ -35,6 +48,8 @@ export interface FixInstructionInput {
   task: TaskSpec;
   lane: LaneCheckResult;
   emptyDiff: boolean;
+  /** Deterministic missing-tests signal (Epic 44); omitted by older callers. */
+  missingTests?: MissingTestsSignal;
   testCommand?: string;
   tests: CommandResult;
   lintCommand?: string;
@@ -108,6 +123,18 @@ export function buildFixInstructions(input: FixInstructionInput): string | undef
     const deliverables =
       input.task.deliverables.length === 0 ? input.task.goal : input.task.deliverables.join('; ');
     items.push(`The diff is empty. Implement the deliverables and commit them: ${deliverables}.`);
+  }
+
+  if (input.missingTests?.missing === true) {
+    const required = input.missingTests.items.map((item) => `"${item}"`).join(', ');
+    const first = input.missingTests.behaviourFiles[0];
+    const hint =
+      first === undefined
+        ? ''
+        : ` Put them next to the code (for \`${first}\`, a colocated \`*.test.ts\` file).`;
+    items.push(
+      `Add the tests the definition of done requires: ${required}. No test file changed.${hint} Then re-run the test command.`,
+    );
   }
 
   const testsInstruction = commandFailureInstruction(input.testCommand, input.tests, input.commandTimeoutMs);

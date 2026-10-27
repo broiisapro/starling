@@ -218,3 +218,49 @@ export function signalsFor(diff: DiffSummary, changedFiles: readonly string[]): 
   const files = changedFiles.length > 0 ? changedFiles : diff.files.map((file) => file.path);
   return diffSignals(files);
 }
+
+/**
+ * A DoD item asks for *new* tests as opposed to merely running the existing suite.
+ *
+ * "Tests cover a title with a comma" and "Colocated tests cover the restore case" demand work;
+ * "bun test passes", "the existing tests still pass" and "the suite is green" are verification
+ * steps that the worker satisfies by not breaking anything. The distinction is what makes a
+ * deterministic missing-tests check safe: a refactor whose DoD only says "bun test passes" must
+ * never be failed for adding no test file.
+ */
+const TEST_WORD = /\b(tests?|specs?|coverage)\b/i;
+const PASS_WORD = /\b(pass|passes|passing|green)\b/i;
+
+export function dodTestRequirements(definitionOfDone: readonly string[]): string[] {
+  return definitionOfDone.filter((item) => TEST_WORD.test(item) && !PASS_WORD.test(item));
+}
+
+export interface MissingTestsSignal {
+  /** True only when the DoD demands tests, source changed and no test file did. */
+  missing: boolean;
+  /** The DoD items that demand tests (empty when there are none). */
+  items: string[];
+  /** Source files changed, for the fix instruction. */
+  behaviourFiles: string[];
+}
+
+/**
+ * The false-pass guard Epic 16 deferred until real-model data existed (Epic 44).
+ *
+ * It is deliberately narrow: it fires only when the task's own definition of done asks for tests and
+ * the diff changes executable source with no test file at all. That combination is unambiguously
+ * unfinished work, so it is a deterministic failure rather than a matter of reviewer judgment.
+ */
+export function missingTestsSignal(
+  definitionOfDone: readonly string[],
+  changedFiles: readonly string[],
+): MissingTestsSignal {
+  const items = dodTestRequirements(definitionOfDone);
+  const behaviourFiles = changedFiles.filter(isBehaviourPath);
+  const testsChanged = changedFiles.some(isTestPath);
+  return {
+    missing: items.length > 0 && behaviourFiles.length > 0 && !testsChanged,
+    items,
+    behaviourFiles,
+  };
+}

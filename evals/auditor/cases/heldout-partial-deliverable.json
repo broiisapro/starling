@@ -6,7 +6,10 @@
     "key": "undo",
     "title": "Undo the last delete, with a disabled-state button",
     "goal": "Let people undo the last deleted todo and disable the undo button when there is nothing to undo.",
-    "deliverables": ["Cmd+Z restores the last deleted todo", "The undo button is disabled when the history is empty"],
+    "deliverables": [
+      "Cmd+Z restores the last deleted todo",
+      "The undo button is disabled when the history is empty"
+    ],
     "outOfScope": ["Redo", "Changing the store's persistence format"],
     "definitionOfDone": [
       "Cmd+Z restores the last deleted todo",

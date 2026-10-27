@@ -36,6 +36,7 @@ describe('createAuditor — passing work', () => {
       'lane',
       'non-empty',
       'tests',
+      'missing-tests',
       'lint',
       'llm-review',
     ]);
@@ -75,7 +76,11 @@ describe('createAuditor — passing work', () => {
   test('.starling bookkeeping files are allowed even though no task owns them', async () => {
     const verdict = await createAuditor({ exec: fakeExec(() => okOutput()).fn }).audit(
       makeAuditInput({
-        changedFiles: ['src/features/export/index.ts', '.starling/runs/run-1.jsonl'],
+        changedFiles: [
+          'src/features/export/index.ts',
+          'src/features/export/index.test.ts',
+          '.starling/runs/run-1.jsonl',
+        ],
       }),
     );
     expect(verdict.pass).toBe(true);
@@ -106,7 +111,10 @@ describe('createAuditor — lane enforcement', () => {
       makeAuditInput({ task }),
     );
     expect(verdict.pass).toBe(false);
-    expect(verdict.laneViolations).toEqual(['src/features/export/index.ts']);
+    expect(verdict.laneViolations).toEqual([
+      'src/features/export/index.ts',
+      'src/features/export/index.test.ts',
+    ]);
   });
 });
 
@@ -207,6 +215,37 @@ describe('createAuditor — deterministic checks', () => {
     expect(verdict.checks.find((check) => check.name === 'lint')?.ok).toBe(false);
     expect(verdict.fixInstructions).toContain('Make `bunx biome check .` pass: it exited 2');
     expect(verdict.fixInstructions).toContain('lint error on line 3');
+  });
+
+  test('a DoD that asks for tests fails deterministically even when the reviewer passes', async () => {
+    const llm = new MockLLM({ responses: [llmJson(passingVerdict())] });
+    const verdict = await createAuditor({ llm, exec: fakeExec(() => okOutput()).fn }).audit(
+      makeAuditInput({ diff: csvDiff() }),
+    );
+
+    expect(verdict.pass).toBe(false);
+    const check = verdict.checks.find((entry) => entry.name === 'missing-tests');
+    expect(check?.ok).toBe(false);
+    expect(check?.detail).toContain('requires tests');
+    expect(check?.detail).toContain('A round-trip test covers commas, quotes and newlines');
+    expect(verdict.fixInstructions).toContain('Add the tests the definition of done requires');
+    // The reviewer is still consulted: the missing-tests check does not replace its judgment.
+    expect(llm.calls).toHaveLength(1);
+  });
+
+  test('an advisory missing-tests check never fires on a test-only or type-only diff', async () => {
+    const task = csvExportTask({
+      definitionOfDone: ['bun test passes', 'No runtime behaviour changes'],
+    });
+    const verdict = await createAuditor({
+      llm: new MockLLM({ responses: [llmJson(passingVerdict())] }),
+      exec: fakeExec(() => okOutput()).fn,
+    }).audit(makeAuditInput({ task }));
+
+    expect(verdict.pass).toBe(true);
+    const check = verdict.checks.find((entry) => entry.name === 'missing-tests');
+    expect(check?.ok).toBe(true);
+    expect(check?.detail).toContain('does not ask for tests');
   });
 
   test('a repo map without a lint command records a skipped lint check', async () => {
@@ -370,9 +409,13 @@ describe('createAuditor — reviewer verdict', () => {
         );
       },
     });
-    const verdict = await createAuditor({ llm, exec: fakeExec(() => okOutput()).fn }).audit(makeAuditInput());
+    const verdict = await createAuditor({ llm, exec: fakeExec(() => okOutput()).fn }).audit(
+      makeAuditInput({ diff: csvDiff() }),
+    );
 
     expect(verdict.pass).toBe(false);
+    expect(verdict.checks.find((check) => check.name === 'missing-tests')?.ok).toBe(false);
+    expect(verdict.fixInstructions).toContain('Add the tests the definition of done requires');
     expect(verdict.fixInstructions).toContain('Add a colocated test file src/features/export/index.test.ts');
     expect(verdict.fixInstructions).toContain('Definition of done not met');
     expect(llm.calls).toHaveLength(1);

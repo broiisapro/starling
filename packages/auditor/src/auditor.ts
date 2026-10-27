@@ -1,11 +1,18 @@
-import type { AuditCheck, AuditInput, Auditor, AuditVerdict, ModelRef } from '@starling/core';
+import type { AuditCheck, AuditInput, Auditor, AuditVerdict, LLM, ModelRef } from '@starling/core';
 import { exec as coreExec, isStarlingError, systemClock } from '@starling/core';
 import type { CommandResult } from './commands';
 import { runShellCommand } from './commands';
-import { prioritiseDiff, signalsFor } from './diff';
+import type { MissingTestsSignal } from './diff';
+import { missingTestsSignal, prioritiseDiff, signalsFor } from './diff';
 import { checkLane } from './lane';
+import { chooseAuditorModel, createLlmFor, defaultLlmMode } from './model-choice';
 import { AUDITOR_SYSTEM_PROMPT, buildAuditPrompt } from './prompt';
-import type { AuditorLlmVerdict, CreateAuditorOptions, ResolvedAuditorOptions } from './types';
+import type {
+  AuditorLlmOption,
+  AuditorLlmVerdict,
+  CreateAuditorOptions,
+  ResolvedAuditorOptions,
+} from './types';
 import {
   AuditorLlmVerdictSchema,
   DEFAULT_COMMAND_TIMEOUT_MS,
@@ -19,13 +26,44 @@ import {
   diffDetail,
   laneDetail,
   makeCheck,
+  missingTestsDetail,
 } from './verdict';
 
 const LLM_MAX_TOKENS = 1_400;
 
+/** Resolve the reviewer once, memoised: a run audits many tasks with the same model. */
+function lazyReviewer(mode: AuditorLlmOption, opts: CreateAuditorOptions): () => Promise<LLM | undefined> {
+  if (mode !== 'auto') {
+    const fixed = mode === 'off' ? undefined : mode;
+    return () => Promise.resolve(fixed);
+  }
+  const env = opts.env ?? process.env;
+  const clock = opts.clock ?? systemClock;
+  const log = (level: 'info' | 'warn', msg: string): void => {
+    opts.bus?.publish({ type: 'log', runId: '*', ts: clock.now(), payload: { level, msg } });
+  };
+  let pending: Promise<LLM | undefined> | undefined;
+  return () => {
+    pending ??= (async () => {
+      const choice = await chooseAuditorModel({
+        env,
+        ...(opts.profile === undefined ? {} : { profile: opts.profile }),
+      });
+      if (choice.warning !== undefined) log('warn', choice.warning);
+      log(
+        'info',
+        `auditor model: ${choice.model.provider}/${choice.model.model} (profile ${choice.profile})`,
+      );
+      return createLlmFor(choice, { env });
+    })();
+    return pending;
+  };
+}
+
 function resolveOptions(options: CreateAuditorOptions): ResolvedAuditorOptions {
+  const mode = options.llm ?? defaultLlmMode(options.env ?? process.env);
   return {
-    llm: options.llm,
+    llmFor: lazyReviewer(mode, options),
     exec: options.exec ?? coreExec,
     clock: options.clock ?? systemClock,
     commandTimeoutMs:
@@ -60,12 +98,19 @@ async function reviewWithLlm(
   tests: CommandResult,
   lint: CommandResult,
   laneViolations: readonly string[],
+  missing: MissingTestsSignal,
 ): Promise<LlmOutcome> {
-  if (opts.llm === undefined) {
-    return { checked: false, skippedReason: 'no reviewer model configured' };
-  }
   if (input.diff.patch.trim() === '') {
     return { checked: false, skippedReason: 'empty diff, nothing to review' };
+  }
+  let llm: LLM | undefined;
+  try {
+    llm = await opts.llmFor();
+  } catch (err) {
+    return { checked: false, skippedReason: `reviewer unavailable (${errorMessage(err)})` };
+  }
+  if (llm === undefined) {
+    return { checked: false, skippedReason: 'no reviewer model configured' };
   }
 
   const signals = signalsFor(input.diff, files);
@@ -87,13 +132,14 @@ async function reviewWithLlm(
     lintResult: lint,
     laneViolations,
     signals,
+    missingTests: missing,
     patch: prioritised.patch,
     truncated: prioritised.truncated || input.diff.truncated,
     omittedFiles: prioritised.omittedFiles,
   });
 
   try {
-    const response = await opts.llm.completeJson(
+    const response = await llm.completeJson(
       {
         role: 'auditor',
         system: AUDITOR_SYSTEM_PROMPT,
@@ -157,7 +203,19 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
     ),
   );
 
-  // 4. lint — advisory unless `lintBlocking`, but the result is always recorded.
+  // 4. missing-tests — a DoD that asks for tests, source changed, no test file: unfinished work.
+  const missingStarted = performance.now();
+  const missing = missingTestsSignal(ctx.task.definitionOfDone, files);
+  checks.push(
+    makeCheck(
+      'missing-tests',
+      !missing.missing,
+      missingTestsDetail(missing),
+      performance.now() - missingStarted,
+    ),
+  );
+
+  // 5. lint — advisory unless `lintBlocking`, but the result is always recorded.
   const lintStarted = performance.now();
   const lintCommand = ctx.map.lintCommand;
   const lint = await runShellCommand(opts.exec, lintCommand, worktree, opts.commandTimeoutMs);
@@ -167,9 +225,9 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
     : 'lint: skipped (no lintCommand in the repo map)';
   checks.push(makeCheck('lint', lintOk, lintDetail, performance.now() - lintStarted));
 
-  // 5. llm-review — judgment against the DoD; skipped (not failed) when unavailable.
+  // 6. llm-review — judgment against the DoD; skipped (not failed) when unavailable.
   const llmStarted = performance.now();
-  const outcome = await reviewWithLlm(input, opts, files, tests, lint, lane.violations);
+  const outcome = await reviewWithLlm(input, opts, files, tests, lint, lane.violations, missing);
   const llmVerdict = outcome.verdict;
   const allDodMet = llmVerdict === undefined || llmVerdict.dod.every((entry) => entry.met);
   const llmOk = llmVerdict === undefined ? true : llmVerdict.pass && allDodMet;
@@ -187,7 +245,8 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
   checks.push(makeCheck('llm-review', llmOk, llmDetail, performance.now() - llmStarted));
 
   const llmPass = outcome.checked && llmVerdict !== undefined ? llmOk : true;
-  const pass = lane.ok && !emptyDiff && testsOk && (!opts.lintBlocking || lintOk) && llmPass;
+  const pass =
+    lane.ok && !emptyDiff && testsOk && !missing.missing && (!opts.lintBlocking || lintOk) && llmPass;
 
   const fixInstructions = pass
     ? undefined
@@ -195,6 +254,7 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
         task: ctx.task,
         lane,
         emptyDiff,
+        missingTests: missing,
         testCommand: ctx.testCommand,
         tests,
         lintCommand,

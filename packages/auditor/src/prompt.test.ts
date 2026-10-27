@@ -1,18 +1,21 @@
 import { describe, expect, test } from 'bun:test';
-import { diffSignals } from './diff.ts';
+import { diffSignals, missingTestsSignal } from './diff.ts';
 import type { AuditPromptArgs } from './prompt.ts';
 import { AUDITOR_SYSTEM_PROMPT, buildAuditPrompt } from './prompt.ts';
-import { makeAuditInput } from './test-support.ts';
+import { csvDiff, makeAuditInput } from './test-support.ts';
 
 function promptArgs(): AuditPromptArgs {
-  const input = makeAuditInput();
+  // The code-only diff on purpose: these tests exercise the "no test change" signals. The tuned
+  // default fixture (with a colocated test file) is covered by `makeAuditInput()` elsewhere.
+  const input = makeAuditInput({ diff: csvDiff() });
+  const changedFiles = input.changedFiles;
   return {
     task: input.ctx.task,
     goal: input.ctx.goal,
     lockedDecisions: input.ctx.plan.lockedDecisions,
     branch: input.ctx.branch,
     attempt: 1,
-    changedFiles: input.changedFiles,
+    changedFiles,
     diff: input.diff,
     testCommand: 'bun test',
     lintCommand: 'bunx biome check .',
@@ -35,7 +38,8 @@ function promptArgs(): AuditPromptArgs {
       durationMs: 88,
     },
     laneViolations: [],
-    signals: diffSignals(input.changedFiles),
+    signals: diffSignals(changedFiles),
+    missingTests: missingTestsSignal(input.ctx.task.definitionOfDone, changedFiles),
     patch: input.diff.patch,
     truncated: false,
     omittedFiles: [],
@@ -52,8 +56,16 @@ describe('AUDITOR_SYSTEM_PROMPT', () => {
   test('makes new behaviour without tests fail, with concrete cases', () => {
     expect(AUDITOR_SYSTEM_PROMPT).toContain('New behaviour requires tests');
     expect(AUDITOR_SYSTEM_PROMPT).toContain('NEW BEHAVIOUR WITHOUT NEW TESTS: YES');
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('MISSING TESTS THE DEFINITION OF DONE REQUIRES: YES');
     expect(AUDITOR_SYSTEM_PROMPT).toContain('name the missing test cases');
     expect(AUDITOR_SYSTEM_PROMPT).toContain('A green existing suite is not coverage');
+  });
+
+  test('treats hollow tests, skipped tests and deleted exports as failures', () => {
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('A test can be present and still prove nothing');
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('.skip');
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('Removing public API is a behaviour change');
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('the missing-tests check');
   });
 
   test('forbids overruling deterministic failures and asking for out-of-scope work', () => {
@@ -93,9 +105,25 @@ describe('buildAuditPrompt', () => {
     const args = promptArgs();
     args.changedFiles = ['src/features/export/index.ts', 'src/features/export/index.test.ts'];
     args.signals = diffSignals(args.changedFiles);
+    args.missingTests = missingTestsSignal(args.task.definitionOfDone, args.changedFiles);
     const prompt = buildAuditPrompt(args);
     expect(prompt).toContain('test files changed: yes');
     expect(prompt).toContain('NEW BEHAVIOUR WITHOUT NEW TESTS: no');
+    expect(prompt).toContain('MISSING TESTS THE DEFINITION OF DONE REQUIRES: no');
+  });
+
+  test('names the DoD item whose test is missing, so the reviewer fails for the right reason', () => {
+    const prompt = buildAuditPrompt(promptArgs());
+    expect(prompt).toContain('MISSING TESTS THE DEFINITION OF DONE REQUIRES: YES');
+    expect(prompt).toContain('no test file changed: "A round-trip test covers commas, quotes and newlines"');
+  });
+
+  test('says so when the DoD asks for no new tests at all', () => {
+    const args = promptArgs();
+    args.task = { ...args.task, definitionOfDone: ['bun test passes', 'No runtime behaviour changes'] };
+    args.missingTests = missingTestsSignal(args.task.definitionOfDone, args.changedFiles);
+    const prompt = buildAuditPrompt(args);
+    expect(prompt).toContain('MISSING TESTS THE DEFINITION OF DONE REQUIRES: no\n');
   });
 
   test('lists lane violations and the changed-file stats', () => {

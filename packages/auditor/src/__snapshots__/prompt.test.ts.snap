@@ -43,6 +43,7 @@ One \`dod\` entry is required for each item below, in this order:
 - lint command \`bunx biome check .\`: passed
 - test files changed: no
 - NEW BEHAVIOUR WITHOUT NEW TESTS: YES
+- MISSING TESTS THE DEFINITION OF DONE REQUIRES: YES (the DoD requires tests but no test file changed: "A round-trip test covers commas, quotes and newlines")
 - diff: complete
 
 ## Changed files (1)
