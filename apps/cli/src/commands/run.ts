@@ -97,12 +97,14 @@ export async function runCommand(
       dashboard = openDashboard(context, composition, effective);
     }
 
-    // Ctrl-C is a cancellation, not a crash: let the engine abort sessions and close the run out.
+    // Ctrl-C (or a SIGTERM from a supervisor) is a cancellation, not a crash: let the engine abort
+    // sessions, then close the run out and dispose the stack in the `finally` below.
     onSigint = () => {
       context.writeErr(context.palette.dim('\ninterrupt — cancelling the run…'));
       void composition.engine.cancel(runId).catch(() => undefined);
     };
     process.once('SIGINT', onSigint);
+    process.once('SIGTERM', onSigint);
 
     let run: Run;
     try {
@@ -158,7 +160,10 @@ export async function runCommand(
 
     return finalRun.status === 'finished' ? 0 : 1;
   } finally {
-    if (onSigint !== undefined) process.off('SIGINT', onSigint);
+    if (onSigint !== undefined) {
+      process.off('SIGINT', onSigint);
+      process.off('SIGTERM', onSigint);
+    }
     dashboard?.stop();
     await composition.close?.();
   }

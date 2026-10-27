@@ -26,11 +26,15 @@ const PACKAGE_JSON = `${JSON.stringify(
   2,
 )}\n`;
 
+// The test imports a *dependency*, exactly like sky-todo's tests import happy-dom: a task worktree
+// without `node_modules` fails, and so does the merge queue's integration worktree.
 const BASE_TEST = `import { expect, test } from 'bun:test';
+import { twice } from 'fixture-dep';
 import { base } from './base';
 
 test('base is one', () => {
   expect(base).toBe(1);
+  expect(twice(2)).toBe(4);
 });
 `;
 
@@ -94,6 +98,14 @@ async function makeRepo(): Promise<string> {
   mkdirSync(join(dir, 'src'), { recursive: true });
   writeFileSync(join(dir, 'src', 'base.ts'), 'export const base = 1;\n');
   writeFileSync(join(dir, 'src', 'base.test.ts'), BASE_TEST);
+  // A installed-looking dependency: gitignored, present only in the checkout.
+  mkdirSync(join(dir, 'node_modules', 'fixture-dep'), { recursive: true });
+  writeFileSync(
+    join(dir, 'node_modules', 'fixture-dep', 'package.json'),
+    JSON.stringify({ name: 'fixture-dep', version: '1.0.0', main: 'index.js' }),
+  );
+  writeFileSync(join(dir, 'node_modules', 'fixture-dep', 'index.js'), 'exports.twice = (n) => n * 2;\n');
+  writeFileSync(join(dir, '.gitignore'), 'node_modules/\n');
   const git = (args: string[]) => exec(['git', ...args], { cwd: dir, timeoutMs: 20_000 });
   await git(['init', '-q', '-b', 'main']);
   await git(['add', '-A']);

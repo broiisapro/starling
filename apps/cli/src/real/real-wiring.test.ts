@@ -12,7 +12,7 @@ import { startHubHeartbeat } from './hub-heartbeat';
 import { storePathFor, worktreeRootFor } from './paths';
 import { createReadOnlyEngine } from './readonly-engine';
 import { compactEvent, createCompactEventRecorder, MAX_AGENT_STRING } from './recording';
-import { withDependencies } from './workspace-deps';
+import { ensureNodeModulesIgnored, withDependencies } from './workspace-deps';
 
 const baseEvent = (overrides: Partial<StarlingEvent> = {}): StarlingEvent =>
   ({
@@ -133,6 +133,19 @@ describe('paths and dependency links', () => {
     expect(storePathFor('/tmp/demo')).toBe('/tmp/demo/.starling/starling.db');
     expect(worktreeRootFor('/tmp/demo', '../.starling-worktrees')).toBe('/tmp/.starling-worktrees');
     expect(worktreeRootFor('/tmp/demo', '/var/wt')).toBe('/var/wt');
+  });
+
+  test('writes a local exclude rule so a linked node_modules is never committed', () => {
+    const repo = tmpDir();
+    mkdirSync(join(repo, '.git', 'info'), { recursive: true });
+    expect(ensureNodeModulesIgnored(repo)).toBe(true);
+    expect(ensureNodeModulesIgnored(repo)).toBe(false);
+    const rules = readFileSync(join(repo, '.git', 'info', 'exclude'), 'utf8')
+      .split('\n')
+      .filter((line) => line.trim() === 'node_modules');
+    expect(rules).toHaveLength(1);
+    // Not a git checkout: nothing to do, and no crash.
+    expect(ensureNodeModulesIgnored(tmpDir())).toBe(false);
   });
 
   test('links node_modules into a new worktree, once', async () => {

@@ -25,6 +25,7 @@ import type {
   Clock,
   EventBus,
   LLM,
+  ModelRef,
   NodeInfo,
   StarlingConfig,
   Store,
@@ -41,7 +42,13 @@ import {
   type LocalNode,
 } from '@starling/flock';
 import { createGitHubTracker } from '@starling/github';
-import { applyProfile, createLLM, type LLMProfileName, parseProfile } from '@starling/llm';
+import {
+  applyProfile,
+  createLLM,
+  type LLMProfileName,
+  parseProfile,
+  splitOpencodeModel,
+} from '@starling/llm';
 import { createMerger } from '@starling/merger';
 import { createPlanner } from '@starling/planner';
 import { createPromptCompiler } from '@starling/prompts';
@@ -53,8 +60,9 @@ import type { Composition } from '../compose';
 import { createDisposalStack } from './dispose';
 import { createRecorderOwnedStore } from './engine-store';
 import { startHubHeartbeat } from './hub-heartbeat';
+import { withMergerDependencies } from './merger-deps';
 import { storePathFor, worktreeRootFor } from './paths';
-import { withDependencies } from './workspace-deps';
+import { ensureNodeModulesIgnored, withDependencies } from './workspace-deps';
 
 /**
  * Profile selection.
@@ -124,6 +132,16 @@ function hubInfo(id: string, name: string, maxSessions: number, clock: Clock): N
   };
 }
 
+/**
+ * `{ provider: 'opencode', model: 'opencode-go/deepseek-v4.1-flash' }` → opencode's own
+ * `{ providerID: 'opencode-go', model: 'deepseek-v4.1-flash' }`. Other providers pass through.
+ */
+function splitForOpencode(ref: ModelRef): ModelRef {
+  if (ref.provider !== 'opencode') return ref;
+  const { providerID, modelID } = splitOpencodeModel(ref.model);
+  return { provider: providerID, model: modelID };
+}
+
 /** The opencode server password the runner and the LLM router share. */
 function serverPassword(
   env: Record<string, string | undefined>,
@@ -188,6 +206,18 @@ export function composeReal(config: StarlingConfig, options: ComposeRealOptions)
         },
       };
     }
+    // Worker and resolver model refs are consumed by the *runner*, which passes them straight to
+    // opencode as `{ providerID, id }`. Under the `opencode` profile the model string is
+    // `providerID/modelID`, so it has to be split here; the planner/auditor/writer refs stay on the
+    // `opencode` provider because the LLM router does the split itself.
+    effective = {
+      ...effective,
+      models: {
+        ...effective.models,
+        worker: splitForOpencode(effective.models.worker),
+        resolver: splitForOpencode(effective.models.resolver),
+      },
+    };
   }
   const llmEnv: Record<string, string | undefined> =
     password === undefined ? { ...env } : { ...env, OPENCODE_SERVER_PASSWORD: password };
@@ -206,9 +236,13 @@ export function composeReal(config: StarlingConfig, options: ComposeRealOptions)
   const repoMapper = createRepoMapper({ llm, clock });
   const planner = createPlanner({ llm, clock });
   const prompts = createPromptCompiler();
+  ensureNodeModulesIgnored(repoPath);
   const workspace: Workspace = withDependencies(createWorkspace({ worktreeRoot, clock }));
   const auditor = createAuditor({ llm, clock });
-  const merger = createMerger({ worktreeRoot, clock });
+  const merger = withMergerDependencies({
+    service: createMerger({ worktreeRoot, clock }),
+    worktreeRoot,
+  });
   dispose.push('merger worktrees', () => merger.dispose());
 
   // ── 5. the flock: this machine's node, the registry, the hub ─────────────────────────────────
