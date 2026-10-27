@@ -18,6 +18,40 @@ export function sortVerdicts(verdicts: AuditVerdict[]): AuditVerdict[] {
 }
 
 /**
+ * The auditor's per-item DoD judgements, ready to render as a checklist.
+ *
+ * `AuditVerdict.dod` is optional (wave-1 verdicts and command-only audits have none), and its
+ * `evidence` quote is optional too. Absent fields are dropped rather than rendered as "undefined";
+ * an audit with no per-item judgement returns `[]` so the Audit tab can fall back to its summary.
+ */
+export interface DodEvidence {
+  item: string;
+  met: boolean;
+  evidence?: string;
+}
+
+export function verdictDod(verdict: AuditVerdict | undefined): DodEvidence[] {
+  const judgements = verdict?.dod;
+  if (!Array.isArray(judgements)) return [];
+  const items: DodEvidence[] = [];
+  for (const judgement of judgements) {
+    if (typeof judgement?.item !== 'string' || judgement.item.trim().length === 0) continue;
+    const evidence = judgement.evidence?.trim();
+    items.push({
+      item: judgement.item.trim(),
+      met: judgement.met === true,
+      ...(evidence !== undefined && evidence.length > 0 ? { evidence } : {}),
+    });
+  }
+  return items;
+}
+
+/** "3 of 4 met" — the line above a DoD checklist. */
+export function dodTally(items: readonly DodEvidence[]): { met: number; total: number } {
+  return { met: items.filter((item) => item.met).length, total: items.length };
+}
+
+/**
  * Fix instructions arrive as model prose: sometimes numbered, sometimes bulleted, often one
  * paragraph with two sentences. Split into steps on newlines, then sentence boundaries, and drop the
  * list marker so the UI can render its own ordered list.

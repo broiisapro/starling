@@ -14,6 +14,10 @@ const EVENTS = parseEventLines(raw).events;
 /**
  * Fixture-driven playground for the queue board. Not wired into the dashboard shell (Epic 23 owns
  * routing); run `bun run dev:web` and mount `<Playground />` from `src/main.tsx` to poke at it.
+ *
+ * The board is given a fixed height here on purpose: it is a column-scrolling board, and a page
+ * that grows with its cards would hide the behaviour the shell relies on (each column scrolls
+ * itself; no strip jump when a card below the fold is clicked).
  */
 export function Playground() {
   const [index, setIndex] = useState(EVENTS.length - 1);
@@ -25,7 +29,7 @@ export function Playground() {
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <h1 className="text-lg font-semibold text-slate-100">Merge queue · playground</h1>
-          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+          <label className="flex items-center gap-2 text-[12px] text-slate-300">
             Event
             <input
               type="range"
@@ -40,14 +44,18 @@ export function Playground() {
             </span>
           </label>
         </header>
-        <MergeQueue
-          plan={board.plan}
-          tasks={board.tasks}
-          merges={board.merges}
-          onSelectTask={(key) => setSelected(key)}
-        />
-        <p className="text-[11px] text-slate-500">
-          Selected task: <span className="font-mono text-slate-300">{selected ?? 'none'}</span>
+        <div className="h-[60vh] min-h-[320px]">
+          <MergeQueue
+            plan={board.plan}
+            tasks={board.tasks}
+            merges={board.merges}
+            selectedTask={selected}
+            onSelectTask={(key) => setSelected(key)}
+          />
+        </div>
+        <p className="text-[12px] text-slate-400">
+          Selected task: <span className="font-mono text-sky-200">{selected ?? 'none'}</span> · click a card
+          to highlight it; each column scrolls on its own, and a column past 30 cards windows its children.
         </p>
       </div>
     </main>

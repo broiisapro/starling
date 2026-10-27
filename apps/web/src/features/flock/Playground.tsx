@@ -82,6 +82,7 @@ export function Playground({
   const [revealed, setRevealed] = useState(() => providedEvents?.length ?? 0);
   const [playing, setPlaying] = useState(autoplay);
   const [reducedMotion, setReducedMotion] = useState(reducedMotionProp);
+  const [compact, setCompact] = useState(false);
   const [skipped, setSkipped] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -148,12 +149,12 @@ export function Playground({
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-sky-300/80">playground</p>
+          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-sky-300/80">playground</p>
           <h2 className="flex items-center gap-2 text-base font-semibold text-slate-50">
             <Bird aria-hidden="true" className="h-4 w-4 text-sky-300" />A second roost joins, then closes its
             lid
           </h2>
-          <p className="mt-0.5 text-[11px] text-slate-400">
+          <p className="mt-0.5 text-sm text-slate-300">
             Replay of{' '}
             <code className="font-mono text-slate-300">fixtures/runs/sky-todo-launch-day.jsonl</code>, derived
             from <code className="font-mono text-slate-300">node.*</code> events.
@@ -165,7 +166,7 @@ export function Playground({
             data-testid="playground-toggle"
             onClick={() => setPlaying((value) => !value)}
             disabled={events.length === 0 || revealed >= events.length}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[12px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {playing ? (
               <Pause aria-hidden="true" className="h-3 w-3" />
@@ -179,7 +180,7 @@ export function Playground({
             data-testid="playground-next-roost"
             onClick={stepToNextRoost}
             disabled={events.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-[11px] font-medium text-sky-100 transition-colors hover:bg-sky-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-sky-400/30 bg-sky-400/10 px-2.5 py-1.5 text-[12px] font-medium text-sky-100 transition-colors hover:bg-sky-400/20 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <SkipForward aria-hidden="true" className="h-3 w-3" />
             Next roost event
@@ -191,7 +192,7 @@ export function Playground({
               setRevealed(0);
               setPlaying(false);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:bg-white/10"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[12px] font-medium text-slate-200 transition-colors hover:border-white/25 hover:bg-white/10"
           >
             <RotateCcw aria-hidden="true" className="h-3 w-3" />
             Restart
@@ -200,7 +201,7 @@ export function Playground({
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex min-w-[12rem] flex-1 items-center gap-2 text-[10px] text-slate-400">
+        <label className="flex min-w-[12rem] flex-1 items-center gap-2 text-[12px] text-slate-300">
           <span className="sr-only">Event position</span>
           <input
             data-testid="playground-scrub"
@@ -215,7 +216,7 @@ export function Playground({
             className="h-1 w-full accent-sky-400"
           />
         </label>
-        <label className="flex items-center gap-1.5 text-[10px] text-slate-400">
+        <label className="flex items-center gap-1.5 text-[12px] text-slate-300">
           <input
             data-testid="playground-reduced-motion"
             type="checkbox"
@@ -225,11 +226,21 @@ export function Playground({
           />
           reduced motion
         </label>
-        <span data-testid="playground-clock" className="font-mono text-[10px] tabular-nums text-slate-400">
+        <label className="flex items-center gap-1.5 text-[12px] text-slate-300">
+          <input
+            data-testid="playground-compact"
+            type="checkbox"
+            checked={compact}
+            onChange={(event) => setCompact(event.target.checked)}
+            className="accent-sky-400"
+          />
+          compact rail (720p)
+        </label>
+        <span data-testid="playground-clock" className="font-mono text-[12px] tabular-nums text-slate-300">
           {revealed}/{events.length} events
           {lastEvent ? ` · ${clockLabel(now)}` : ''}
         </span>
-        <span data-testid="playground-air" className="text-[10px] text-slate-400">
+        <span data-testid="playground-air" className="text-[12px] text-slate-300">
           {air ? `${air.name}: ${air.status}` : 'no perch yet'}
         </span>
       </div>
@@ -237,7 +248,7 @@ export function Playground({
       {loadError ? (
         <p
           data-testid="playground-error"
-          className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1.5 text-[11px] text-rose-200"
+          className="rounded-lg border border-rose-400/30 bg-rose-400/10 px-2.5 py-1.5 text-[12px] text-rose-200"
         >
           Could not load the fixture: {loadError}
         </p>
@@ -245,7 +256,7 @@ export function Playground({
       {skipped > 0 ? (
         <p
           data-testid="playground-skipped"
-          className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[11px] text-amber-200"
+          className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-2.5 py-1.5 text-[12px] text-amber-200"
         >
           Skipped {skipped} malformed event {skipped === 1 ? 'line' : 'lines'} in the log.
         </p>
@@ -256,7 +267,9 @@ export function Playground({
         join={PLAYGROUND_JOIN}
         tasks={tasks}
         now={now}
+        compact={compact}
         reducedMotion={reducedMotion}
+        onSelectTask={() => {}}
       />
     </div>
   );

@@ -1,6 +1,11 @@
 import type { TaskRun } from '@starling/core';
 
-/** Elapsed time for a task card: live while running, frozen once finished. */
+/** `TaskRun` as core will carry it once `nodeName` lands (tracked as a FIX REQUEST to Epic 40). */
+export type TaskRunWithNodeName = TaskRun & { nodeName?: string };
+
+/**
+ * Elapsed time for a task card: live while running, frozen once finished.
+ */
 export function elapsedFor(run: TaskRun | undefined, now: number): number | undefined {
   if (!run?.startedAt) return undefined;
   return Math.max(0, (run.finishedAt ?? now) - run.startedAt);
@@ -17,10 +22,20 @@ export function formatElapsed(ms: number | undefined): string {
   return `${hours}h ${String(minutes % 60).padStart(2, '0')}m`;
 }
 
-/** Node chip text. The hub runs locally; a perch is identified by its node id. */
+/**
+ * The roost's human name: `TaskRun.nodeName` when the engine publishes one (Epic 40), else the id
+ * the shell already maps to a display name. Feature-detected so this compiles before and after core
+ * grows the field.
+ */
+export function nodeNameOf(run: TaskRun | undefined): string | undefined {
+  const name = (run as TaskRunWithNodeName | undefined)?.nodeName;
+  if (typeof name === 'string' && name.trim().length > 0) return name;
+  return run?.nodeId;
+}
+
+/** Node chip text. The hub runs locally; a perch is identified by its node name (or id). */
 export function nodeLabel(run: TaskRun | undefined): string {
-  if (!run?.nodeId) return 'unassigned';
-  return run.nodeId;
+  return nodeNameOf(run) ?? 'unassigned';
 }
 
 /** Card titles are deliberately short; the full title stays available via the tooltip. */

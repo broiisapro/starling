@@ -1,7 +1,8 @@
 import type { NodeInfo, TaskRun } from '@starling/core';
 import { Laptop, Radio } from 'lucide-react';
+import { Fragment } from 'react';
 import { cx } from './cx';
-import { formatHardware, formatLatency, isHub, relativeTime } from './format';
+import { formatHardwareParts, formatLatency, isHub, relativeTime } from './format';
 import { ModelChips } from './ModelChips';
 import { HUB_BADGE, PERCH_BADGE, STATUS_PALETTE } from './palette';
 import { SessionMeter } from './SessionMeter';
@@ -61,8 +62,13 @@ export function RoostCard({
     >
       <span aria-hidden="true" className={cx('absolute inset-x-0 top-0 h-px', tone.accent)} />
 
+      {/*
+        The name owns the first line. In the 15 rem rail the kind badge and latency used to squeeze
+        "MacBook Pro" into "MacB… Pro"; the badge now sits beside the hardware, where it belongs,
+        and the hardware wraps instead of truncating.
+      */}
       <header className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <span
             data-testid="status-dot"
             data-status={node.status}
@@ -76,40 +82,50 @@ export function RoostCard({
             ) : null}
             <span className={cx('relative h-2.5 w-2.5 rounded-full', tone.dot)} />
           </span>
-          <h3 className="truncate text-sm font-semibold text-slate-100" title={node.name}>
+          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-100" title={node.name}>
             {node.name}
           </h3>
-          <span
-            data-testid="kind-badge"
-            className={cx(
-              'inline-flex shrink-0 items-center gap-1 rounded border px-1 py-px text-[9px] font-semibold uppercase tracking-[0.12em]',
-              hub ? HUB_BADGE : PERCH_BADGE,
-            )}
-          >
-            {hub ? (
-              <Laptop aria-hidden="true" className="h-2.5 w-2.5" />
-            ) : (
-              <Radio aria-hidden="true" className="h-2.5 w-2.5" />
-            )}
-            {hub ? 'hub' : 'perch'}
-          </span>
         </div>
         <span
           data-testid="latency"
           title="Round-trip latency to the hub"
-          className="shrink-0 font-mono text-[10px] tabular-nums text-slate-400"
+          className="shrink-0 font-mono text-[12px] tabular-nums text-slate-300"
         >
           {formatLatency(node.latencyMs)}
         </span>
       </header>
 
-      <p data-testid="hardware" className="mt-1 truncate text-[10px] text-slate-400">
-        {formatHardware(node)}
-        <span className={cx('ml-2 font-medium uppercase tracking-wide', tone.text)}>{tone.label}</span>
+      <p
+        data-testid="hardware"
+        className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-slate-300"
+      >
+        {/* Each atom is `whitespace-nowrap` and the " · " separators stay outside them, so the line
+            wraps between hardware facts and never inside "32 GB". */}
+        {formatHardwareParts(node).map((part, index) => (
+          <Fragment key={part}>
+            {index > 0 ? ' · ' : ''}
+            <span className="whitespace-nowrap">{part}</span>
+          </Fragment>
+        ))}
+        <span
+          data-testid="kind-badge"
+          className={cx(
+            'inline-flex shrink-0 items-center gap-1 rounded border px-1 py-px text-[12px] font-semibold uppercase tracking-[0.12em]',
+            hub ? HUB_BADGE : PERCH_BADGE,
+          )}
+        >
+          {hub ? (
+            <Laptop aria-hidden="true" className="h-2.5 w-2.5" />
+          ) : (
+            <Radio aria-hidden="true" className="h-2.5 w-2.5" />
+          )}
+          {hub ? 'hub' : 'perch'}
+        </span>
+        <span className={cx('font-medium uppercase tracking-wide', tone.text)}>{tone.label}</span>
       </p>
 
       <div className="mt-2.5 flex items-center justify-between gap-3">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">sessions</span>
+        <span className="text-[12px] uppercase tracking-[0.12em] text-slate-400">sessions</span>
         <SessionMeter active={node.activeSessions} max={node.maxSessions} status={node.status} />
       </div>
 
@@ -118,18 +134,18 @@ export function RoostCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">on roost</span>
+        <span className="text-[12px] uppercase tracking-[0.12em] text-slate-400">on roost</span>
         <TaskChips tasks={onRoost} onSelectTask={onSelectTask} />
       </div>
 
       {offline ? (
         <p
           data-testid="last-seen"
-          className="mt-2 flex items-center gap-1 text-[10px] text-slate-400"
+          className="mt-2 flex items-center gap-1 text-[12px] text-slate-300"
           title={new Date(node.lastSeen).toISOString()}
         >
           last seen {relativeTime(node.lastSeen, now)}
-          {node.url ? <span className="truncate text-slate-500">· {node.url}</span> : null}
+          {node.url ? <span className="truncate text-slate-400">· {node.url}</span> : null}
         </p>
       ) : null}
     </article>

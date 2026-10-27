@@ -1,6 +1,7 @@
 /** Feature lane: the metrics panel and cost meter (Epic 26). */
 export const FEATURE = 'metrics' as const;
 
+export { CostMeter, type CostMeterProps } from './CostMeter';
 export type { CostBreakdown, MetricsSample, TokenSplit } from './cost';
 export {
   costBreakdown,
@@ -14,6 +15,13 @@ export {
   tokenSplit,
   tokenTotal,
 } from './cost';
+export {
+  COUNT_UP_MS,
+  countUpValue,
+  easeOutCubic,
+  interpolate,
+  useCountUp,
+} from './count-up';
 export {
   formatDuration,
   formatRate,
@@ -31,7 +39,17 @@ export {
 } from './hooks';
 export { MetricsPanel } from './MetricsPanel';
 export { MOTION_CSS } from './motion';
+export {
+  OFF_PEAK_RATIO,
+  offPeakUsd,
+  PEAK_MODEL,
+  type PeakNote,
+  peakNote,
+  SAVED_MODEL,
+  savedDetail,
+} from './pricing';
 export { replayMetrics } from './replay';
 export { SparklineChart } from './SparklineChart';
 export type { SparklineGeometry, SparklineOptions, SparklinePoint } from './sparkline';
 export { seriesFromHistory, sparklineGeometry } from './sparkline';
+export type { MetricsExtras, MetricsPanelAllProps } from './types';

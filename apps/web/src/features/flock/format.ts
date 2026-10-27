@@ -45,9 +45,21 @@ export function formatMemory(memGb: number): string {
   return Number.isInteger(memGb) ? `${memGb} GB` : `${memGb.toFixed(1)} GB`;
 }
 
+/**
+ * The hardware line split into atoms that must not break internally: `['darwin · arm64',
+ * '8 cores · 16 GB']`.
+ *
+ * The 15 rem rail is too narrow for one line, and letting the browser break anywhere split the
+ * memory size across lines — the first browser pass rendered "… 12 cores · 32" / "GB". Wrapping
+ * between these two atoms is the only break that reads correctly.
+ */
+export function formatHardwareParts(node: NodeInfo): string[] {
+  return [`${node.platform} · ${node.arch}`, `${node.cpuCores} cores · ${formatMemory(node.memGb)}`];
+}
+
 /** "darwin · arm64 · 8 cores · 16 GB" — the hardware line under the roost name. */
 export function formatHardware(node: NodeInfo): string {
-  return [node.platform, node.arch, `${node.cpuCores} cores`, formatMemory(node.memGb)].join(' · ');
+  return formatHardwareParts(node).join(' · ');
 }
 
 export function freeSessions(node: NodeInfo): number {

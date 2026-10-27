@@ -25,7 +25,16 @@ export {
 } from './columns';
 export type { MergeQueueProps } from './handshake';
 export { MergeQueue } from './MergeQueue';
+export { type TaskRunWithNodeName, taskNodeLabel } from './node-name';
 export type { StatusStyle } from './palette';
 export { NEUTRAL_CHIP, STATUS_STYLE } from './palette';
 export type { QueueReplayState } from './replay';
 export { replayQueue } from './replay';
+export type { MergeQueueAllProps, QueueExtras } from './types';
+export {
+  type ColumnWindow,
+  type ColumnWindowInput,
+  columnWindow,
+  QUEUE_ROW_HEIGHT,
+  QUEUE_VIRTUALIZE_AFTER,
+} from './window';

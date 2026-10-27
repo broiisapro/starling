@@ -66,19 +66,21 @@ export default function Playground() {
     <main className="min-h-screen bg-slate-950 p-6 text-slate-200">
       <div className={open ? 'max-w-[calc(100vw-600px)]' : 'max-w-4xl'}>
         <header className="mb-4">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-sky-400">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-sky-400">
             Starling · agent drawer playground
           </p>
           <h1 className="mt-1 text-xl font-semibold">Everything about one task</h1>
-          <p className="mt-1 text-[12px] text-slate-400">
-            Recorded launch-day run. Pick a task, then switch between Activity, Audit, Diff and Spec. Press
-            Esc or the ✕ to close.
+          <p className="mt-1 text-sm text-slate-300">
+            Recorded launch-day run. Pick a task, then switch between Activity, Audit, Diff and Spec. File
+            chips in Activity jump to the matching diff; repeated tool calls collapse into one row. Press Esc
+            or the ✕ to close. (The recording predates per-item DoD evidence, so the Audit checklist appears
+            when an auditor supplies <code className="font-mono text-[12px]">verdict.dod</code>.)
           </p>
           {!open ? (
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="mt-3 rounded-md border border-sky-600 bg-sky-950 px-3 py-1 text-[12px] text-sky-200 hover:bg-sky-900"
+              className="mt-3 rounded-md border border-sky-600 bg-sky-950 px-3 py-1 text-sm text-sky-200 hover:bg-sky-900"
             >
               Open drawer
             </button>
@@ -97,15 +99,15 @@ export default function Playground() {
                   setSelected(entry.key);
                   setOpen(true);
                 }}
-                className={`rounded-md border px-3 py-2 text-left text-[12px] ${
+                className={`rounded-md border px-3 py-2 text-left text-sm ${
                   active
                     ? 'border-sky-500 bg-sky-950/60'
                     : 'border-slate-800 bg-slate-900/40 hover:border-slate-600'
                 }`}
               >
-                <p className="font-mono text-[10px] text-sky-300">{entry.key}</p>
+                <p className="font-mono text-[12px] text-sky-300">{entry.key}</p>
                 <p className="truncate text-slate-200">{entry.title}</p>
-                <p className="mt-0.5 text-[10px] text-slate-500">
+                <p className="mt-0.5 text-[12px] text-slate-400">
                   {run?.status ?? 'pending'} · {run?.attempts ?? 0} attempt(s) · {run?.nodeId ?? 'unassigned'}
                 </p>
               </button>
@@ -113,7 +115,7 @@ export default function Playground() {
           })}
         </div>
 
-        <p className="mt-4 text-[11px] text-slate-500">
+        <p className="mt-4 text-[12px] text-slate-400">
           {events.length} activity events · {verdicts.length} audit verdict(s) · {diff.files.length} edited
           file(s)
         </p>
