@@ -16,8 +16,8 @@
   freezes otherwise); `agents/activity.ts` pairs `tool.call`→`tool.result` and collapses repeats
   ("ran tests ×3"); file-edit chips switch to the Diff tab and scroll to the file; "Jump to latest"
   pill only when scrolled off the tail; Audit tab renders `checks` (+`durationMs`) and, feature-detected,
-  `AuditVerdict.dod` as a checklist with evidence quotes; `agents/diff.ts` + `word-diff.ts` give
-  word-level highlights on small hunks.
+  `AuditVerdict.dod` as a checklist with evidence quotes; `agents/diff.ts` (`wordDiff`,
+  `annotateWordDiffs`) gives word-level highlights on small hunks.
 - **Metrics** — `count-up.ts` (550 ms ease-out cubic) for the API figure, **snapped** on replay/scrub;
   `pricing.ts` `peakNote()` renders `off-peak $0.02` with the peak-tariff/budget-guardrail reasoning in
   the tooltip; local-calls counter; "you saved" with an audit-able tooltip (`estSavedUsd` from core

@@ -62,7 +62,8 @@ test looks inside the wrapper.
   supplies `verdict.dod`, the DoD items render as a checklist with their evidence quotes. Fixtures
   predating `dod` simply omit the checklist — the tab never fakes evidence.
 - **Diff tab**: `diff.ts` parses `DiffSummary.patch` into per-file, per-line kinds. Small hunks get
-  word-level highlights (`word-diff.ts`): a changed line is diffed against its counterpart token by
+  word-level highlights (`diff.ts`: `wordDiff`, `annotateWordDiffs`): a changed line is diffed
+  against its counterpart token by
   token, so a one-word edit reads as one highlighted word rather than a red line and a green line.
 
 ### Metrics (`features/metrics`)
@@ -148,7 +149,8 @@ two — a two-line card left room for one visible card per column at 14 px type.
   `reducedMotion`, `now`; `MergeQueue` accepts `selectedTask`.
 - Pure modules with no React, reusable by later panels and by tests:
   `dag/critical-path.ts` (`criticalPath(plan)`), `dag/follow.ts` (`activeKeys`, `followTarget`),
-  `agents/activity.ts` (`buildTimeline`), `agents/diff.ts` (`parsePatch`), `agents/word-diff.ts`,
+  `agents/activity.ts` (`buildTimeline`, `groupToolCalls`), `agents/diff.ts` (`parsePatch`,
+  `diffFiles`, `wordDiff`, `annotateWordDiffs`),
   `queue/window.ts` (`columnWindow`), `metrics/count-up.ts`, `metrics/pricing.ts` (`peakNote`),
   `flock/format.ts` (`formatHardwareParts`, `sortRoosts`, `sessionTotals`).
 - `metrics/legibility.test.ts` is a reusable enforcement pattern: point it at a folder list and it
