@@ -18,7 +18,7 @@ target the CLI surface locked in ARCHITECTURE §6 (Epic 22 implements it).
 skills/
 ├── biome.json                     # lane-local Biome config (see key decisions)
 └── starling/
-    ├── SKILL.md                   # 171 lines, frontmatter + workflow + safety
+    ├── SKILL.md                   # 173 lines, frontmatter + workflow + safety
     ├── reference/
     │   ├── goals.md               # how to phrase a splittable goal
     │   ├── lanes.md               # reading/reviewing lanes and plan issues
@@ -95,7 +95,7 @@ metadata:
 ```
 
 The description names the trigger phrases and, just as importantly, the **negative** case (a one-file fix).
-The 171-line body covers when to use it, when not to, the four-step workflow, how to write a goal, how to read
+The 173-line body covers when to use it, when not to, the four-step workflow, how to write a goal, how to read
 the result, safety, and a reference table. Detail lives in four reference files so a model that only needs the
 workflow does not pay for the flock internals.
 
@@ -202,7 +202,7 @@ No test starts a server, loads a model, calls opencode, or touches GitHub.
   (frontmatter `name` is only a display label), v1 and Claude Code use the name. Matching the directory keeps
   all three consistent. The description says "do not use for a one-file fix" because the most expensive
   failure mode is launching a swarm for a typo.
-- **171-line SKILL.md, four references.** The spec recommends <500 lines and progressive disclosure; the
+- **173-line SKILL.md, four references.** The spec recommends <500 lines and progressive disclosure; the
   assignment asked for ~300. Keeping the body short means a model that decides _not_ to use the skill pays
   almost nothing, and the reference files stay focused enough to load individually.
 - **JSON by default in `plan.sh`.** The primary caller is an agent; humans get `--pretty`. `plan.sh` also
@@ -336,7 +336,7 @@ jq -e '(.issues // []) | length == 0' /tmp/plan.json
   required behaviour.
 - **The two examples are hand-written.** Recordings would be stale before the engine exists; they are labelled
   illustrative and mirror the expected decompositions in `examples/sky-todo/demo-goals/`.
-- **Skill body is 171 lines, not ~300.** The assignment said "under ~300"; shorter is better for progressive
+- **Skill body is 173 lines, not ~300.** The assignment said "under ~300"; shorter is better for progressive
   disclosure, and the detail lives in the four references.
 - **`bun run check` still fails on pre-existing files outside this lane.** The failures are
   `docs/epic-01-demo-target.md`, `docs/epic-02-repo-ops.md`, `tools/local-models/{host,ollama,smoke}.ts`,
