@@ -1,0 +1,22 @@
+{
+  "name": "express-notes-auth-search",
+  "goal": "Add a bearer-token auth middleware and full-text search over notes in the Express notes API.",
+  "repomap": "evals/planner/cases/repomaps/express-notes.json",
+  "taskCount": { "min": 2, "max": 3 },
+  "features": [
+    {
+      "id": "auth",
+      "summary": "Bearer-token middleware guarding the notes routes.",
+      "keywords": [["auth", "bearer", "token"]]
+    },
+    {
+      "id": "notes-search",
+      "summary": "Full-text search over note titles and bodies.",
+      "keywords": [["search"], ["note", "notes"]]
+    }
+  ],
+  "requiredDeps": [["auth", "notes-search"]],
+  "requiredLaneFiles": ["src/middleware/auth.ts", "src/routes/notes.ts"],
+  "forbiddenFiles": ["src/server.ts", "src/store/notes.ts", "package.json", "tsconfig.json"],
+  "notes": "Synthetic Express fixture. Search must land behind auth, so the answer key has one real DAG edge."
+}

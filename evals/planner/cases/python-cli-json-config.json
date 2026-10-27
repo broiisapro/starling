@@ -1,0 +1,22 @@
+{
+  "name": "python-cli-json-config",
+  "goal": "Add a --json output mode to the list command and load defaults from a TOML config file.",
+  "repomap": "evals/planner/cases/repomaps/python-todo-cli.json",
+  "taskCount": { "min": 2, "max": 2 },
+  "features": [
+    {
+      "id": "json-output",
+      "summary": "Machine-readable JSON output for the list command.",
+      "keywords": [["json"], ["output", "format"]]
+    },
+    {
+      "id": "config",
+      "summary": "Defaults loaded from a TOML config file.",
+      "keywords": [["config", "toml", "settings"]]
+    }
+  ],
+  "requiredDeps": [],
+  "requiredLaneFiles": ["src/todo_cli/commands/list.py", "src/todo_cli/config.py"],
+  "forbiddenFiles": ["pyproject.toml", "src/todo_cli/store.py", "tests/test_add.py"],
+  "notes": "Synthetic Python CLI fixture. The config task owns cli.py; the JSON task owns list.py plus a new output package, so the lanes stay disjoint without touching the store."
+}

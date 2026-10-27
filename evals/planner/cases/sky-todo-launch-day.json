@@ -1,0 +1,62 @@
+{
+  "name": "sky-todo-launch-day",
+  "goal": "Add dark mode with a toggle, live search filtering, CSV export, keyboard shortcuts (n = new, / = search, ? = help), due-date badges, and fix the overdue-calculation and date-sorting bugs in src/lib/dates.ts.",
+  "repomap": "fixtures/repomaps/sky-todo.json",
+  "taskCount": { "min": 7, "max": 7 },
+  "features": [
+    {
+      "id": "theme",
+      "summary": "Dark mode with a persisted toggle.",
+      "keywords": [["dark mode", "dark theme", "theme"], ["toggle", "switch"]]
+    },
+    {
+      "id": "search",
+      "summary": "Live search filtering over the todo list.",
+      "keywords": [["search"], ["filter", "filtering"]]
+    },
+    {
+      "id": "csv-export",
+      "summary": "CSV export with RFC 4180 quoting.",
+      "keywords": [["csv"], ["export"]]
+    },
+    {
+      "id": "shortcuts",
+      "summary": "Keyboard shortcuts n, / and ?.",
+      "keywords": [["keyboard", "shortcut", "keybinding"]]
+    },
+    {
+      "id": "help-overlay",
+      "summary": "Help sheet listing the shortcuts, gated on shortcuts.",
+      "keywords": [["help"], ["overlay", "sheet", "dialog"]]
+    },
+    {
+      "id": "dates-fix",
+      "summary": "Fix the overdue calculation and due-date sorting.",
+      "keywords": [["overdue"], ["sort", "sorting"]]
+    },
+    {
+      "id": "due-badges",
+      "summary": "Due-date badges on todo rows, gated on the date fix.",
+      "keywords": [["badge", "badges"], ["due"]]
+    }
+  ],
+  "requiredDeps": [["shortcuts", "help-overlay"], ["dates-fix", "due-badges"]],
+  "requiredLaneFiles": [
+    "src/features/theme/index.ts",
+    "src/features/search/index.ts",
+    "src/features/export/index.ts",
+    "src/features/shortcuts/index.ts",
+    "src/features/help/index.ts",
+    "src/lib/dates.ts",
+    "src/features/due-dates/index.ts"
+  ],
+  "forbiddenFiles": [
+    "src/ui/render.ts",
+    "src/main.ts",
+    "index.html",
+    "package.json",
+    "bun.lock",
+    "src/ui/styles.css"
+  ],
+  "notes": "The 3-minute demo path. Six feature folders plus the dedicated date files; nothing edits the shared renderer or the shell."
+}

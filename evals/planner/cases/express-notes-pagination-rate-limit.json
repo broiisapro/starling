@@ -1,0 +1,22 @@
+{
+  "name": "express-notes-pagination-rate-limit",
+  "goal": "Add pagination to GET /notes and a rate-limiting middleware to the Express notes API.",
+  "repomap": "evals/planner/cases/repomaps/express-notes.json",
+  "taskCount": { "min": 2, "max": 2 },
+  "features": [
+    {
+      "id": "pagination",
+      "summary": "Paginated GET /notes responses with limit and cursor.",
+      "keywords": [["pagination", "paginate", "page"]]
+    },
+    {
+      "id": "rate-limit",
+      "summary": "Per-IP rate limiting middleware.",
+      "keywords": [["rate limit", "rate-limit", "throttle"]]
+    }
+  ],
+  "requiredDeps": [],
+  "requiredLaneFiles": ["src/routes/notes.ts", "src/middleware/rate-limit.ts"],
+  "forbiddenFiles": ["src/server.ts", "src/store/notes.ts", "package.json", "tsconfig.json"],
+  "notes": "Two independent, lane-disjoint changes on the synthetic Express fixture. No edge belongs between them."
+}

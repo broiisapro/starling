@@ -1,0 +1,71 @@
+{
+  "root": "examples/synthetic/express-notes",
+  "tree": "express-notes\n├── package.json\n├── tsconfig.json\n├── README.md\n├── src\n│   ├── server.ts\n│   ├── app.ts\n│   ├── routes\n│   │   ├── health.ts\n│   │   └── notes.ts\n│   ├── middleware\n│   │   ├── auth.ts\n│   │   ├── logger.ts\n│   │   └── rate-limit.ts\n│   └── store\n│       └── notes.ts\n└── test\n    └── notes.test.ts",
+  "files": [
+    { "path": "package.json", "bytes": 420, "lang": "json", "symbols": [] },
+    { "path": "tsconfig.json", "bytes": 310, "lang": "json", "symbols": [] },
+    { "path": "README.md", "bytes": 780, "lang": "markdown", "symbols": [] },
+    {
+      "path": "src/server.ts",
+      "bytes": 260,
+      "lang": "typescript",
+      "symbols": ["startServer"],
+      "summary": "Binds the Express app to PORT."
+    },
+    {
+      "path": "src/app.ts",
+      "bytes": 940,
+      "lang": "typescript",
+      "symbols": ["createApp"],
+      "summary": "Builds the Express app and mounts routes and middleware."
+    },
+    {
+      "path": "src/routes/health.ts",
+      "bytes": 220,
+      "lang": "typescript",
+      "symbols": ["healthRouter"],
+      "summary": "GET /health returning uptime."
+    },
+    {
+      "path": "src/routes/notes.ts",
+      "bytes": 1650,
+      "lang": "typescript",
+      "symbols": ["notesRouter", "listNotes", "getNote", "createNote"],
+      "summary": "CRUD routes for notes, backed by the in-memory store."
+    },
+    {
+      "path": "src/middleware/auth.ts",
+      "bytes": 640,
+      "lang": "typescript",
+      "symbols": ["requireToken"],
+      "summary": "Rejects requests without a valid bearer token."
+    },
+    {
+      "path": "src/middleware/logger.ts",
+      "bytes": 380,
+      "lang": "typescript",
+      "symbols": ["requestLogger"],
+      "summary": "One log line per request."
+    },
+    {
+      "path": "src/middleware/rate-limit.ts",
+      "bytes": 720,
+      "lang": "typescript",
+      "symbols": ["rateLimit"],
+      "summary": "Fixed-window per-IP rate limiter."
+    },
+    {
+      "path": "src/store/notes.ts",
+      "bytes": 1180,
+      "lang": "typescript",
+      "symbols": ["NotesStore", "list", "insert", "findById"],
+      "summary": "In-memory notes store behind a small interface."
+    },
+    { "path": "test/notes.test.ts", "bytes": 1420, "lang": "typescript", "symbols": [] }
+  ],
+  "languages": { "json": 2, "markdown": 1, "typescript": 8 },
+  "testCommand": "bun test",
+  "lintCommand": "bunx biome check .",
+  "tokenEstimate": 1900,
+  "createdAt": 1731000000000
+}
