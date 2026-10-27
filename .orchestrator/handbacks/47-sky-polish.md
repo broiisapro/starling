@@ -119,3 +119,6 @@ the commit after it).
   names. If the projector review wants it bigger, one constant in `drawNotices` changes it.
 - **`createAudio` is a production prop** (not test-only) because it doubles as the embedding seam for
   a future shared audio context; it is inert unless passed.
+
+
+Closes #34
