@@ -1,10 +1,10 @@
 ## Epic 69 Handback — Security & safety review
 
-**Status:** Complete (includes Fix 1). Branch `epic/69-security-review` @ `236c57d`.
+**Status:** Complete (includes Fix 1). Branch `epic/69-security-review` @ `21a474f` (commits after that sha are docs-only).
 
 **Fix 1 (probes promoted after the owner fixes landed):**
 
-- `tools/security/replay-confinement.test.ts`: removed `.failing` from the three confinement probes ("recording outside", "symlink outside", "absolute non-recording"); the forged-recording impact test now asserts the **fixed** behaviour (403 from Epic 41's allow-list, and no `node.joined` for the attacker id in the store) and carries a comment describing what it used to demonstrate. The unauthenticated-replay probe stays `.failing` (SEC-01).
+- `tools/security/replay-confinement.test.ts`: removed `.failing` from the three confinement probes ("recording outside", "symlink outside", "absolute non-recording"); the forged-recording impact test now asserts the **fixed** behaviour (403 from Epic 41's allow-list, and no `node.joined` for the attacker id in the store) and carries a comment describing what it used to demonstrate. The symlink probe now uses a link *inside* an allowed `fixtures/` root that resolves out, so it fails if the check regresses to a lexical prefix test. The unauthenticated-replay probe stays `.failing` (SEC-01).
 - `tools/security/exec-argv.test.ts`: allow-list is now `apps/cli/src/doctor.ts` (constant `'ulimit -n'`, Epic 61), `packages/auditor/src/commands.ts` (config) and `packages/merger/src/suite.ts` (config; moved out of `merge.ts` by Epic 45 — verified at both call sites: `merge.ts` uses `opts.testCommand` from the `Merger` port, `resolver.ts` uses `ctx.testCommand ?? ctx.prompt.testCommand`).
 - `tools/security/support.ts`: `startProbeServer` accepts `repoRoot`, so the replay allow-list base is pinned to the repo root instead of the runner's cwd (compiles before and after Epic 41's `ServerDeps` change).
 - `docs/epic-69-security-review.md` + the findings table below: SEC-04 marked **FIXED by Epic 41**, SEC-11's site list updated, counts corrected (26 `test.failing`, was 30).
@@ -16,7 +16,7 @@
   - `token.test.ts` — missing/empty/wrong token 401 on every guarded route, check-before-parse, case-insensitive acceptance, constant-time comparison.
   - `cors.test.ts` — strange origin gets no `ACAO`/credentials, `localhost:5173` works and may send `x-flock-token`.
   - `bundle-ref.test.ts` — `?ref=` option-shaped/traversal refs, shell-marker absence, bundle writes confined to `bundleDir`, repo-path leakage in errors.
-  - `replay-confinement.test.ts` — `/api/replay` with absolute paths, `../`, symlinks, plus forged `node.joined` event injection. **Promoted in Fix 1**: the three confinement probes and the forged-recording impact test assert Epic 41's 403 allow-list as regression tests; only the auth probe is still `test.failing`.
+  - `replay-confinement.test.ts` — `/api/replay` with absolute paths, `../`, symlinks (including one inside an allowed root that resolves out), plus forged `node.joined` event injection. **Promoted in Fix 1**: the three confinement probes and the forged-recording impact test assert Epic 41's 403 allow-list as regression tests; only the auth probe is still `test.failing`.
   - `body-size.test.ts` — 1 MiB goal/url/path/prompt on hub + perch, incl. chunked bodies with no `content-length`.
   - `sse-flood.test.ts` — stalled-vs-healthy reader isolation, unsubscribe on close, concurrent-stream cap.
   - `perch-tasks.test.ts` — hostile `branch`/`fromRef` at the perch boundary; `repo.kind:'local'` refusal; real `LocalNode` + `Workspace` proof that traversal branch names cannot escape `worktreeRoot` and option-shaped refs cannot execute.
