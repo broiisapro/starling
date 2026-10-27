@@ -1,5 +1,5 @@
 ## Epic 61 Handback — Onboarding: init, doctor, first-run magic
-**Status:** Complete. Branch `epic/61-onboarding` @ d8b9cff (9 commits).
+**Status:** Complete. Branch `epic/61-onboarding` @ 20dc40c (10 commits).
 
 **Delivered:**
 - `starling doctor` runs 13 checks, each with a ✔/✘/! and a pasteable `fix:` line: `bun`, `git` (≥ 2.38), `opencode`, **`opencode server`** (real start/stop of a private `opencode serve` on a free loopback port + authenticated `GET /api/info`), `deepseek` (**every** DeepSeek V4.1 Flash id across providers, `(+N more)` beyond two), `deepseek key` (optional → warn), `gh` (optional → warn), `config`, `ollama` (+ recommended local models from `tools/local-models/results/recommendation.json` when present), `ram` (macOS-aware), `disk`, `network` (LAN IPv4 + `server.port`/`perch.port` free), `ulimit`.
