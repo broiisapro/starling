@@ -1,11 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import { PACKAGE as CORE_PACKAGE, newId } from '@starling/core';
 import { makeGoal } from '@starling/core/testing';
-import { PACKAGE } from './index.ts';
+import { AUDITOR_SYSTEM_PROMPT, createAuditor, PACKAGE } from './index.ts';
 
-describe('@starling/auditor skeleton', () => {
+describe('@starling/auditor exports', () => {
   test('exports its package name', () => {
     expect(PACKAGE).toBe('@starling/auditor');
+  });
+
+  test('exports a working Auditor factory and the reviewer prompt', () => {
+    const auditor = createAuditor();
+    expect(typeof auditor.audit).toBe('function');
+    expect(AUDITOR_SYSTEM_PROMPT).toContain('New behaviour requires tests');
+    expect(AUDITOR_SYSTEM_PROMPT.length).toBeGreaterThan(1_000);
   });
 
   test('imports @starling/core and @starling/core/testing', () => {
