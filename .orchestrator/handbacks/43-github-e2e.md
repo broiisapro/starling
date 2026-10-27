@@ -82,6 +82,9 @@ Closes #30.
   - `Running teardown…` → `Sandbox clean: broiisapro/starling-sandbox (repo kept)` (exit 0)
   - the PR bodies were checked live: verdict table with durations, ticked DoD with evidence, API/local
     usage table, `Node: hub`, a Closes line for sandbox issue 38, footer `run [crjd12](…issues?q=label%3Astarling%3Arun-crjd12)`.
+- Post-rebase re-run of the two commands above: `7 issues created` / `0 created` / `0 created`, task PRs
+  https://github.com/broiisapro/starling-sandbox/pull/55 and …/pull/56, final PR …/pull/57, then
+  `Sandbox clean: broiisapro/starling-sandbox (repo kept)`.
 - `bun run test` (root):
   - packages/CLI/server/skills/integrations/tools/evals: `1394 pass, 4 skip, 0 fail` — `Ran 1398 tests
     across 163 files`
