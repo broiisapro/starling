@@ -88,15 +88,25 @@ export function scenarioRun(): Run {
     costUsd: 0.00042,
     issueNumber: 100,
     prUrl: 'https://github.com/acme/sky-todo/pull/1',
+    nodeId: 'hub',
     lastVerdict: makeAuditVerdict({
       taskKey: 'theme',
       attempt: 2,
       pass: true,
       checks: [
-        { name: 'tests', ok: true, detail: 'bun test: 14 pass' },
-        { name: 'lane', ok: true, detail: 'no violations' },
+        { name: 'tests', ok: true, detail: 'bun test: 14 pass', durationMs: 4200 },
+        { name: 'lane', ok: true, detail: 'no violations', durationMs: 12 },
       ],
       laneViolations: [],
+      dod: [
+        { item: 'bun test passes', met: true, evidence: '14 pass, 0 fail' },
+        {
+          item: 'The theme survives a reload',
+          met: true,
+          evidence: 'data-theme persisted to localStorage',
+        },
+        { item: 'The toggle has an aria-label', met: true, evidence: 'aria-label="Toggle theme"' },
+      ],
       summary: 'Definition of done met on the second attempt.',
     }),
   });
@@ -111,20 +121,40 @@ export function scenarioRun(): Run {
     usage: { input: 500, output: 120, cached: 0 },
     costUsd: 0.0001,
     issueNumber: 101,
+    nodeId: 'm2-air',
     lastVerdict: makeAuditVerdict({
       taskKey: 'search',
       attempt: 3,
       pass: false,
       checks: [
-        { name: 'tests', ok: false, detail: 'bun test: 2 fail' },
-        { name: 'lane', ok: false, detail: 'wrote outside the lane' },
+        { name: 'tests', ok: false, detail: 'bun test: 2 fail', durationMs: 3800 },
+        { name: 'lane', ok: false, detail: 'wrote outside the lane', durationMs: 9 },
       ],
       laneViolations: ['src/store/todos.ts'],
+      dod: [
+        { item: 'bun test passes', met: false, evidence: '2 failing tests in search.test.ts' },
+        { item: 'Typing filters on every keystroke', met: true, evidence: 'debounced correctly' },
+        { item: 'Escape clears the query', met: false },
+      ],
       summary: 'Search mutates the store instead of reading visibleTodos.',
       fixInstructions: 'Use store.visibleTodos(query) rather than filtering todos in place.',
     }),
   });
 
+  return run;
+}
+
+/**
+ * The same run, but before `syncPlan` ran: no issue numbers and no PR URLs. Use this whenever a
+ * test is about *creating* issues, because a run that already knows its issue numbers is trusted
+ * over a (possibly lagging) GitHub listing.
+ */
+export function scenarioRunWithoutIssues(): Run {
+  const run = scenarioRun();
+  for (const task of Object.values(run.tasks)) {
+    task.issueNumber = undefined;
+    task.prUrl = undefined;
+  }
   return run;
 }
 
