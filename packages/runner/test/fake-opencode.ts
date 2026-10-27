@@ -270,7 +270,10 @@ export function createFakeOpencodeServer(options: FakeServerOptions = {}): FakeO
           headers,
         });
         if (answer === undefined) {
-          return json({ _tag: 'NotFound', message: 'no fake route for POST /api/experimental/generate' }, 404);
+          return json(
+            { _tag: 'NotFound', message: 'no fake route for POST /api/experimental/generate' },
+            404,
+          );
         }
         const status = answer.status ?? 200;
         if (status !== 200) {

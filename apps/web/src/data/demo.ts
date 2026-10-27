@@ -129,12 +129,8 @@ function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
       const run = known.payload.run;
       return { ...known, ts, payload: { ...known.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
     }
-    // `run.status` (Wave 2, Epic 40) also carries a full run snapshot, so it rebases like the
-    // other two run-carrying events; the spread keeps `from`/`to` intact.
-    case 'run.status': {
-      const run = event.payload.run;
-      return { ...event, ts, payload: { ...event.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
-    }
+    // `run.status` (Wave 2, Epic 40) also carries a full run snapshot, but it is rebased by the
+    // `isRunStatusEvent` branch above, which is why this switch never sees it.
     case 'run.finished': {
       const run = known.payload.run;
       return { ...known, ts, payload: { ...known.payload, run: rebaseRun(run, offset, rebaseVerdict) } };

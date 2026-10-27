@@ -187,8 +187,8 @@ describe('composeReal', () => {
       cwd: repo,
       timeoutMs: 10_000,
     });
-    expect(log.stdout).toContain('merge(two)');
-    expect(log.stdout).toContain('merge(one)');
+    expect(log.stdout).toMatch(/merge\(t\d+-one\)/);
+    expect(log.stdout).toMatch(/merge\(t\d+-two\)/);
 
     // The recorder is the only writer: one store row per published event, no duplicates.
     expect(composition.store.events(runId)).toHaveLength(events.length);

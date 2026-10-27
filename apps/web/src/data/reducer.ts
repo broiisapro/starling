@@ -243,13 +243,8 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
       };
     }
 
-    // Wave 2 (Epic 40) added this arm to core. The engine does not publish it yet (Epic 49 wires
-    // that), so this is a no-risk snapshot refresh: the run picker finally sees `planned`/`running`
-    // instead of sitting on `mapping` for the whole run.
-    case 'run.status': {
-      const run = event.payload.run;
-      return { ...next, runs: { ...next.runs, [run.id]: run } };
-    }
+    // Wave 2 (Epic 40) added this arm to core; `run.status` reaches the picker through the
+    // `isRunStatusEvent` guard above, so the switch over `KnownStarlingEvent` excludes it.
 
     // Events the shell keeps for the timeline/log but that change no derived state.
     case 'repomap.ready':
