@@ -61,7 +61,7 @@ test('reads handback status words', () => {
 
 test('parses agent log headers and counts overlapping sessions', () => {
   const header = parseLogHeader(
-    '=== Tue 27 Oct 2026 14:00:00 UTC :: 20-engine :: model opencode-go/deepseek-v4.1-flash :: ui run ===',
+    '=== Tue 27 Oct 2026 14:00:00 UTC :: 20-engine :: model test-model :: ui run ===',
   );
   expect(header?.slug).toBe('20-engine');
   expect(new Date(header?.start ?? 0).toISOString()).toBe('2026-10-27T14:00:00.000Z');

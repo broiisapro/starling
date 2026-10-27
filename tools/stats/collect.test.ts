@@ -46,7 +46,7 @@ async function write(cwd: string, path: string, content: string): Promise<void> 
 async function writeLog(path: string, header: string, slug: string, endMs: number): Promise<void> {
   await writeFile(
     path,
-    `=== ${header} :: ${slug} :: model opencode-go/deepseek-v4.1-flash :: ui run ===\nworked\n`,
+    `=== ${header} :: ${slug} :: model test-model :: ui run ===\nworked\n`,
   );
   const end = new Date(endMs);
   await utimes(path, end, end);
