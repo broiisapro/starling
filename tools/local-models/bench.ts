@@ -73,7 +73,7 @@ function payload(
   rails: unknown,
   cases: ReturnType<typeof loadCases>,
   results: Awaited<ReturnType<typeof runBench>>,
-  repeat: number,
+  options: { repeat: number; maxTokens: number; keepAlive: string; think: boolean },
 ) {
   return {
     kind: 'starling.local-model.bench',
@@ -90,7 +90,7 @@ function payload(
       schema: VERDICT_SCHEMA,
       system: AUDIT_SYSTEM,
       temperature: 0,
-      repeat,
+      ...options,
     },
     safety: rails,
     cases: cases.map((c) => ({ key: c.key, expectPass: c.expect.pass, mustMention: c.expect.mustMention })),
@@ -190,6 +190,11 @@ async function main(): Promise<void> {
 
     console.log('');
     console.log(markdownTable(results).join('\n'));
+    if (dryRun) {
+      console.log(
+        '\n   (dry run: latency, tok/s and RAM come from the fake — placeholders, not measurements)',
+      );
+    }
     console.log('');
     console.log('misses:');
     console.log(missReport(results).join('\n'));
@@ -229,12 +234,21 @@ async function main(): Promise<void> {
     mkdirSync(dirname(outPath), { recursive: true });
     writeFileSync(
       outPath,
-      `${JSON.stringify(payload(startedAt, finishedAt, profile, host, version, { ...rails, forced: force }, cases, results, repeat), null, 2)}\n`,
+      `${JSON.stringify(
+        payload(startedAt, finishedAt, profile, host, version, { ...rails, forced: force }, cases, results, {
+          repeat,
+          maxTokens,
+          keepAlive: '5m',
+          think,
+        }),
+        null,
+        2,
+      )}\n`,
     );
     console.log(`\n   wrote ${outPath}`);
 
-    const recommendationPath = join(HERE, 'results', 'recommendation.json');
-    const merged = readBenchResults(join(HERE, 'results'));
+    const recommendationPath = join(dirname(outPath), 'recommendation.json');
+    const merged = readBenchResults(dirname(outPath));
     writeRecommendation(recommendationPath, recommendModels(merged, budgets));
     console.log(`   wrote ${recommendationPath}`);
   } finally {
