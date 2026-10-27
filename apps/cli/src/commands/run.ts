@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import type { Run, StarlingConfig } from '@starling/core';
 import type { LLMProfileName } from '@starling/llm';
+import { findLanIPv4 } from '@starling/perch';
 import type { Composition } from '../compose';
 import type { CliContext } from '../context';
 import { applyEvent, emptyLiveState } from '../live-state';
@@ -193,8 +194,9 @@ function openDashboard(
       ...(composition.flock === undefined ? {} : { flock: composition.flock }),
       port: config.server.port,
     });
-    // Perches fetch the integration branch from this URL, not from the configured guess.
-    composition.setHubUrl?.(dashboard.url);
+    // Perches on other laptops fetch the integration branch from this URL, so it must be LAN-reachable
+    // (`dashboard.url` is localhost). STARLING_HUB_URL overrides the detected address.
+    composition.setHubUrl?.(context.env.STARLING_HUB_URL ?? `http://${findLanIPv4()}:${dashboard.port}`);
     return dashboard;
   } catch (err) {
     // A busy port must never kill a coding run that is otherwise fine.
