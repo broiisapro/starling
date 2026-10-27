@@ -142,7 +142,13 @@ export function composeReal(config: StarlingConfig, options: ComposeRealOptions)
   const env = options.env ?? process.env;
   const clock = options.clock ?? systemClock;
   const bus = options.bus ?? createEventBus();
-  const profile = options.profile ?? parseProfile(env.STARLING_LLM_PROFILE) ?? DEFAULT_REAL_PROFILE;
+  // `parseProfile(undefined)` answers the *library* default (`deepseek`), so the env var is checked
+  // first: on this machine there is no DeepSeek key and the honest default is `opencode`.
+  const profile =
+    options.profile ??
+    (env.STARLING_LLM_PROFILE === undefined || env.STARLING_LLM_PROFILE === ''
+      ? DEFAULT_REAL_PROFILE
+      : parseProfile(env.STARLING_LLM_PROFILE));
   const dispose = createDisposalStack();
   const worktreeRoot = options.worktreeRoot ?? worktreeRootFor(repoPath, config.worktreeRoot);
 
@@ -152,8 +158,12 @@ export function composeReal(config: StarlingConfig, options: ComposeRealOptions)
     options.runner ??
     createOpencodeRunner({
       mode: config.opencode.mode,
-      ...(config.opencode.url === null || config.opencode.url === '' ? {} : { url: config.opencode.url }),
-      port: config.opencode.port,
+      // Spawn mode owns a *private* server on a free port: pinning `config.opencode.port` would
+      // collide with the user's own `opencode serve` (there is usually one on 4096), so the
+      // configured port is only meaningful for attach mode and for `starling doctor`.
+      ...(config.opencode.mode === 'attach' && config.opencode.url !== null && config.opencode.url !== ''
+        ? { url: config.opencode.url }
+        : {}),
       ...(password === undefined ? {} : { password }),
       bus,
     });
