@@ -108,7 +108,7 @@ function TokenSplitBar({ split, api, local }: TokenSplitBarProps) {
       <div
         role="tooltip"
         data-testid="token-split-tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-[18rem] rounded-md border border-white/10 bg-slate-900/95 px-2 py-1 text-[10px] leading-4 text-slate-300 shadow-lg group-hover:block group-focus-within:block"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-[18rem] rounded-md border border-white/10 bg-slate-900/95 px-2 py-1 text-[10px] leading-4 text-slate-300 shadow-lg group-hover:block"
       >
         <p className="tabular-nums">
           <span className="text-sky-300">API</span> {formatTokensExact(api.input)} in (
