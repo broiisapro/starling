@@ -1,0 +1,4 @@
+# Cowork app drops copies of Claude-written files here; never commit them
+Claude outputs/
+.DS_Store
+.orchestrator/local.env
