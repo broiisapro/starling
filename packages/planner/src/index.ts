@@ -12,6 +12,7 @@
  */
 export const PACKAGE = '@starling/planner' as const;
 
+export { createDefaultLlm } from './default-llm';
 export { type PlanDraft, PlanDraftSchema } from './draft';
 export { buildDepGraph, canRunConcurrently, findCycles, formatCycle, isAncestor } from './graph';
 export { type CreatePlannerOptions, createPlanner, planFromDraft } from './planner';

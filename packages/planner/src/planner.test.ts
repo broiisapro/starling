@@ -36,7 +36,7 @@ describe('createPlanner — the happy path', () => {
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.role).toBe('planner');
     expect(llm.calls[0]?.maxTokens).toBe(8192);
-    expect(llm.calls[0]?.temperature).toBe(0.2);
+    expect(llm.calls[0]?.temperature).toBe(0);
     expect(llm.calls[0]?.messages[0]?.content).toContain('Ship launch-day polish');
   });
 
