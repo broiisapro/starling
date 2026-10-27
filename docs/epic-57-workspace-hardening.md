@@ -189,22 +189,22 @@ What the numbers say:
 
 - **`create` is the only serialised operation** and therefore the only one whose per-call latency is
   dominated by the repo mutex. The per-call p50/p95 include queueing behind the other 59 tasks (they
-  are what a caller sees — task #60 waits ~22 s for its worktree); the phase wall clock is the cost:
-  23.3 s for 60 tasks ≈ **0.39 s per task**, i.e. one `worktree add` of a 5 000-file repo, which is
+  are what a caller sees — task #60 waits ~22.6 s for its worktree); the phase wall clock is the cost:
+  23.5 s for 60 tasks ≈ **0.39 s per task**, i.e. one `worktree add` of a 5 000-file repo, which is
   git's checkout, not Starling's overhead.
-- **Everything else is parallel**: 60 commits (8.3 s phase), 60 diffs (0.77 s) and 60 removals (13.6 s)
+- **Everything else is parallel**: 60 commits (7.4 s phase), 60 diffs (0.77 s) and 60 removals (18.0 s)
   run concurrently under the bounded pool. `diff` is that cheap because a clean worktree now costs
   three spawns instead of five.
 - **Conflict prediction is nearly free** (80 ms for 20 pairs) and the bundle round trip is milliseconds
-  (823 ms for 10 create+fetch pairs), so the Flock transport is not a bottleneck at this scale.
+  (867 ms for 10 create+fetch pairs), so the Flock transport is not a bottleneck at this scale.
 - **Disk**: a full worktree is ~394 KB apparent / **~19.6 MB allocated** for 5 023 files — the block
   per file is the real cost, and `.git` (26.7 MB) is shared by all of them. 60 worktrees therefore cost
   about 1.2 GB allocated, not 60 copies of the repo.
 - **Sparse is a clear win**: a two-directory cone lane materialises 202 files / 808 KB allocated, a
   **96 % reduction**. It stays opt-in (see the trade-off below) but the engine should use it for lanes
   that are genuinely directory-shaped.
-- The harness prints the 1/5/15-minute load average next to the timings: this run started at load 18
-  while ~23 sibling agents were finishing on the same 10-core laptop (an earlier run at load 95 took
+- The harness prints the 1/5/15-minute load average next to the timings: this run started at load 23
+  while other agents were still working on the same 10-core laptop (an earlier run at load 95 took
   208 s total, same zero failures), so absolute p95s should be re-measured on a fully quiet machine
   before being quoted as a product claim.
 
@@ -319,8 +319,9 @@ export function diskUsage(path: string): Promise<DiskUsage>
 export function formatBytes(bytes: number): string
 ```
 
-`@starling/workspace` also exports the stress report types? No — the harness lives in `tools/stress`
-and exports `runStress` / `formatReport` for anyone who wants to reproduce a number.
+The harness is not part of the package: it lives in `tools/stress` and exports `runStress` /
+`formatReport` for anyone who wants to reproduce a number. Keeping it out of `@starling/workspace`
+stops test-scale and stress-scale code from drifting into the library's public API.
 
 ## Deviations from plan
 
