@@ -4,6 +4,7 @@
  * role → context → task → lane → siblings → repo → verify → git → finish line.
  */
 import type { PromptContext } from '@starling/core';
+import { applySectionBudgets, type SectionInput } from './budget';
 import type { ResolvedPromptOptions } from './options';
 import {
   finishLineSection,
@@ -16,7 +17,6 @@ import {
   verificationSection,
   workerRoleSection,
 } from './sections';
-import { joinSections } from './text';
 
 /** Below this the repo map stops being orientation and becomes noise. */
 const MIN_MAP_CHARS = 400;
@@ -27,23 +27,41 @@ const MIN_SIBLINGS = 3;
 /** The number of halving steps before giving up and accepting a long prompt. */
 const MAX_SHRINK_STEPS = 12;
 
+/**
+ * The worker prompt as named sections, before they are joined. Exported so the budget tests (and a
+ * future UI that wants to show section sizes) can inspect what the prompt is made of.
+ *
+ * Priority: role and verification are the voice; project and git are facts; siblings and the repo
+ * map are the only sections that may shrink. The task, lane and finish line are protected by
+ * `fitSections`.
+ */
+export function workerSections(
+  ctx: PromptContext,
+  options: ResolvedPromptOptions,
+  mapBudget = Math.max(MIN_MAP_CHARS, Math.floor(options.maxRepoMapChars * options.mapShare)),
+  siblingLimit = Math.max(0, ctx.plan.tasks.length - 1),
+): SectionInput[] {
+  return [
+    { id: 'role', text: workerRoleSection(ctx, options), priority: 100 },
+    { id: 'project', text: projectContextSection(ctx), priority: 90 },
+    { id: 'task', text: taskSection(ctx), priority: 0 },
+    { id: 'lane', text: laneSection(ctx, options), priority: 0 },
+    { id: 'siblings', text: siblingsSection(ctx, siblingLimit, options), priority: 40 },
+    { id: 'orientation', text: repoOrientationSection(ctx, mapBudget, options), priority: 30 },
+    { id: 'verification', text: verificationSection(ctx, options), priority: 80 },
+    { id: 'git', text: gitSection(ctx), priority: 70 },
+    { id: 'finish', text: finishLineSection(), priority: 0 },
+  ];
+}
+
 function assemble(
   ctx: PromptContext,
   options: ResolvedPromptOptions,
   mapBudget: number,
   siblingLimit: number,
 ): string {
-  return joinSections([
-    workerRoleSection(ctx, options),
-    projectContextSection(ctx),
-    taskSection(ctx),
-    laneSection(ctx, options),
-    siblingsSection(ctx, siblingLimit, options),
-    repoOrientationSection(ctx, mapBudget, options),
-    verificationSection(ctx, options),
-    gitSection(ctx),
-    finishLineSection(),
-  ]);
+  return applySectionBudgets(workerSections(ctx, options, mapBudget, siblingLimit), options.budgetTokens)
+    .text;
 }
 
 /**

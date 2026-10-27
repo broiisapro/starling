@@ -6,9 +6,11 @@
  */
 import type { MergeResult, Plan, PromptContext, TaskSpec } from '@starling/core';
 import { matchesAny, StarlingError } from '@starling/core';
+import { applySectionBudgets, type SectionInput } from './budget';
 import type { ResolvedPromptOptions } from './options';
 import { finishLineSection, testCommandFor } from './sections';
 import { bullets, clamp, code, joinSections, numbered, plural } from './text';
+import { fenceUntrusted, UNTRUSTED_NOTICE } from './untrusted';
 
 /**
  * Additive extras for the resolver prompt.
@@ -48,7 +50,7 @@ function filesBlock(conflict: MergeResult): string {
   return joinSections([
     '## Conflicted files',
     bullets(conflict.conflictedFiles.map(code)),
-    conflict.detail ? `**Merger detail:** ${conflict.detail}` : undefined,
+    conflict.detail ? `**Merger detail:** ${fenceUntrusted('conflict-hunk', conflict.detail)}` : undefined,
   ]);
 }
 
@@ -66,7 +68,7 @@ function hunksBlock(extras: ResolverPromptExtras): string {
   return joinSections([
     '## Conflict hunks (trimmed)',
     'These are shortened excerpts of the marker blocks, `--- <path>` starts a file. Read the full files in your worktree before you edit them; the excerpts are here so you can see both sides at a glance.',
-    ['```text', body, '```'].join('\n'),
+    fenceUntrusted('conflict-hunk', ['```text', body, '```'].join('\n')),
   ]);
 }
 
@@ -129,6 +131,34 @@ function rulesBlock(ctx: PromptContext, conflict: MergeResult): string {
   ]);
 }
 
+export function resolverSections(
+  ctx: PromptContext,
+  conflict: MergeResult,
+  options: ResolvedPromptOptions,
+  extras: ResolverPromptExtras = {},
+): SectionInput[] {
+  const count = conflict.conflictedFiles.length;
+  return [
+    {
+      id: 'role',
+      text: joinSections([
+        `# Starling resolver — ${ctx.task.key}`,
+        options.style === 'compact'
+          ? `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides keep working.`
+          : `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides' behaviour survives: this is real engineering, not marker deletion. Your work is already committed on the branch.`,
+        UNTRUSTED_NOTICE,
+      ]),
+      priority: 100,
+    },
+    { id: 'project', text: filesBlock(conflict), priority: 90 },
+    { id: 'fix-detail', text: hunksBlock(extras), priority: 20 },
+    { id: 'task', text: intentBlock(ctx.task, "## Your task's intent", true, true), priority: 0 },
+    { id: 'siblings', text: otherSideBlock(ctx, conflict), priority: 40 },
+    { id: 'git', text: rulesBlock(ctx, conflict), priority: 80 },
+    { id: 'finish', text: finishLineSection(), priority: 0 },
+  ];
+}
+
 export function buildResolverPrompt(
   ctx: PromptContext,
   conflict: MergeResult,
@@ -143,17 +173,5 @@ export function buildResolverPrompt(
     );
   }
 
-  const count = conflict.conflictedFiles.length;
-  return joinSections([
-    `# Starling resolver — ${ctx.task.key}`,
-    options.style === 'compact'
-      ? `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides keep working.`
-      : `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides' behaviour survives: this is real engineering, not marker deletion. Your work is already committed on the branch.`,
-    filesBlock(conflict),
-    hunksBlock(extras),
-    intentBlock(ctx.task, "## Your task's intent", true, true),
-    otherSideBlock(ctx, conflict),
-    rulesBlock(ctx, conflict),
-    finishLineSection(),
-  ]);
+  return applySectionBudgets(resolverSections(ctx, conflict, options, extras), options.budgetTokens).text;
 }
