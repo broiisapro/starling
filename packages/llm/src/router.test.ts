@@ -203,7 +203,7 @@ describe('createLLM — structured output', () => {
     }
     expect(isBadJsonError(error)).toBe(true);
     if (isBadJsonError(error)) {
-      expect(error.code).toBe('LLM_ERROR');
+      expect(error.code).toBe('LLM_BAD_JSON');
       expect(error.details?.raw).toBe('still not json');
       expect(error.details?.attempts).toBe(3);
     }
