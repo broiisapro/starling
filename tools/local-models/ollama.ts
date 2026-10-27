@@ -13,7 +13,7 @@ export type Timings = {
   totalMs: number;
   completionTokens: number | null;
   tokensPerSec: number | null;
-  tokensPerSecSource: "usage" | "api-chat-eval" | null;
+  tokensPerSecSource: 'usage' | 'api-chat-eval' | null;
   loadDurationMs: number | null;
 };
 
@@ -53,9 +53,9 @@ const emptyTiming = (totalMs: number): Timings => ({
 export async function ollamaVersion(host: string): Promise<string> {
   try {
     const r = await fetch(`${host}/api/version`, { signal: AbortSignal.timeout(3000) });
-    return ((await r.json()) as { version?: string }).version ?? "unknown";
+    return ((await r.json()) as { version?: string }).version ?? 'unknown';
   } catch {
-    return "unreachable";
+    return 'unreachable';
   }
 }
 
@@ -76,20 +76,20 @@ export async function isLoaded(host: string, model: string): Promise<boolean> {
  */
 async function readLines(res: Response, handle: (line: string) => void): Promise<string | undefined> {
   const reader = res.body?.getReader();
-  if (!reader) return "no response body";
+  if (!reader) return 'no response body';
   const decoder = new TextDecoder();
-  let buf = "";
+  let buf = '';
   try {
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       buf += decoder.decode(value, { stream: true });
-      let nl = buf.indexOf("\n");
+      let nl = buf.indexOf('\n');
       while (nl >= 0) {
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
         if (line) handle(line);
-        nl = buf.indexOf("\n");
+        nl = buf.indexOf('\n');
       }
     }
   } catch (e) {
@@ -104,43 +104,48 @@ export async function callV1(o: CallOptions): Promise<CallResult> {
   let res: Response;
   try {
     res = await fetch(`${o.host}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
         model: o.model,
         messages: [
-          { role: "system", content: o.system },
-          { role: "user", content: o.user },
+          { role: 'system', content: o.system },
+          { role: 'user', content: o.user },
         ],
         temperature: o.temperature ?? 0,
         max_tokens: o.maxTokens ?? 2000,
         stream: true,
         stream_options: { include_usage: true },
-        keep_alive: o.keepAlive ?? "5m",
+        keep_alive: o.keepAlive ?? '5m',
         ...(o.think === false ? { think: false } : {}),
         response_format: {
-          type: "json_schema",
-          json_schema: { name: "audit_verdict", schema: o.schema, strict: true },
+          type: 'json_schema',
+          json_schema: { name: 'audit_verdict', schema: o.schema, strict: true },
         },
       }),
     });
   } catch (e) {
-    return { text: "", timing: emptyTiming(now() - t0), status: 0, error: `request failed: ${describe(e)}` };
+    return { text: '', timing: emptyTiming(now() - t0), status: 0, error: `request failed: ${describe(e)}` };
   }
 
   if (!res.ok) {
     const body = (await res.text()).slice(0, 400);
-    return { text: "", timing: emptyTiming(now() - t0), status: res.status, error: `${res.status} ${res.statusText}: ${body}` };
+    return {
+      text: '',
+      timing: emptyTiming(now() - t0),
+      status: res.status,
+      error: `${res.status} ${res.statusText}: ${body}`,
+    };
   }
 
   let ttftMs: number | null = null;
-  let text = "";
+  let text = '';
   let completionTokens: number | null = null;
   const streamError = await readLines(res, (line) => {
-    if (!line.startsWith("data:")) return;
+    if (!line.startsWith('data:')) return;
     const data = line.slice(5).trim();
-    if (!data || data === "[DONE]") return;
+    if (!data || data === '[DONE]') return;
     try {
       const evt = JSON.parse(data) as {
         choices?: { delta?: { content?: string } }[];
@@ -167,7 +172,7 @@ export async function callV1(o: CallOptions): Promise<CallResult> {
       totalMs,
       completionTokens,
       tokensPerSec: completionTokens ? (completionTokens / totalMs) * 1000 : null,
-      tokensPerSecSource: completionTokens ? "usage" : null,
+      tokensPerSecSource: completionTokens ? 'usage' : null,
       loadDurationMs: null,
     },
     status: res.status,
@@ -181,31 +186,36 @@ export async function callNative(o: CallOptions): Promise<CallResult> {
   let res: Response;
   try {
     res = await fetch(`${o.host}/api/chat`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       body: JSON.stringify({
         model: o.model,
         messages: [
-          { role: "system", content: o.system },
-          { role: "user", content: o.user },
+          { role: 'system', content: o.system },
+          { role: 'user', content: o.user },
         ],
         format: o.schema,
         options: { temperature: o.temperature ?? 0, num_predict: o.maxTokens ?? 2000 },
         stream: true,
-        keep_alive: o.keepAlive ?? "5m",
+        keep_alive: o.keepAlive ?? '5m',
         ...(o.think === false ? { think: false } : {}),
       }),
     });
   } catch (e) {
-    return { text: "", timing: emptyTiming(now() - t0), status: 0, error: `request failed: ${describe(e)}` };
+    return { text: '', timing: emptyTiming(now() - t0), status: 0, error: `request failed: ${describe(e)}` };
   }
   if (!res.ok) {
-    return { text: "", timing: emptyTiming(now() - t0), status: res.status, error: `${res.status} ${(await res.text()).slice(0, 300)}` };
+    return {
+      text: '',
+      timing: emptyTiming(now() - t0),
+      status: res.status,
+      error: `${res.status} ${(await res.text()).slice(0, 300)}`,
+    };
   }
 
   let ttftMs: number | null = null;
-  let text = "";
+  let text = '';
   let evalCount: number | null = null;
   let evalDurationNs: number | null = null;
   let loadDurationNs: number | null = null;
@@ -241,7 +251,7 @@ export async function callNative(o: CallOptions): Promise<CallResult> {
       totalMs,
       completionTokens: evalCount,
       tokensPerSec: evalCount && genMs ? (evalCount / genMs) * 1000 : null,
-      tokensPerSecSource: evalCount && genMs ? "api-chat-eval" : null,
+      tokensPerSecSource: evalCount && genMs ? 'api-chat-eval' : null,
       loadDurationMs: loadDurationNs ? loadDurationNs / 1e6 : null,
     },
     status: res.status,
@@ -261,37 +271,49 @@ export function validateVerdict(
   let parsed: Verdict | null = null;
   const trimmed = text
     .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/```$/, "")
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```$/, '')
     .trim();
   try {
     const raw = JSON.parse(trimmed) as Record<string, unknown>;
-    checks.push({ name: "json-parses", ok: true, detail: `${trimmed.length} bytes` });
-    const passOk = typeof raw.pass === "boolean";
-    const summaryOk = typeof raw.summary === "string" && (raw.summary as string).length > 0;
-    const fixOk = raw.fixInstructions === undefined || typeof raw.fixInstructions === "string";
-    checks.push({ name: "shape-pass-boolean", ok: passOk, detail: `pass=${JSON.stringify(raw.pass)}` });
-    checks.push({ name: "shape-summary-string", ok: summaryOk, detail: summaryOk ? "non-empty" : "missing/empty" });
-    checks.push({ name: "shape-fixInstructions-optional", ok: fixOk, detail: String(typeof raw.fixInstructions) });
-    const extra = Object.keys(raw).filter((k) => !["pass", "summary", "fixInstructions"].includes(k));
-    checks.push({ name: "no-extra-keys", ok: extra.length === 0, detail: extra.length ? extra.join(", ") : "none" });
+    checks.push({ name: 'json-parses', ok: true, detail: `${trimmed.length} bytes` });
+    const passOk = typeof raw.pass === 'boolean';
+    const summaryOk = typeof raw.summary === 'string' && (raw.summary as string).length > 0;
+    const fixOk = raw.fixInstructions === undefined || typeof raw.fixInstructions === 'string';
+    checks.push({ name: 'shape-pass-boolean', ok: passOk, detail: `pass=${JSON.stringify(raw.pass)}` });
+    checks.push({
+      name: 'shape-summary-string',
+      ok: summaryOk,
+      detail: summaryOk ? 'non-empty' : 'missing/empty',
+    });
+    checks.push({
+      name: 'shape-fixInstructions-optional',
+      ok: fixOk,
+      detail: String(typeof raw.fixInstructions),
+    });
+    const extra = Object.keys(raw).filter((k) => !['pass', 'summary', 'fixInstructions'].includes(k));
+    checks.push({
+      name: 'no-extra-keys',
+      ok: extra.length === 0,
+      detail: extra.length ? extra.join(', ') : 'none',
+    });
     if (passOk && summaryOk) {
       parsed = {
         pass: raw.pass as boolean,
         summary: raw.summary as string,
-        ...(typeof raw.fixInstructions === "string" ? { fixInstructions: raw.fixInstructions } : {}),
+        ...(typeof raw.fixInstructions === 'string' ? { fixInstructions: raw.fixInstructions } : {}),
       };
     }
     checks.push({
-      name: "verdict-is-sane",
+      name: 'verdict-is-sane',
       ok: parsed !== null && parsed.pass === opts.expectPass,
       detail:
         parsed === null
-          ? "unparseable"
-          : `pass=${parsed.pass} (expected ${opts.expectPass}${opts.expectPass ? "" : ": the diff adds no test"})`,
+          ? 'unparseable'
+          : `pass=${parsed.pass} (expected ${opts.expectPass}${opts.expectPass ? '' : ': the diff adds no test'})`,
     });
   } catch (e) {
-    checks.push({ name: "json-parses", ok: false, detail: String(e).slice(0, 200) });
+    checks.push({ name: 'json-parses', ok: false, detail: String(e).slice(0, 200) });
   }
   return { parsed, checks };
 }
