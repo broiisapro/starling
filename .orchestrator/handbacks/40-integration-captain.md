@@ -24,7 +24,8 @@
 - Tests: `apps/cli/src/real/compose-real.test.ts` (the real stack with MockLLM + the runner's fake
   opencode server, two tasks merged on real git worktrees and a real SQLite log),
   `real-wiring.test.ts` (disposal, heartbeat, recording caps, dependency links, dashboard, read-only
-  engine), `compose-real.live.test.ts` (the real quick-wins run, `STARLING_LIVE=1` only), plus updated
+  engine), `merger-deps.test.ts` (the merge port is serial: peak concurrency 1, one queue),
+  `compose-real.live.test.ts` (the real quick-wins run, `STARLING_LIVE=1` only), plus updated
   CLI/core tests.
 
 **Real runs (opencode profile, `maxParallel` 3–4, budget $5, `--no-dash`):**
@@ -103,6 +104,12 @@ summary in 0.8 s.
   `.gitignore`'s `node_modules/` does not match a symlink, so without the rule the link was committed
   and every task failed its lane check. The merge queue's integration worktree gets the same link
   through a merger decorator (`real/merger-deps.ts`) rather than a new contract.
+- **The merger gets a serial merge port inside the composition** (`real/merger-deps.ts`): the
+  engine calls `merger.merge` directly, so two tasks that finish auditing together ran `git merge`
+  in one integration worktree and collided on `.git/index.lock` — the loser was marked `failed` with
+  no retry. The composition routes `merge` through the merger's own serial queue (and links
+  `node_modules` inside that serialised section). This was a ~50% flake in the full suite and would
+  have hit a real run with two simultaneous merges.
 - **The recorder is the single writer of the event log** (`real/engine-store.ts`): the engine appends
   *and* publishes, `attachRecorder` appends again — wiring both to SQLite doubled every event.
 - **The hub heartbeats itself** (`real/hub-heartbeat.ts`): the registry sweeps a node offline after
@@ -117,10 +124,12 @@ summary in 0.8 s.
 - `bun install` — clean (`Checked 175 installs across 221 packages`), `apps/cli/package.json` gained
   workspace deps only.
 - `bun run test` (root): packages/apps/server/cli/skills/integrations/tools/evals →
-  **1380 pass / 5 skip / 0 fail** (`Ran 1385 tests across 165 files`); apps/web →
+  **1383 pass / 5 skip / 0 fail** (`Ran 1388 tests across 166 files`); apps/web →
   **426 pass / 0 fail** (`Ran 426 tests across 39 files`).
-- `bun run check` — clean: `Checked 718 files in 153ms. No fixes applied.` + every workspace
+- `bun run check` — clean: `Checked 719 files in 139ms. No fixes applied.` + every workspace
   `tsc --noEmit` passed.
+- Merge-port race (finding 7): `bun test apps/cli` re-run 5× → 0 fail each; `bun run test:packages`
+  re-run 2× → 0 fail (it failed ~50% of runs before the fix).
 - Real runs as above (both finished, all tasks merged, integration branch suites green inside the
   demo repo).
 
@@ -141,6 +150,11 @@ packages, no version bumps.
 3. **`packages/runner`: map `session.tool.error` / any remaining 2.1.x tool failure names** if they
    exist (only `session.tool.failed|error` are guessed here; `success`/`called`/`input.*` were
    captured live). Everything else in the streaming vocabulary is mapped.
+4. **`packages/engine` (E49): call `merger.queue().enqueue` instead of `merger.merge`.** The engine
+   merges as soon as a task passes audit, so two simultaneous merges share one integration worktree
+   and collide on `index.lock`; the loser is marked `failed` with no retry (no core change needed —
+   `createMergeQueue` is already exported). The CLI composition serialises the port today, which
+   covers `starling run`, but a dashboard/launch embedder calling `merge` directly would not.
 
 **Minimal fixes made outside the strict lane (blocking, see the epic doc):**
 - `packages/llm/src/providers/opencode.ts` (+ `opencode.test.ts`): use
@@ -179,7 +193,9 @@ packages, no version bumps.
 - **The launch-day goal planned 6 tasks, not 7.** The planner folded keyboard shortcuts + help into
   one task; nothing in the epic requires 7, but the demo script's "7 tasks" is the model's decision,
   not a guarantee.
-- **A duplicate of this session appears to have written `fixtures/real/launch-day.jsonl` mid-epic**
-  (a `/tmp/sky-e2e-2` run, 6/7 merged, finished). This branch's file is the run described above from
-  `/tmp/sky-e2e-3`; if two sessions of this epic merged, the integrator should expect a conflict on
-  that file and keep either recording (both are valid, both replay).
+- **Two sessions of this epic ran on this machine at once** (a resumed session overlapped the
+  original one for ~20 minutes). The committed `fixtures/real/launch-day.jsonl` is the
+  `/tmp/sky-e2e-3` run described above (1141 events, the one with normalised agent events and live
+  cost); a second, independent `/tmp/sky-e2e-2` launch-day run also finished 6/6 merged and its
+  recording was overwritten by this one. Nothing uncommitted is left behind, so no conflict is
+  expected — but if the integrator sees two launch-day recordings in review, either replays.

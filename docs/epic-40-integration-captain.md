@@ -86,9 +86,13 @@ and the 7-item `launch-day` goal on a second demo repo, recorded to `fixtures/re
   `.gitignore`'s `node_modules/` (trailing slash = real directory only), so the first real run
   committed the symlink and every task failed its lane check. The composition now appends a
   `node_modules` rule to `.git/info/exclude` — local, uncommitted, shared by every worktree.
-- **The merger gets a decorator, not a fork.** `withMergerDependencies` calls the exported
-  `ensureIntegrationWorktree` before the first merge of a branch and links dependencies there too.
-  The alternative — a `mergeStart` hook on the port — is a contract change for one caller.
+- **The merger gets a decorator, not a fork.** `withMergerDependencies` prepares the integration
+  worktree (dependency link) *inside* a serial queue and exposes that queue as the port's `merge`.
+  Two reasons: a fresh worktree has no `node_modules`, and — found only under load — the engine calls
+  `merge` as soon as a task passes audit, so two tasks finishing together ran `git merge` in the same
+  worktree and the loser died on `index.lock` (then `failed`, with no retry). `@starling/merger`
+  already ships the serial queue as the production path; the composition just routes the engine
+  through it. The alternative — a `mergeStart` hook on the port — is a contract change for one caller.
 - **The recorder is the single writer of the event log.** `RunDriver.publish` appends *and*
   publishes; `attachRecorder` appends again. Dropping the engine's own append (a five-method facade)
   keeps the JSONL/SQLite log 1:1 with the bus, which is what `starling status` and any future export
@@ -120,6 +124,13 @@ Every one of these was invisible to per-package tests and blocked or degraded th
 5. **`node_modules` symlink committed by `commitAll`** → lane violation on every task.
    `ensureNodeModulesIgnored`.
 6. **Double-appended event log** (`attachRecorder` + the engine's own append). `real/engine-store.ts`.
+7. **Concurrent merges collided on `.git/index.lock`.** The engine calls `merger.merge` directly, so
+   two tasks that finish auditing together merge into the same integration worktree at once; the
+   loser throws, and the engine marks it `failed` without a retry. It surfaced as a 50% flake in the
+   full suite (`compose-real.test.ts`) and would have hit any real run with two simultaneous merges.
+   The composition now hands the engine the merger's own serial queue (`real/merger-deps.ts`), with
+   the dependency link inside the serialised section; `merger-deps.test.ts` asserts the peak
+   concurrency is 1.
 
 ## Interfaces for future epics
 
@@ -144,7 +155,10 @@ Every one of these was invisible to per-package tests and blocked or degraded th
   with the bound server URL; `bundleUrlFor` uses that plus `flock.code`. A perch-side `LocalNode`
   inherits the dependency-link and heartbeat patterns here.
 - **Engine (E49):** `TaskRun.worktreePath` is never set, so the auditor falls back to the hub repo
-  (see limitations); publishing `nodeName` and `run.status` belongs there.
+  (see limitations); publishing `nodeName` and `run.status` belongs there. **The engine should merge
+  through a serial queue itself** (`merger.queue().enqueue`) — today the CLI composition guarantees
+  serialisation, but any other embedder that calls `merger.merge` twice concurrently hits
+  `index.lock` and loses the task.
 - **Doctor (E61):** `real/paths.ts` + `DEFAULT_REAL_PROFILE` are the single source of truth for the
   store location and the profile default.
 
@@ -198,4 +212,6 @@ git -C /tmp/sky-e2e-1 log --oneline starling/3rcdzr/integration | head
 cd <integration worktree> && bun test
 ```
 
-Results are pasted in `.orchestrator/handbacks/40-integration-captain.md`.
+Results are pasted in `.orchestrator/handbacks/40-integration-captain.md`. The merge-port fix (item 7)
+landed after both real runs, so `bun run test` was re-run five times for `apps/cli` and twice for the
+whole package suite to confirm the race is gone; the recordings above are unchanged and still replay.
