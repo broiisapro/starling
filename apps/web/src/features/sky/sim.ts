@@ -914,6 +914,14 @@ export class SkySimulation {
   // ── reduced motion ───────────────────────────────────────────────────────────────────────────
   /** Calm layout: see `calm.ts`. Every flock parks in its state zone; `step()` then freezes. */
   layoutCalm(): void {
+    // Calm mode never steps, so snap the roost chrome to its settled state instead of leaving a
+    // new roost at grow=0 (which would render half-grown forever).
+    for (const roost of this.roosts) {
+      roost.grow = 1;
+      roost.dim = roost.dimTarget;
+      roost.ripple = -1;
+      roost.busy = roost.maxSessions > 0 ? Math.min(1, roost.activeSessions / roost.maxSessions) : 0;
+    }
     applyCalmLayout({
       flocks: this.flocks,
       birds: this.birds,

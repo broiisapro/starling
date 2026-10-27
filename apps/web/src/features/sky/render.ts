@@ -129,12 +129,15 @@ export function createSkyRenderer(canvas: HTMLCanvasElement): SkyRenderer {
       ctx2.textBaseline = 'alphabetic';
 
       drawWire(ctx2, sim);
-      for (const roost of sim.roosts) drawRoost(ctx2, roost, sim.height);
-      drawWireLabels(ctx2, sim);
-      drawSweep(ctx2, sim);
+      for (const roost of sim.roosts) drawRoost(ctx2, roost, sim.height, sim.reducedMotion);
+      drawWireLabels(ctx2, sim, sim.reducedMotion);
+      // Calm mode is a static status map: no sweeping crests, sparks, beats or ripples.
+      if (!sim.reducedMotion) {
+        drawSweep(ctx2, sim);
+        drawSparks(ctx2, sim);
+        drawBeats(ctx2, sim);
+      }
       drawMigrationTrails(ctx2, sim);
-      drawSparks(ctx2, sim);
-      drawBeats(ctx2, sim);
       drawHalo(ctx2, sim, opts);
       drawHoverLabel(ctx2, sim, opts);
       drawNotices(ctx2, sim);
@@ -224,7 +227,7 @@ function drawWire(ctx: CanvasRenderingContext2D, sim: SkySimulation): void {
  * (projector-sized type, hub crown), and the sessions gauge (`3/5` + pips). A joining roost rises
  * out of the horizon with two ripples; a leaving one dims and its caption fades under the gauge.
  */
-function drawRoost(ctx: CanvasRenderingContext2D, roost: Roost, skyHeight: number): void {
+function drawRoost(ctx: CanvasRenderingContext2D, roost: Roost, skyHeight: number, still: boolean): void {
   const grow = roost.grow;
   const rise = (1 - grow) * 46;
   const y = roost.y + rise;
@@ -246,7 +249,7 @@ function drawRoost(ctx: CanvasRenderingContext2D, roost: Roost, skyHeight: numbe
   }
 
   // Join ripple: two rings expanding out of the branch, fading as they go.
-  if (roost.ripple >= 0) {
+  if (!still && roost.ripple >= 0) {
     const p = Math.min(1, roost.ripple / RIPPLE_LIFE);
     for (const lag of [0, 0.22]) {
       const q = p - lag;
@@ -376,7 +379,7 @@ function drawCrown(ctx: CanvasRenderingContext2D, x: number, baseline: number, s
   ctx.fill();
 }
 
-function drawWireLabels(ctx: CanvasRenderingContext2D, sim: SkySimulation): void {
+function drawWireLabels(ctx: CanvasRenderingContext2D, sim: SkySimulation, still: boolean): void {
   const merged = sim.flocks.filter((flock) => flock.status === 'merged');
   if (merged.length === 0) return;
   const span = Math.max(20, sim.wire.right - sim.wire.left - 104);
@@ -389,7 +392,7 @@ function drawWireLabels(ctx: CanvasRenderingContext2D, sim: SkySimulation): void
     const x = flock.leaderX;
     const y = sim.wire.yAt(x);
     // Only a real landing (a live status change) shimmers; a reconnect mid-run does not.
-    const landing = flock.landedSeq > 0 ? flock.statusTime / LANDING_SHIMMER : 1;
+    const landing = !still && flock.landedSeq > 0 ? flock.statusTime / LANDING_SHIMMER : 1;
     const label = fitText(ctx, flock.taskKey, Math.max(24, slot - 6));
     if (landing < 1) {
       // Celebratory shimmer: an expanding ring plus a bright flash behind the key.
