@@ -11,7 +11,7 @@ export {
   percent,
   totalTokens,
 } from './format';
-export { currentRoute, DEFAULT_ROUTE, initialSpeed, parseRoute, type SkyRoute } from './route';
+export { currentRoute, DEFAULT_ROUTE, initialSpeed, isPlaygroundName, PLAYGROUNDS, parseRoute, type PlaygroundName, type SkyRoute } from './route';
 export {
   DEFAULT_DEMO_SPEED,
   DEMO_SPEEDS,

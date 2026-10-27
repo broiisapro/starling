@@ -95,6 +95,8 @@ function startDemo(options: StartSkyDataOptions, sink: SkySink): StartSkyDataRes
     speed: options.speed ?? DEFAULT_DEMO_SPEED,
     loop: options.loop ?? true,
     loopPauseMs: options.loopPauseMs ?? DEMO_LOOP_PAUSE_MS,
+    // The recording is from launch day; on stage it must read as happening right now.
+    rebaseTo: () => Date.now(),
     timers: options.timers,
     onEvent: (event) => sink.ingest(event),
     onLoop: () => sink.reset(),

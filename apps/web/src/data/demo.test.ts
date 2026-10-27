@@ -9,6 +9,7 @@ import {
   demoTimeline,
   parseJsonl,
   playDemo,
+  rebaseEvents,
   scaledDelay,
 } from './demo';
 
@@ -205,5 +206,60 @@ describe('demo timing', () => {
     });
     expect(ended).toBe(true);
     expect(timers.pending()).toBe(0);
+  });
+});
+
+describe('rebaseEvents', () => {
+  const NOW = 1_900_000_000_000;
+
+  test('lands the first event at `now` and preserves every gap', () => {
+    const rebased = rebaseEvents(events, NOW);
+    expect(rebased).toHaveLength(events.length);
+    expect(rebased[0]?.ts).toBe(NOW);
+    for (let index = 1; index < events.length; index += 1) {
+      const original = (events[index]?.ts ?? 0) - (events[index - 1]?.ts ?? 0);
+      const shifted = (rebased[index]?.ts ?? 0) - (rebased[index - 1]?.ts ?? 0);
+      expect(shifted).toBe(original);
+    }
+  });
+
+  test('shifts the payload clocks the panels read, leaving durations alone', () => {
+    const rebased = rebaseEvents(events, NOW);
+    const offset = NOW - (events[0]?.ts ?? 0);
+
+    const firstRun = rebased[0];
+    if (firstRun?.type !== 'run.created') throw new Error('first event is not run.created');
+    const originalRun = events[0];
+    if (originalRun?.type !== 'run.created') throw new Error('first event is not run.created');
+    expect(firstRun.payload.run.startedAt).toBe(originalRun.payload.run.startedAt + offset);
+    expect(firstRun.payload.run.goal.createdAt).toBe(originalRun.payload.run.goal.createdAt + offset);
+    expect(firstRun.payload.run.metrics.elapsedMs).toBe(originalRun.payload.run.metrics.elapsedMs);
+
+    const nodeIndex = events.findIndex((event) => event.type === 'node.joined');
+    const nodeEvent = rebased[nodeIndex];
+    const originalNodeEvent = events[nodeIndex];
+    if (nodeEvent?.type !== 'node.joined' || originalNodeEvent?.type !== 'node.joined') {
+      throw new Error('fixture has no node.joined');
+    }
+    expect(nodeEvent.payload.node.lastSeen).toBe(originalNodeEvent.payload.node.lastSeen + offset);
+    expect(nodeEvent.payload.node.lastSeen).toBeLessThan(NOW + 3_600_000);
+
+    const taskEvent = rebased.find(
+      (event) => event.type === 'task.status' && event.payload.run.finishedAt !== undefined,
+    );
+    if (taskEvent?.type !== 'task.status' || taskEvent.payload.run.startedAt === undefined) {
+      throw new Error('fixture has no finished task');
+    }
+    expect(Number.isFinite(taskEvent.payload.run.finishedAt)).toBe(true);
+    expect(
+      (taskEvent.payload.run.finishedAt ?? 0) - (taskEvent.payload.run.startedAt ?? 0),
+    ).toBeGreaterThan(0);
+  });
+
+  test('never mutates the source log and tolerates an empty one', () => {
+    const before = events[0]?.ts;
+    rebaseEvents(events, NOW);
+    expect(events[0]?.ts).toBe(before);
+    expect(rebaseEvents([], NOW)).toEqual([]);
   });
 });
