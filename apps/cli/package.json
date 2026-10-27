@@ -12,8 +12,21 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@starling/auditor": "workspace:*",
     "@starling/core": "workspace:*",
+    "@starling/engine": "workspace:*",
+    "@starling/flock": "workspace:*",
+    "@starling/github": "workspace:*",
+    "@starling/llm": "workspace:*",
+    "@starling/merger": "workspace:*",
     "@starling/perch": "workspace:*",
+    "@starling/planner": "workspace:*",
+    "@starling/prompts": "workspace:*",
+    "@starling/repomap": "workspace:*",
+    "@starling/runner": "workspace:*",
+    "@starling/server": "workspace:*",
+    "@starling/store": "workspace:*",
+    "@starling/workspace": "workspace:*",
     "commander": "15.0.0",
     "picocolors": "1.1.1"
   }

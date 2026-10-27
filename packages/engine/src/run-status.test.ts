@@ -17,9 +17,16 @@ function sampleRun(): Run {
 }
 
 describe('run.status feature detection', () => {
-  test('publishes nothing while core has no run.status arm', () => {
+  test('publishes the contract shape now that core knows the arm', () => {
     const run = sampleRun();
-    expect(runStatusEvent(run.id, 10, 'planned', run)).toBeUndefined();
+    // C2: Epic 40's `{ from, to, run }` arm is in core, so the second candidate is accepted and
+    // `run.status` reaches the bus. (Before that, this probe returned undefined.)
+    expect(runStatusEvent(run.id, 10, 'planned', run)).toEqual({
+      type: 'run.status',
+      runId: run.id,
+      ts: 10,
+      payload: { from: 'planned', to: 'running', run },
+    });
   });
 
   test('picks the candidate shape the contract accepts', () => {

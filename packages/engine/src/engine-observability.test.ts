@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { StarlingEventSchema } from '@starling/core';
 import { immediateScheduler, MockNode, makeTaskSpec } from '@starling/core/testing';
 import { nodeNameOf } from './run-status';
 import { buildHarness, smallPlan } from './testing/harness';
@@ -19,11 +20,12 @@ describe('observability', () => {
     expect(nodeNameOf(running?.payload.run)).toBe('M5 Pro');
   });
 
-  test('no run.status event is published while core does not know the arm (feature detection)', async () => {
+  test('run.status is published, contract-valid, now that core knows the arm', async () => {
     const h = buildHarness({ plan: smallPlan([makeTaskSpec({ key: 'a' })]) });
     await h.finish();
-    const unknown = h.events.filter((event) => (event.type as string) === 'run.status');
-    expect(unknown).toHaveLength(0);
+    const statuses = h.events.filter((event) => (event.type as string) === 'run.status');
+    expect(statuses.length).toBeGreaterThan(0);
+    for (const event of statuses) expect(StarlingEventSchema.safeParse(event).success).toBe(true);
     // The run still reports every status through the run itself and run.finished.
     expect(h.ofType('run.finished')).toHaveLength(1);
   });

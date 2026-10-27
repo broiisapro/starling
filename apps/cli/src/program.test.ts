@@ -60,7 +60,7 @@ describe('commander surface', () => {
     expect(output).toContain('murmuration');
     expect(output).toContain('--version');
     expect(output).toContain('starling replay fixtures/runs/sky-todo-launch-day.jsonl');
-    expect(output).toContain('Wave 1 runs on the mock composition');
+    expect(output).toContain('--mock');
   });
 
   test('every command documents its examples', () => {

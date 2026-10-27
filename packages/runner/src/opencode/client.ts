@@ -12,11 +12,14 @@
  *   GET  /api/info                          health / identity
  *   GET  /api/event                         server-wide SSE stream
  *   POST /api/session/{id}/generate         one synchronous answer (used by the LLM router)
+ *   POST /api/experimental/generate         one stateless answer, no session (LLM router's first try)
  *   GET  /api/session/{id}                  session detail incl. token totals
  *   DELETE /api/session/{id}                remove a throwaway session
  *
  * Since Epic 49 this is the **single** V2 client in the repo: `@starling/llm`'s `opencode` provider
- * builds one of these instead of keeping its own copy of the REST calls.
+ * builds one of these instead of keeping its own copy of the REST calls. Epic 40 added
+ * `generateStateless`, the bare-model route the LLM router prefers (a *session* is a coding agent
+ * and may answer a completion prompt by exploring the repo instead of replying).
  */
 
 import type { ModelRef } from '@starling/core';
@@ -54,6 +57,16 @@ export interface CreateSessionInput {
 export interface GenerateSessionInput {
   prompt: string;
   /** Needed for the per-directory header on servers that scope sessions by worktree. */
+  directory?: string;
+  signal?: AbortSignal;
+}
+
+/** One stateless model call: no session, no tools, no agent loop. */
+export interface GenerateStatelessInput {
+  /** The whole prompt. System instructions are composed by the caller. */
+  prompt: string;
+  providerID: string;
+  modelID: string;
   directory?: string;
   signal?: AbortSignal;
 }
@@ -131,6 +144,50 @@ export class OpencodeClient {
       });
     }
     return text;
+  }
+
+  /**
+   * One stateless answer via `POST /api/experimental/generate` (opencode 2.1.2+).
+   *
+   * Named `generateStateless`, not `generate`, because the session-scoped route above already owns
+   * that name; renaming it would churn every caller for no gain.
+   *
+   * Returns `undefined` — never throws — whenever the route is unavailable or refuses: a 404 on an
+   * older server, any other non-2xx, an unreadable body, or a body without `data.text`. That is
+   * deliberate: a refusal means "fall back to the session path", not "this completion failed". A
+   * transport failure still throws, because retrying is the caller's decision and it is not a
+   * capability signal.
+   *
+   * The route has no session, so it reports no token usage (its response schema is
+   * `{ data: { text } }` only). Callers that must meter a call use `generate` + `sessionInfo`.
+   */
+  async generateStateless(input: GenerateStatelessInput): Promise<string | undefined> {
+    let res: Response;
+    try {
+      res = await this.#fetch(`${this.baseUrl}/api/experimental/generate`, {
+        method: 'POST',
+        headers: { ...this.headers(input.directory), 'content-type': 'application/json' },
+        body: JSON.stringify({
+          prompt: input.prompt,
+          model: { providerID: input.providerID, id: input.modelID },
+        }),
+        signal: this.#signalFor(input.signal),
+      });
+    } catch (err) {
+      throw toStarlingError(
+        err,
+        'RUNNER_ERROR',
+        'opencode POST /api/experimental/generate could not be reached',
+      );
+    }
+    if (!res.ok) return undefined;
+    let body: OpencodeDataResponse<{ text?: unknown }>;
+    try {
+      body = (await res.json()) as OpencodeDataResponse<{ text?: unknown }>;
+    } catch {
+      return undefined;
+    }
+    return typeof body.data?.text === 'string' ? body.data.text : undefined;
   }
 
   async sessionInfo(sessionId: string, opts: RequestOptions = {}): Promise<OpencodeSessionInfo> {

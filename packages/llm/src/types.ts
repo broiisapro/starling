@@ -27,7 +27,20 @@ export interface OpencodeCompletionRequest {
 
 export interface OpencodeCompletionResult {
   text: string;
+  /**
+   * Token totals. `TokenUsage` is three numbers (the `LLM` port's shape), so an *unreported* usage
+   * still has to be written as zeros here — read `usageKnown` before treating it as a measurement.
+   */
   usage: TokenUsage;
+  /**
+   * `false` when the server route reported no totals at all: opencode's stateless generate route
+   * answers `{ data: { text } }` and nothing else, while a session reports real totals.
+   *
+   * Omitted by hand-written fakes (and by the session path) meaning "these numbers are real". The
+   * router logs `usage=unknown` for calls that set it to `false`; see
+   * `docs/epic-40-integration-captain.md`.
+   */
+  usageKnown?: boolean;
 }
 
 /**

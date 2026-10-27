@@ -243,6 +243,9 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
       };
     }
 
+    // Wave 2 (Epic 40) added this arm to core; `run.status` reaches the picker through the
+    // `isRunStatusEvent` guard above, so the switch over `KnownStarlingEvent` excludes it.
+
     // Events the shell keeps for the timeline/log but that change no derived state.
     case 'repomap.ready':
     case 'log':

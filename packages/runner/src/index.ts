@@ -9,7 +9,12 @@
  */
 export const PACKAGE = '@starling/runner' as const;
 
-export type { CreateSessionInput, OpencodeClientOptions } from './opencode/client';
+export type {
+  CreateSessionInput,
+  GenerateSessionInput,
+  GenerateStatelessInput,
+  OpencodeClientOptions,
+} from './opencode/client';
 export { OpencodeClient, parseRetryAfterMs } from './opencode/client';
 export type {
   EventNormalizerOptions,

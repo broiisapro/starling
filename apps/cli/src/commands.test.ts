@@ -88,11 +88,19 @@ describe('starling run', () => {
     expect(text()).toContain(`starling replay ${path}`);
   });
 
-  test('acknowledges --github and --fully-open as deferred, not broken', async () => {
+  test('accepts --github and --fully-open in mock mode without touching the network', async () => {
     const { context, text } = makeContext();
-    await runCommand('add CSV export', { dash: false, github: true, fullyOpen: true }, context);
-    expect(text()).toContain('--github recorded');
-    expect(text()).toContain('--fully-open recorded');
+    const code = await runCommand('add CSV export', { dash: false, github: true, fullyOpen: true }, context);
+    expect(code).toBe(0);
+    expect(text()).toContain('5 merged');
+    expect(text()).toContain('mock composition');
+  });
+
+  test('rejects a non-numeric --budget before spending anything', async () => {
+    const { context } = makeContext();
+    await expect(runCommand('add CSV export', { dash: false, budget: 'lots' }, context)).rejects.toThrow(
+      /--budget/,
+    );
   });
 });
 
@@ -152,12 +160,29 @@ describe('starling status', () => {
     expect(Object.keys(run.tasks)).toHaveLength(5);
   });
 
-  test('is friendly when no run exists, and rejects an unknown id', async () => {
+  test('is friendly when no run is recorded in the repo', async () => {
     const empty = makeContext();
     expect(await statusCommand(undefined, {}, empty.context)).toBe(0);
-    expect(empty.text()).toContain('No runs in this session yet');
+    expect(empty.text()).toContain('No runs recorded');
+  });
+
+  test('reads the SQLite store a run left behind, and rejects an unknown id', async () => {
+    const repo = tmpDir();
+    const { createSqliteStore } = await import('@starling/store');
+    const { makeRun } = await import('@starling/core/testing');
+    const db = join(repo, '.starling', 'starling.db');
+    const store = createSqliteStore(db);
+    const run = makeRun({ status: 'finished' });
+    store.saveRun(run);
+    store.close();
+
+    const found = makeContext();
+    const code = await statusCommand(run.id, { repo }, found.context);
+    expect(code).toBe(0);
+    expect(found.text()).toContain('Starling run');
+    expect(found.text()).toContain(run.id);
 
     const unknown = makeContext();
-    await expect(statusCommand('missing', {}, unknown.context)).rejects.toThrow(/No run missing/);
+    await expect(statusCommand('missing', { repo }, unknown.context)).rejects.toThrow(/No run missing/);
   });
 });

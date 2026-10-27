@@ -57,6 +57,98 @@ describe('OpencodeClient', () => {
     expect(await client.serverInfo()).toMatchObject({ version: '2.1.2-fake', pid: process.pid });
   });
 
+  describe('generateStateless', () => {
+    test('answers without creating a session', async () => {
+      const server = createFakeOpencodeServer({
+        password: 'pw',
+        onGenerateStateless: () => ({ text: '{"ok":true}' }),
+      });
+      cleanups.push(() => server.close());
+      const client = new OpencodeClient({ baseUrl: server.url, password: 'pw' });
+
+      const text = await client.generateStateless({
+        prompt: 'Answer in JSON',
+        providerID: 'opencode-go',
+        modelID: 'deepseek-v4.1-flash',
+        directory: '/tmp/wt',
+      });
+
+      expect(text).toBe('{"ok":true}');
+      expect(server.sessions.size).toBe(0);
+      const request = server.requests.find((entry) => entry.path === '/api/experimental/generate');
+      expect(request?.body).toEqual({
+        prompt: 'Answer in JSON',
+        model: { providerID: 'opencode-go', id: 'deepseek-v4.1-flash' },
+      });
+      expect(request?.headers['x-opencode-directory']).toBe('/tmp/wt');
+      expect(request?.headers.authorization).toBe(`Basic ${btoa('opencode:pw')}`);
+    });
+
+    test('returns undefined on an older server that lacks the route', async () => {
+      const { server, client } = setup();
+      expect(
+        await client.generateStateless({
+          prompt: 'hi',
+          providerID: 'opencode-go',
+          modelID: 'deepseek-v4.1-flash',
+        }),
+      ).toBeUndefined();
+      expect(server.requests.some((entry) => entry.path === '/api/experimental/generate')).toBe(true);
+      expect(server.sessions.size).toBe(0);
+    });
+
+    test('returns undefined when the server refuses or answers without text', async () => {
+      const refusing = createFakeOpencodeServer({
+        onGenerateStateless: () => ({ status: 503 }),
+      });
+      cleanups.push(() => refusing.close());
+      const refusingClient = new OpencodeClient({ baseUrl: refusing.url });
+      expect(
+        await refusingClient.generateStateless({
+          prompt: 'hi',
+          providerID: 'opencode-go',
+          modelID: 'deepseek-v4.1-flash',
+        }),
+      ).toBeUndefined();
+
+      const empty = createFakeOpencodeServer({ onGenerateStateless: () => ({}) });
+      cleanups.push(() => empty.close());
+      const emptyClient = new OpencodeClient({ baseUrl: empty.url });
+      expect(
+        await emptyClient.generateStateless({
+          prompt: 'hi',
+          providerID: 'opencode-go',
+          modelID: 'deepseek-v4.1-flash',
+        }),
+      ).toBeUndefined();
+      expect(empty.requests.map((entry) => entry.path)).toEqual(['/api/experimental/generate']);
+    });
+
+    test('returns an explicitly empty answer as text, not as a refusal', async () => {
+      const server = createFakeOpencodeServer({ onGenerateStateless: () => ({ text: '' }) });
+      cleanups.push(() => server.close());
+      const client = new OpencodeClient({ baseUrl: server.url });
+      expect(
+        await client.generateStateless({
+          prompt: 'hi',
+          providerID: 'opencode-go',
+          modelID: 'deepseek-v4.1-flash',
+        }),
+      ).toBe('');
+    });
+
+    test('throws a RUNNER_ERROR when the server cannot be reached', async () => {
+      const client = new OpencodeClient({ baseUrl: 'http://127.0.0.1:1' });
+      await expect(
+        client.generateStateless({
+          prompt: 'hi',
+          providerID: 'opencode-go',
+          modelID: 'deepseek-v4.1-flash',
+        }),
+      ).rejects.toMatchObject({ code: 'RUNNER_ERROR' });
+    });
+  });
+
   test('maps a non-2xx response to a StarlingError', async () => {
     const { client } = setup();
     await expect(client.prompt('ses_missing', 'hi')).rejects.toMatchObject({

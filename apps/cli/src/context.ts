@@ -1,5 +1,6 @@
 import type { ExecOptions, ExecResult, StarlingConfig, StarlingErrorCode } from '@starling/core';
 import { exec as coreExec, isStarlingError, loadConfig, StarlingError } from '@starling/core';
+import type { LLMProfileName } from '@starling/llm';
 import type { ComposeOptions, Composition } from './compose';
 import { compose } from './compose';
 import { createPalette, fixedPalette, type Palette } from './render/palette';
@@ -9,8 +10,21 @@ export type CliExec = (cmd: string[], opts: ExecOptions) => Promise<ExecResult>;
 export interface CliIO {
   /** Write raw text; the caller controls newlines. */
   write(text: string): void;
+  /** Write a diagnostic to stderr. Falls back to `write` so existing test sinks keep working. */
+  writeErr?(text: string): void;
   isTTY: boolean;
   columns: number;
+}
+
+/** Real-mode knobs a command resolves from its flags before asking for the composition. */
+export interface ComposeOverrides {
+  /** The effective config (`--budget`, `--github` already applied). */
+  config?: StarlingConfig;
+  /** The repo the command resolved from `--repo`. */
+  repoPath?: string;
+  budgetUsd?: number;
+  github?: boolean;
+  profile?: LLMProfileName;
 }
 
 export interface CliDeps {
@@ -43,7 +57,7 @@ export interface CliContext {
   execFn: CliExec;
   columns: number;
   loadStarlingConfig(): StarlingConfig;
-  composition(): Composition;
+  composition(overrides?: ComposeOverrides): Composition;
   /** Write a line (or a multi-line block) to stdout. */
   write(text?: string): void;
   writeErr(text: string): void;
@@ -59,6 +73,9 @@ export function createCliContext(deps: CliDeps = {}): CliContext {
   const io: CliIO = {
     write: (text) => {
       process.stdout.write(text);
+    },
+    writeErr: (text) => {
+      process.stderr.write(text);
     },
     isTTY: process.stdout.isTTY === true,
     columns: process.stdout.columns ?? 100,
@@ -84,19 +101,24 @@ export function createCliContext(deps: CliDeps = {}): CliContext {
       if (deps.config !== undefined) return deps.config;
       return loadConfig(deps.configPath, cwd);
     },
-    composition() {
-      return compose(context.loadStarlingConfig(), {
+    composition(overrides: ComposeOverrides = {}) {
+      return compose(overrides.config ?? context.loadStarlingConfig(), {
         mode: deps.mode ?? 'mock',
         stepMs: deps.mockStepMs ?? 55,
         now,
         sleep,
+        ...(overrides.repoPath === undefined ? {} : { repoPath: overrides.repoPath }),
+        ...(overrides.budgetUsd === undefined ? {} : { budgetUsd: overrides.budgetUsd }),
+        ...(overrides.github === undefined ? {} : { github: overrides.github }),
+        ...(overrides.profile === undefined ? {} : { profile: overrides.profile }),
+        env,
       });
     },
     write(text = '') {
       io.write(`${text}\n`);
     },
     writeErr(text) {
-      io.write(`${text}\n`);
+      (io.writeErr ?? io.write)(`${text}\n`);
     },
     formatError(err) {
       return formatCliError(err, palette);
@@ -116,7 +138,9 @@ const HINTS: Partial<Record<StarlingErrorCode, string>> = {
   GH_MISSING: 'install the GitHub CLI (`gh`) and put it on your PATH',
   NODE_AUTH: 'the join code is wrong — re-run `starling flock` on the hub for a fresh command',
   NOT_IMPLEMENTED: 'this part lands in a later wave',
-  NOT_WIRED: 'real wiring lands in epic 40 — the mock composition is fully runnable now',
+  NOT_WIRED: 'the real stack is not wired for this command yet — `starling run "<goal>"` is',
+  RUNNER_ERROR: 'is `opencode` installed and on your PATH? try `opencode --version`',
+  LLM_ERROR: 'check the model provider — `starling doctor` shows what is reachable',
 };
 
 export function formatCliError(err: unknown, palette: Palette): string {

@@ -78,6 +78,7 @@ describe('golden trace', () => {
       'agent.event': 49,
       'audit.verdict': 7,
       'merge.result': 7,
+      'run.status': 4,
       'run.finished': 1,
     });
     expect(metrics).toBeGreaterThanOrEqual(1);

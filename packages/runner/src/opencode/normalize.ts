@@ -13,6 +13,15 @@
  *   message.part.updated (step-finish)           → usage
  *   session.idle / session.status(idle)          → session.idle
  *   session.error / session.execution.failed     → session.error (+ session.idle, see below)
+ *
+ * **opencode 2.1.2 renamed the streaming half of that vocabulary.** A real turn streams
+ * `session.text.started|delta|ended`, `session.step.started|streamed|ended`,
+ * `session.reasoning.*`, `session.tool.input.started|input.ended|called|progress|success`,
+ * `session.usage.updated` and `session.execution.succeeded|failed|interrupted` — no
+ * `message.part.*` at all. Without the mapping below every live session produced only
+ * `session.started`/`session.idle`: no agent text in the dashboard and no tokens in the cost meter.
+ * Both families are handled, so recorded fixtures and live servers agree. (Evidence is in
+ * `docs/epic-40-integration-captain.md`; the event names were captured from a live 2.1.2 server.)
  */
 import type { AgentEventKind } from '@starling/core';
 import type { ScheduledTask, Scheduler } from '../schedule';
@@ -45,6 +54,8 @@ interface SessionState {
   textParts: Map<string, string>;
   emittedTextParts: Set<string>;
   seenToolCalls: Set<string>;
+  /** Model opencode reported for the current step, attached to usage so the meter can price it. */
+  model: { provider: string; model: string } | undefined;
 }
 
 const SUMMARY_LIMIT = 2000;
@@ -65,6 +76,16 @@ function asNumber(value: unknown): number | undefined {
 
 function truncate(text: string): string {
   return text.length <= SUMMARY_LIMIT ? text : `${text.slice(0, SUMMARY_LIMIT)}…`;
+}
+
+/** `session.tool.success.content` is `[{type:'text', text}]`; flatten it for the drawer. */
+function toolOutputText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((entry) => asString(asRecord(entry)?.text) ?? '')
+    .filter((text) => text !== '')
+    .join('\n');
 }
 
 function describeError(error: unknown): { name: string; message: string } {
@@ -101,6 +122,7 @@ export class EventNormalizer {
       textParts: new Map(),
       emittedTextParts: new Set(),
       seenToolCalls: new Set(),
+      model: meta.model,
     };
     this.#sessions.set(sessionId, state);
     const data: Record<string, unknown> = {};
@@ -219,6 +241,89 @@ export class EventNormalizer {
         this.#emitIdle(sessionId, state);
         return;
 
+      // ── opencode 2.1.x streaming vocabulary (no message.part.* on a live server) ────────────
+      case 'session.text.delta': {
+        this.#appendText(sessionId, state, asString(data?.delta) ?? '');
+        return;
+      }
+
+      case 'session.text.ended': {
+        // The full text of one part; if the deltas were missed (a reconnect), this still lands it.
+        const text = asString(data?.text);
+        const had = state.textBuffer !== '';
+        this.#flushText(sessionId, state);
+        if (!had && text !== undefined && text !== '') this.#emit(sessionId, 'text', { text });
+        return;
+      }
+
+      case 'session.step.started': {
+        const model = asRecord(data?.model);
+        const providerID = asString(model?.providerID);
+        const id = asString(model?.id);
+        if (providerID === undefined || id === undefined) return;
+        state.model = { provider: providerID, model: id };
+        // The engine learns the model from `session.started`; re-announcing is how a step that
+        // switches model reaches the cost meter.
+        this.#emit(sessionId, 'session.started', { model: state.model });
+        return;
+      }
+
+      case 'session.usage.updated': {
+        // `session.step.ended` carries the same totals; only this event is counted, so a turn is
+        // never billed twice.
+        const tokens = asRecord(data?.tokens);
+        const cache = asRecord(tokens?.cache);
+        this.#emit(sessionId, 'usage', {
+          input: asNumber(tokens?.input) ?? 0,
+          output: asNumber(tokens?.output) ?? 0,
+          cached: asNumber(cache?.read) ?? 0,
+          costUsd: asNumber(data?.cost) ?? 0,
+          ...(state.model === undefined ? {} : { model: state.model }),
+        });
+        return;
+      }
+
+      case 'session.tool.input.started': {
+        const callId = asString(data?.id) ?? '';
+        const tool = asString(data?.name) ?? 'unknown';
+        this.#announceTool(sessionId, state, callId, tool, {});
+        return;
+      }
+
+      case 'session.tool.called': {
+        const callId = asString(data?.id) ?? '';
+        const tool = asString(data?.name) ?? 'unknown';
+        this.#announceTool(sessionId, state, callId, tool, asRecord(data?.input) ?? {});
+        return;
+      }
+
+      case 'session.tool.success': {
+        const callId = asString(data?.id) ?? '';
+        const tool = asString(data?.name) ?? 'unknown';
+        this.#announceTool(sessionId, state, callId, tool, asRecord(data?.input) ?? {});
+        this.#emit(sessionId, 'tool.result', {
+          tool,
+          ok: true,
+          summary: truncate(toolOutputText(data?.content)),
+          callId,
+        });
+        return;
+      }
+
+      case 'session.tool.failed':
+      case 'session.tool.error': {
+        const callId = asString(data?.id) ?? '';
+        const tool = asString(data?.name) ?? 'unknown';
+        this.#announceTool(sessionId, state, callId, tool, asRecord(data?.input) ?? {});
+        this.#emit(sessionId, 'tool.result', {
+          tool,
+          ok: false,
+          summary: truncate(asString(data?.error) ?? toolOutputText(data?.content) ?? 'tool failed'),
+          callId,
+        });
+        return;
+      }
+
       case 'session.error':
       case 'session.execution.failed': {
         const error = describeError(data?.error ?? data?.message);
@@ -227,10 +332,24 @@ export class EventNormalizer {
       }
 
       default:
-        // reasoning.*, step.started, agent/model switches, retries, compaction… are not part
+        // reasoning.*, step.streamed, agent/model switches, retries, compaction… are not part
         // of the Starling vocabulary. Ignoring them is deliberate, not an error.
         return;
     }
+  }
+
+  /** One `tool.call` per call id, whatever combination of events announced it. */
+  #announceTool(
+    sessionId: string,
+    state: SessionState,
+    callId: string,
+    tool: string,
+    args: Record<string, unknown>,
+  ): void {
+    const key = callId === '' ? `${tool}:${Object.keys(args).length}` : callId;
+    if (state.seenToolCalls.has(key)) return;
+    state.seenToolCalls.add(key);
+    this.#emit(sessionId, 'tool.call', { tool, args, callId });
   }
 
   /** Emit an idle for every session whose turn is outstanding but no longer active. */

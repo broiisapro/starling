@@ -4,16 +4,13 @@ import { defaultConfig, isStarlingError } from '@starling/core';
 import { compose } from './compose';
 
 describe('compose', () => {
-  test('real mode is not wired yet and says so with a code', () => {
+  test('real mode without a repo refuses loudly instead of guessing', () => {
     try {
       compose(defaultConfig, { mode: 'real' });
       throw new Error('expected compose(real) to throw');
     } catch (err) {
-      expect(isStarlingError(err)).toBe(true);
-      if (isStarlingError(err)) {
-        expect(String(err.code)).toBe('NOT_WIRED');
-        expect(err.message).toContain('epic 40');
-      }
+      expect(isStarlingError(err, 'INVALID_ARGUMENT')).toBe(true);
+      if (isStarlingError(err)) expect(err.message).toContain('--repo');
     }
   });
 
