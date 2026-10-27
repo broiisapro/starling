@@ -1,8 +1,8 @@
 ## Epic 42 Handback — Flock end-to-end: two perches, then two laptops
 
 **Status:** Complete except the real flock smoke, which is explicitly deferred (Epic 40's real engine
-composition is not on `main`). Branch `epic/42-flock-e2e` @ `f75a987` (feature head; the docs/handback
-commit follows). Closes #29.
+composition is not on `main`). Branch `epic/42-flock-e2e` @ `5180dcc` (feature head; the docs/handback
+commits follow). Closes #29.
 
 **Delivered:**
 
