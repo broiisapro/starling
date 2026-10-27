@@ -23,14 +23,20 @@ export interface FakePr {
   body: string;
 }
 
+/**
+ * GitHub's documented hard cap, captured from real `gh` in the Epic 43 sandbox:
+ * `GraphQL: Body is too long (maximum is 65536 characters) (createIssue|createPullRequest)`.
+ */
+export const REAL_BODY_LIMIT = 65_536;
+
 const ok = (stdout = ''): ExecResult => ({ code: 0, stdout, stderr: '', durationMs: 1 });
 const fail = (stderr: string): ExecResult => ({ code: 1, stdout: '', stderr, durationMs: 1 });
 const json = (value: unknown): ExecResult => ok(JSON.stringify(value));
 
 /**
  * In-memory `gh`/`git` for tracker tests (L23: no real gh calls). Stateful enough that a second
- * `syncPlan` can prove idempotency: labels and issues created by the first call are visible to the
- * second.
+ * `syncPlan` can prove idempotency and that the failure switches below can reproduce the exact
+ * stderr real `gh` 2.98 printed during the Epic 43 sandbox run.
  */
 export class FakeGh {
   readonly calls: FakeGhCall[] = [];
@@ -40,11 +46,32 @@ export class FakeGh {
 
   authenticated = true;
   repoViewFails = false;
+  /** Set to model `gh repo view` failing but `git remote get-url origin` working (a worktree). */
+  originRemote: string | undefined;
   pushStderr: string | undefined;
   existingPrUrl: string | undefined;
 
+  /** Real text: `label with name "x" already exists; use --force to update its color …`. */
+  labelAlreadyExistsOnce = false;
+  /** Real text: `could not add label: 'starling:task' not found` — the label-creation race. */
+  issueCreateMissingLabelOnce = false;
+  /** Real text: `GraphQL: No commits between <base> and <head> (createPullRequest)`. */
+  noCommitsBetween = false;
+  /** Enforce GitHub's real body cap instead of accepting any size. */
+  enforceBodyLimit = true;
+  /**
+   * Hide the newest issue from the next N `issue list` calls. Real GitHub does this for a second or
+   * two after a write (observed in the Epic 43 sandbox), which is how a re-sync creates duplicates.
+   */
+  issueListLag = 0;
+  /** Return `stderr` once for the first call whose argv starts with `prefix`. */
+  failOnce: { prefix: string[]; stderr: string } | undefined;
+
   private nextIssue = 100;
   private nextPr = 1;
+  private labelRacePending = false;
+  private missingLabelPending = false;
+  private failOnceUsed = false;
 
   exec = async (cmd: string[], opts: ExecOptions): Promise<ExecResult> => {
     this.calls.push({ cmd: [...cmd], cwd: opts.cwd });
@@ -65,9 +92,23 @@ export class FakeGh {
   }
 
   private async handle(cmd: string[]): Promise<ExecResult> {
+    const once = this.failOnce;
+    if (once !== undefined && !this.failOnceUsed) {
+      const matches = once.prefix.every((part, i) => cmd[i] === part);
+      if (matches) {
+        this.failOnceUsed = true;
+        return fail(once.stderr);
+      }
+    }
+
     const [bin, area, action] = cmd;
     if (bin === 'git' && area === 'push') {
       return this.pushStderr === undefined ? ok('') : fail(this.pushStderr);
+    }
+    if (bin === 'git' && area === 'remote' && action === 'get-url') {
+      return this.originRemote === undefined
+        ? fail("error: No such remote 'origin'")
+        : ok(`${this.originRemote}\n`);
     }
     if (bin !== 'gh') return fail(`fake gh: unsupported command ${cmd.join(' ')}`);
 
@@ -90,26 +131,52 @@ export class FakeGh {
     if (area === 'label' && action === 'create') {
       const name = cmd[3];
       if (name === undefined) return fail('fake gh: label create needs a name');
+      if (this.labelAlreadyExistsOnce && !this.labelRacePending) {
+        // The other Starling process created it between our `label list` and our `label create`.
+        this.labelRacePending = true;
+        this.labels.add(name);
+        return fail(
+          `label with name "${name}" already exists; use \`--force\` to update its color and description`,
+        );
+      }
       this.labels.add(name);
       return ok('');
     }
 
     if (area === 'issue' && action === 'list') {
       const label = flag(cmd, '--label');
+      let visible = this.issues;
+      if (this.issueListLag > 0) {
+        this.issueListLag -= 1;
+        visible = visible.slice(0, -1);
+      }
       return json(
-        this.issues
+        visible
           .filter((issue) => label === undefined || issue.labels.includes(label))
           .map((issue) => ({ number: issue.number, body: issue.body })),
       );
     }
 
     if (area === 'issue' && action === 'create') {
+      const body = await readBody(cmd);
+      const tooLong = tooLongBody(body, this.enforceBodyLimit);
+      if (tooLong !== undefined) return fail(tooLong);
+      if (this.issueCreateMissingLabelOnce && !this.missingLabelPending) {
+        this.missingLabelPending = true;
+        const labels = allFlags(cmd, '--label');
+        // Model the real race: the label existed a moment ago (`label list` saw it) and is gone.
+        const missing = labels.find((label) => this.labels.has(label)) ?? labels[0];
+        if (missing !== undefined) {
+          this.labels.delete(missing);
+          return fail(`could not add label: '${missing}' not found`);
+        }
+      }
       const number = this.nextIssue;
       this.nextIssue += 1;
       const issue: FakeIssue = {
         number,
         title: flag(cmd, '--title') ?? '',
-        body: await readBody(cmd),
+        body,
         labels: allFlags(cmd, '--label'),
         state: 'open',
         comments: [],
@@ -121,7 +188,10 @@ export class FakeGh {
     if (area === 'issue' && action === 'comment') {
       const target = this.issue(Number(cmd[3]));
       if (target === undefined) return fail(`fake gh: no issue ${cmd[2]}`);
-      target.comments.push(await readBody(cmd));
+      const body = await readBody(cmd);
+      const tooLong = tooLongBody(body, this.enforceBodyLimit);
+      if (tooLong !== undefined) return fail(tooLong);
+      target.comments.push(body);
       return ok(`https://github.com/acme/sky-todo/issues/${target.number}\n`);
     }
 
@@ -141,6 +211,14 @@ export class FakeGh {
           `a pull request for branch "${head}" into branch "${base}" already exists:\n${this.existingPrUrl}`,
         );
       }
+      if (this.noCommitsBetween) {
+        return fail(
+          `pull request create failed: GraphQL: No commits between ${base} and ${head} (createPullRequest)`,
+        );
+      }
+      const body = await readBody(cmd);
+      const tooLong = tooLongBody(body, this.enforceBodyLimit);
+      if (tooLong !== undefined) return fail(tooLong);
       const url = `https://github.com/acme/sky-todo/pull/${this.nextPr}`;
       this.nextPr += 1;
       this.prs.push({
@@ -148,13 +226,19 @@ export class FakeGh {
         base,
         head,
         title: flag(cmd, '--title') ?? '',
-        body: await readBody(cmd),
+        body,
       });
       return ok(`${url}\n`);
     }
 
     return fail(`fake gh: unsupported command ${cmd.join(' ')}`);
   }
+}
+
+/** The exact GraphQL error real gh prints when a body is over GitHub's cap. */
+function tooLongBody(body: string, enforce: boolean): string | undefined {
+  if (!enforce || body.length <= REAL_BODY_LIMIT) return undefined;
+  return `pull request create failed: GraphQL: Body is too long (maximum is ${REAL_BODY_LIMIT} characters) (createPullRequest)`;
 }
 
 function flag(cmd: string[], name: string): string | undefined {

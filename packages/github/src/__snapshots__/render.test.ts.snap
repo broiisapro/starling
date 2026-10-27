@@ -59,12 +59,18 @@ Engine note: rebased onto the integration branch.
 
 Definition of done met on the second attempt.
 
-| Check | Result | Detail |
-| --- | --- | --- |
-| \`tests\` | ✅ | bun test: 14 pass |
-| \`lane\` | ✅ | no violations |
+| Check | Result | Duration | Detail |
+| --- | --- | ---: | --- |
+| \`tests\` | ✅ | 4,200 ms | bun test: 14 pass |
+| \`lane\` | ✅ | 12 ms | no violations |
 
 **Lane violations:** _None._
+
+### Definition of done
+
+- [x] bun test passes — _14 pass, 0 fail_
+- [x] The theme survives a reload — _data-theme persisted to localStorage_
+- [x] The toggle has an aria-label — _aria-label="Toggle theme"_
 
 ### Agent handback
 
@@ -86,18 +92,17 @@ Used a data-theme attribute.
 
 ### Usage
 
-| | Tokens |
-| --- | ---: |
-| Input | 1,200 |
-| Output | 340 |
-| Cached input | 200 |
+| | Input | Output | Cached | USD |
+| --- | ---: | ---: | ---: | ---: |
+| API | 1,200 | 340 | 200 | $0.0004 |
+| Local | — | — | — | $0.0000 |
 
-**Cost:** $0.0004 · **Attempts:** 2
+**Cost:** $0.0004 API · $0.0000 (not attributed per task) local · **Attempts:** 2 · **Node:** \`hub\`
 
 Closes #100
 
 ---
-<sub>Branch \`starling/9w0x2z/theme\` · run \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · created by Starling 🐦</sub>
+<sub>Branch \`starling/9w0x2z/theme\` · run [\`9w0x2z\`](https://github.com/acme/sky-todo/issues?q=label%3Astarling%3Arun-9w0x2z) · created by Starling 🐦</sub>
 "
 `;
 
@@ -112,15 +117,22 @@ Add a dark theme and a toggle in the header that remembers the choice across rel
 
 _No audit verdict recorded yet._
 
+### Definition of done
+
+_The auditor did not itemise the DoD; the plan's checklist is below._
+
+- [ ] bun test passes
+- [ ] The theme survives a reload
+- [ ] The toggle has an aria-label
+
 ### Usage
 
-| | Tokens |
-| --- | ---: |
-| Input | 1,200 |
-| Output | 340 |
-| Cached input | 200 |
+| | Input | Output | Cached | USD |
+| --- | ---: | ---: | ---: | ---: |
+| API | 1,200 | 340 | 200 | $0.0004 |
+| Local | — | — | — | $0.0000 |
 
-**Cost:** $0.0004 · **Attempts:** 2
+**Cost:** $0.0004 API · $0.0000 (not attributed per task) local · **Attempts:** 2 · **Node:** \`hub\`
 
 ---
 <sub>Branch \`starling/9w0x2z/theme\` · run \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · created by Starling 🐦</sub>
@@ -136,10 +148,10 @@ Two lane-disjoint changes: a theme and a search filter.
 
 ## Tasks
 
-| Task | Title | Status | Attempts | Cost |
-| --- | --- | --- | ---: | ---: |
-| \`theme\` | Dark mode with a toggle ([PR](https://github.com/acme/sky-todo/pull/1)) | ✅ merged | 2 | $0.0004 |
-| \`search\` | Live search filtering | ❌ failed | 3 | $0.0001 |
+| Task | Title | Status | Node | Attempts | Cost |
+| --- | --- | --- | --- | ---: | ---: |
+| \`theme\` | Dark mode with a toggle ([PR](https://github.com/acme/sky-todo/pull/1)) | ✅ merged | \`hub\` | 2 | $0.0004 |
+| \`search\` | Live search filtering | ❌ failed | \`m2-air\` | 3 | $0.0001 |
 
 **1 merged · 1 failed · 2 planned**
 
@@ -166,12 +178,16 @@ exports[`renderMergedComment snapshot for a pass 1`] = `
 
 Definition of done met on the second attempt.
 
-| Check | Result | Detail |
-| --- | --- | --- |
-| \`tests\` | ✅ | bun test: 14 pass |
-| \`lane\` | ✅ | no violations |
+| Check | Result | Duration | Detail |
+| --- | --- | ---: | --- |
+| \`tests\` | ✅ | 4,200 ms | bun test: 14 pass |
+| \`lane\` | ✅ | 12 ms | no violations |
 
-Attempts: 2 · Cost: $0.0004
+- [x] bun test passes — _14 pass, 0 fail_
+- [x] The theme survives a reload — _data-theme persisted to localStorage_
+- [x] The toggle has an aria-label — _aria-label="Toggle theme"_
+
+Attempts: 2 · Cost: $0.0004 · Node: \`hub\`
 
 <sub>Closed by Starling 🐦.</sub>
 "
@@ -186,12 +202,16 @@ exports[`renderMergedComment snapshot for a failure 1`] = `
 
 Search mutates the store instead of reading visibleTodos.
 
-| Check | Result | Detail |
-| --- | --- | --- |
-| \`tests\` | ❌ | bun test: 2 fail |
-| \`lane\` | ❌ | wrote outside the lane |
+| Check | Result | Duration | Detail |
+| --- | --- | ---: | --- |
+| \`tests\` | ❌ | 3,800 ms | bun test: 2 fail |
+| \`lane\` | ❌ | 9 ms | wrote outside the lane |
 
-Attempts: 3 · Cost: $0.0001
+- [ ] bun test passes — _2 failing tests in search.test.ts_
+- [x] Typing filters on every keystroke — _debounced correctly_
+- [ ] Escape clears the query
+
+Attempts: 3 · Cost: $0.0001 · Node: \`m2-air\`
 
 <sub>Closed by Starling 🐦.</sub>
 "

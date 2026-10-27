@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isStarlingError, StarlingError } from '@starling/core';
 import { isGitHubError } from './errors';
-import { FakeGh } from './testing/fake-gh';
+import { FakeGh, REAL_BODY_LIMIT } from './testing/fake-gh';
 import {
   BASE,
   CWD,
@@ -11,6 +11,7 @@ import {
   RUN_ID,
   RUN_SHORT,
   scenarioRun,
+  scenarioRunWithoutIssues,
   taskRunOf,
 } from './testing/fixtures';
 import { createGitHubTracker, type GitHubTrackerOptions } from './tracker';
@@ -23,7 +24,7 @@ describe('syncPlan', () => {
   test('ensures labels and creates one issue per task with goal, DoD and lane', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake);
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
 
     const numbers = await tracker.syncPlan(run);
 
@@ -45,7 +46,7 @@ describe('syncPlan', () => {
 
   test('is idempotent: a second tracker finds the markers and creates nothing', async () => {
     const fake = new FakeGh();
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     const first = trackerFor(fake);
     expect(await first.syncPlan(run)).toEqual({ theme: 100, search: 101 });
 
@@ -63,7 +64,7 @@ describe('syncPlan', () => {
   test('a repeated call on the same tracker makes no gh calls at all', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake);
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     await tracker.syncPlan(run);
     const before = fake.calls.length;
 
@@ -74,7 +75,7 @@ describe('syncPlan', () => {
   test('auto-detects the repo with gh repo view when repo is omitted', async () => {
     const fake = new FakeGh();
     const tracker = createGitHubTracker({ cwd: CWD, exec: fake.exec });
-    await tracker.syncPlan(scenarioRun());
+    await tracker.syncPlan(scenarioRunWithoutIssues());
 
     expect(fake.callsStartingWith('gh', 'repo', 'view')).toHaveLength(1);
     const create = fake.callsStartingWith('gh', 'label', 'create')[0];
@@ -86,7 +87,7 @@ describe('syncPlan', () => {
     fake.repoViewFails = true;
     const tracker = createGitHubTracker({ cwd: CWD, exec: fake.exec });
 
-    const err = await tracker.syncPlan(scenarioRun()).catch((e: unknown) => e);
+    const err = await tracker.syncPlan(scenarioRunWithoutIssues()).catch((e: unknown) => e);
     expect(isGitHubError(err, 'GH_REPO')).toBe(true);
   });
 
@@ -95,15 +96,93 @@ describe('syncPlan', () => {
     fake.authenticated = false;
     const tracker = trackerFor(fake);
 
-    const err = await tracker.syncPlan(scenarioRun()).catch((e: unknown) => e);
+    const err = await tracker.syncPlan(scenarioRunWithoutIssues()).catch((e: unknown) => e);
     expect(isGitHubError(err, 'GH_AUTH')).toBe(true);
     expect(err).toBeInstanceOf(StarlingError);
     expect(isStarlingError(err)).toBe(true);
   });
 
+  test('tolerates a label another Starling process created first', async () => {
+    const fake = new FakeGh();
+    fake.labelAlreadyExistsOnce = true;
+    const tracker = trackerFor(fake);
+
+    const numbers = await tracker.syncPlan(scenarioRunWithoutIssues());
+
+    expect(numbers).toEqual({ theme: 100, search: 101 });
+    expect(fake.issues).toHaveLength(2);
+  });
+
+  test('re-creates labels and retries once when issue create cannot find one', async () => {
+    const fake = new FakeGh();
+    fake.issueCreateMissingLabelOnce = true;
+    const hints: string[] = [];
+    const tracker = trackerFor(fake, { warn: (message) => hints.push(message) });
+
+    const numbers = await tracker.syncPlan(scenarioRunWithoutIssues());
+
+    expect(numbers).toEqual({ theme: 100, search: 101 });
+    expect(fake.issues.map((issue) => issue.title)).toEqual([
+      '[starling] Dark mode with a toggle',
+      '[starling] Live search filtering',
+    ]);
+    expect(fake.callsStartingWith('gh', 'issue', 'create')).toHaveLength(3);
+    expect(hints.join(' ')).toContain('label went missing');
+  });
+
+  test('retries syncPlan once when GitHub answers with a secondary rate limit', async () => {
+    const fake = new FakeGh();
+    fake.failOnce = {
+      prefix: ['gh', 'issue', 'create'],
+      stderr: 'You have exceeded a secondary rate limit. Please wait a few minutes before you try again.',
+    };
+    const sleeps: number[] = [];
+    const tracker = trackerFor(fake, {
+      retry: { attempts: 3, baseDelayMs: 1, maxDelayMs: 1 },
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    });
+
+    const numbers = await tracker.syncPlan(scenarioRunWithoutIssues());
+
+    expect(numbers).toEqual({ theme: 100, search: 101 });
+    expect(sleeps).toHaveLength(1);
+  });
+
+  test('trusts issue numbers a resumed run already knows, without listing or creating', async () => {
+    const fake = new FakeGh();
+    const tracker = trackerFor(fake);
+    const run = scenarioRun(); // fixture numbers: theme 100, search 101
+
+    expect(await tracker.syncPlan(run)).toEqual({ theme: 100, search: 101 });
+    expect(fake.issues).toHaveLength(0);
+    expect(fake.callsStartingWith('gh', 'issue', 'create')).toHaveLength(0);
+  });
+
+  test('waits out a lagging issue list instead of creating duplicates', async () => {
+    const fake = new FakeGh();
+    const first = await trackerFor(fake).syncPlan(scenarioRunWithoutIssues());
+    expect(first).toEqual({ theme: 100, search: 101 });
+
+    // GitHub's read model hides the newest issue for a moment (real sandbox behaviour).
+    fake.issueListLag = 1;
+    const sleeps: number[] = [];
+    const second = await trackerFor(fake, {
+      settleDelaysMs: [10, 20],
+      sleep: async (ms) => {
+        sleeps.push(ms);
+      },
+    }).syncPlan(scenarioRunWithoutIssues());
+
+    expect(second).toEqual(first);
+    expect(fake.issues).toHaveLength(2);
+    expect(sleeps).toEqual([10]);
+  });
+
   test('rejects a run with no plan', async () => {
     const fake = new FakeGh();
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     run.plan = undefined;
 
     const err = await trackerFor(fake)
@@ -151,17 +230,47 @@ describe('openTaskPR', () => {
 
     const body = fake.prs[0]?.body ?? '';
     expect(body).toContain('## Dark mode with a toggle');
-    expect(body).toContain('| Check | Result | Detail |');
-    expect(body).toContain('| `tests` | ✅ | bun test: 14 pass |');
+    expect(body).toContain('| Check | Result | Duration | Detail |');
+    expect(body).toContain('| `tests` | ✅ | 4,200 ms | bun test: 14 pass |');
+    expect(body).toContain('### Definition of done');
+    expect(body).toContain('- [x] bun test passes — _14 pass, 0 fail_');
     expect(body).toContain('### Usage');
-    expect(body).toContain('| Input | 1,200 |');
+    expect(body).toContain('| API | 1,200 | 340 | 200 | $0.0004 |');
     expect(body).toContain('**Cost:** $0.0004');
+    expect(body).toContain('**Node:** `hub`');
     expect(body).toContain('### Agent handback');
     expect(body).toContain('Theme toggles and persists across reloads.');
     expect(body).toContain('src/features/theme/index.ts');
     expect(body).toContain('Closes #100');
     expect(body).toContain('Implemented the toggle.');
+    expect(body).toContain('label%3Astarling%3Arun-');
     expect(body).not.toContain('<<<STARLING_HANDBACK');
+  });
+
+  test('clamps an over-long body to GitHub’s 65,536-character cap', async () => {
+    const fake = new FakeGh();
+    const tracker = trackerFor(fake);
+    const run = scenarioRun();
+    const notes = Array.from({ length: 4_000 }, (_, i) => `line ${i}: a long engine note`).join('\n');
+
+    const url = await tracker.openTaskPR(run, taskRunOf(run, 'theme'), notes);
+
+    expect(url).toBe('https://github.com/acme/sky-todo/pull/1');
+    const body = fake.prs[0]?.body ?? '';
+    expect(body.length).toBeLessThanOrEqual(REAL_BODY_LIMIT);
+    expect(body).toContain('Body truncated by Starling');
+    expect(body).toContain('Closes #100');
+  });
+
+  test('returns undefined (and warns) when the branch has no commits the base lacks', async () => {
+    const fake = new FakeGh();
+    fake.noCommitsBetween = true;
+    const warnings: string[] = [];
+    const tracker = trackerFor(fake, { warn: (message) => warnings.push(message) });
+    const run = scenarioRun();
+
+    expect(await tracker.openTaskPR(run, taskRunOf(run, 'theme'), '')).toBeUndefined();
+    expect(warnings[0]).toContain('Nothing to review');
   });
 
   test('falls back to the tracker cwd when the task has no worktree', async () => {
@@ -222,7 +331,7 @@ describe('onMerged', () => {
   test('comments the verdict and closes the issue as completed', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake);
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     const numbers = await tracker.syncPlan(run);
     run.tasks.theme = { ...taskRunOf(run, 'theme'), issueNumber: numbers.theme };
 
@@ -239,7 +348,7 @@ describe('onMerged', () => {
   test('closes as not planned when the last verdict failed', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake);
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     const numbers = await tracker.syncPlan(run);
     run.tasks.search = { ...taskRunOf(run, 'search'), status: 'merged', issueNumber: numbers.search };
 
@@ -251,7 +360,7 @@ describe('onMerged', () => {
   test('finds the issue by marker when TaskRun.issueNumber is missing', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake);
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
     await tracker.syncPlan(run);
     run.tasks.theme = { ...taskRunOf(run, 'theme'), issueNumber: undefined };
 
@@ -295,8 +404,19 @@ describe('openFinalPR', () => {
     const body = fake.prs[0]?.body ?? '';
     expect(body).toContain('Run summary from the writer.');
     expect(body).toContain('## Tasks');
+    expect(body).toContain('| Task | Title | Status | Node | Attempts | Cost |');
     expect(body).toContain('| API | 1,700 | 460 | 200 | $0.0005 |');
     expect(body).toContain('**Saved vs API:** $0.0034 across 6 local calls');
+  });
+
+  test('returns undefined (and warns) when the integration branch adds nothing to base', async () => {
+    const fake = new FakeGh();
+    fake.noCommitsBetween = true;
+    const warnings: string[] = [];
+    const tracker = trackerFor(fake, { warn: (message) => warnings.push(message) });
+
+    expect(await tracker.openFinalPR(scenarioRun(), 'done')).toBeUndefined();
+    expect(warnings.join(' ')).toContain('Nothing to review');
   });
 });
 
@@ -304,9 +424,11 @@ describe('dry run', () => {
   test('executes nothing and records every gh/git argv', async () => {
     const fake = new FakeGh();
     const tracker = trackerFor(fake, { dryRun: true });
-    const run = scenarioRun();
+    const run = scenarioRunWithoutIssues();
 
     expect(await tracker.syncPlan(run)).toEqual({});
+    // A dry run cannot invent numbers; the engine would apply the real ones here.
+    run.tasks.theme = { ...taskRunOf(run, 'theme'), issueNumber: 100 };
     expect(await tracker.openTaskPR(run, taskRunOf(run, 'theme'), 'notes')).toBeUndefined();
     await tracker.onMerged(run, taskRunOf(run, 'theme'));
     expect(await tracker.openFinalPR(run, 'final notes')).toBeUndefined();

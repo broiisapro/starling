@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import type { Run, TaskRun, TaskSpec, Tracker } from '@starling/core';
 import { type exec, StarlingError, shortId } from '@starling/core';
 import { GitHubError } from './errors';
-import { GhClient } from './gh';
+import { clampBody, GhClient, type GhRetryOptions } from './gh';
 import { parseWorkerHandback, stripWorkerHandback } from './handshake';
 import { renderFinalPRBody, renderMergedComment, renderTaskIssue, renderTaskPRBody } from './render';
 
 export interface GitHubTrackerOptions {
-  /** `owner/name`. Auto-detected with `gh repo view` when omitted. */
+  /** `owner/name`. Auto-detected with `gh repo view` (or the `origin` remote) when omitted. */
   repo?: string;
   /** Directory to run gh in. For task operations the worktree wins when the TaskRun has one. */
   cwd: string;
@@ -19,6 +19,19 @@ export interface GitHubTrackerOptions {
   dryRun?: boolean;
   /** Label/title namespace. Default `starling`. */
   labelPrefix?: string;
+  /** Per-command timeout for `gh`/`git`. Default 120 s. */
+  timeoutMs?: number;
+  /** Backoff policy for secondary rate limits. */
+  retry?: GhRetryOptions;
+  /** Injected in tests so backoff does not really wait. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Called for non-fatal bookkeeping problems (nothing to review, a retry, …). */
+  warn?: (message: string) => void;
+  /**
+   * Delays tried when a run's issues are only partly visible to `gh issue list` (GitHub's read
+   * model lags writes by a second or two). Default `[600, 1800]`; `[]` disables the wait.
+   */
+  settleDelaysMs?: number[];
 }
 
 export interface GitHubTracker extends Tracker {
@@ -34,11 +47,14 @@ const PR_RE = /https:\/\/[^\s/]+\/[^\s/]+\/[^\s/]+\/pull\/\d+/;
  * A `Tracker` that mirrors a run onto GitHub with the `gh` CLI (L14).
  *
  * The engine has already decided *what* happened; this class only publishes it. That keeps the
- * GitHub surface small: no merging, no CI, no webhooks (out of scope for epic 18).
+ * GitHub surface small: no merging, no CI, no webhooks. Every call is safe to repeat: issues are
+ * found by their hidden marker, an existing PR URL is reused, an empty branch is skipped, and a
+ * label that another Starling process just created is not an error.
  */
 export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracker {
   const prefix = options.labelPrefix ?? 'starling';
   const dryRun = options.dryRun ?? false;
+  const warn = options.warn ?? (() => {});
   const log: string[] = [];
   const gh = new GhClient({
     cwd: options.cwd,
@@ -46,12 +62,18 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
     dryRun,
     log,
     ...(options.repo === undefined ? {} : { repo: options.repo }),
+    ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    ...(options.retry === undefined ? {} : { retry: options.retry }),
+    ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+    warn,
   });
 
   const ensuredLabels = new Set<string>();
   const knownIssues = new Map<string, number>();
   let issuesLoaded = false;
   let tempCounter = 0;
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const settleDelays = options.settleDelaysMs ?? [600, 1_800];
 
   const runLabel = (run: Run): string => `${prefix}:run-${shortId(run.id)}`;
 
@@ -108,7 +130,11 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
           '--repo',
           repo,
         ]);
-        if (res.code !== 0) throw gh.failure(`gh label create ${label.name}`, res);
+        // Another Starling process (or a human) can create it between our list and our create.
+        // Real gh: `label with name "x" already exists; use --force to update …` and exit 1.
+        if (res.code !== 0 && !/already exists/i.test(res.stderr)) {
+          throw gh.failure(`gh label create ${label.name}`, res);
+        }
       }
       ensuredLabels.add(label.name);
     }
@@ -116,6 +142,11 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
 
   async function loadIssues(): Promise<void> {
     if (issuesLoaded) return;
+    await mergeIssues();
+    issuesLoaded = true;
+  }
+
+  async function mergeIssues(): Promise<void> {
     const issues = await gh.issuesWithLabel(`${prefix}:task`);
     for (const issue of issues) {
       const match = MARKER_RE.exec(issue.body);
@@ -123,7 +154,29 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
         knownIssues.set(issueKey(match[1], match[2]), issue.number);
       }
     }
-    issuesLoaded = true;
+  }
+
+  /**
+   * GitHub's issue list can lag a write by a second or two (observed in the Epic 43 sandbox: a
+   * re-sync 300 ms after creating seven issues saw only six and created a duplicate). When *some*
+   * of this run's issues are visible but not all, wait and re-list before concluding that the rest
+   * were never created. A run with no visible issues at all is a genuine first sync and is not
+   * delayed.
+   */
+  async function settleIssues(run: Run): Promise<void> {
+    const plan = requirePlan(run);
+    const missingCount = (): number =>
+      plan.tasks.filter((task) => !knownIssues.has(issueKey(run.id, task.key))).length;
+    if (missingCount() === 0 || missingCount() === plan.tasks.length) return;
+
+    for (const delay of settleDelays) {
+      warn(
+        `Only ${plan.tasks.length - missingCount()}/${plan.tasks.length} issues are visible yet; re-listing in ${delay} ms.`,
+      );
+      await sleep(delay);
+      await mergeIssues();
+      if (missingCount() === 0) return;
+    }
   }
 
   async function issueFor(run: Run, task: TaskRun): Promise<number | undefined> {
@@ -136,12 +189,54 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
     tempCounter += 1;
     const path = join(tmpdir(), `starling-gh-${process.pid}-${tempCounter}-${slug(name)}.md`);
     if (dryRun) return fn(path);
-    await Bun.write(path, body);
+    // GitHub's 65,536-character cap is real for issues as well as PRs; long worker notes are the
+    // usual way to hit it. `clampBody` keeps the head of the document and says it was cut.
+    await Bun.write(path, clampBody(body));
     try {
       return await fn(path);
     } finally {
       await rm(path, { force: true });
     }
+  }
+
+  async function createIssue(run: Run, spec: TaskSpec, bodyFile: string): Promise<number | undefined> {
+    const repo = await gh.repo();
+    const argv = [
+      'issue',
+      'create',
+      '--title',
+      `[${prefix}] ${spec.title}`,
+      '--body-file',
+      bodyFile,
+      '--label',
+      prefix,
+      '--label',
+      runLabel(run),
+      '--label',
+      `${prefix}:task`,
+      '--repo',
+      repo,
+    ];
+    let res = await gh.gh(argv);
+    // Labels are created just before this call, but a concurrent tracker can create the issues
+    // first and a label can be deleted in between. Real gh says:
+    // `could not add label: 'starling:task' not found`. Re-assert the labels and try once more.
+    if (res.code !== 0 && /could not add label/i.test(res.stderr)) {
+      ensuredLabels.clear();
+      warn('A label went missing while creating an issue; re-creating the labels and retrying once.');
+      await ensureLabels(run);
+      res = await gh.gh(argv);
+    }
+    if (res.code !== 0) throw gh.failure('gh issue create', res);
+    if (dryRun) return undefined;
+
+    const parsed = ISSUE_RE.exec(res.stdout)?.[1];
+    if (parsed === undefined) {
+      throw new GitHubError('GH_COMMAND', 'gh issue create succeeded but printed no issue number.', {
+        details: { stdout: res.stdout.trim().slice(-400) },
+      });
+    }
+    return Number(parsed);
   }
 
   async function createPR(args: {
@@ -172,9 +267,16 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
       );
 
       if (res.code !== 0) {
+        const combined = `${res.stdout}\n${res.stderr}`;
         // Re-running the engine after a crash should not fail because the PR already exists.
-        const existing = PR_RE.exec(`${res.stdout}\n${res.stderr}`)?.[0];
+        const existing = PR_RE.exec(combined)?.[0];
         if (existing !== undefined && /already exists/i.test(res.stderr)) return existing;
+        // The branch is already fully contained in the base (re-run after a merge). There is
+        // nothing to review; a tracker must not turn that into a failed task.
+        if (/no commits between/i.test(combined)) {
+          warn(`Nothing to review: \`${args.head}\` has no commits that \`${args.base}\` lacks.`);
+          return undefined;
+        }
         throw gh.failure('gh pr create', res);
       }
 
@@ -198,47 +300,24 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
       const plan = requirePlan(run);
       await ensureLabels(run);
       await loadIssues();
+      await settleIssues(run);
 
-      const repo = await gh.repo();
       const numbers: Record<string, number> = {};
-
       for (const spec of plan.tasks) {
         const key = issueKey(run.id, spec.key);
-        const known = knownIssues.get(key);
+        // A resumed run already knows its numbers from the store; trust them over a lagging list.
+        const fromRun = run.tasks[spec.key]?.issueNumber;
+        const known = fromRun ?? knownIssues.get(key);
         if (known !== undefined) {
+          knownIssues.set(key, known);
           numbers[spec.key] = known;
           continue;
         }
 
-        const body = renderTaskIssue(spec, run);
-        const title = `[${prefix}] ${spec.title}`;
-        const number = await withBodyFile(`issue-${spec.key}`, body, async (bodyFile) => {
-          const res = await gh.gh([
-            'issue',
-            'create',
-            '--title',
-            title,
-            '--body-file',
-            bodyFile,
-            '--label',
-            prefix,
-            '--label',
-            runLabel(run),
-            '--label',
-            `${prefix}:task`,
-            '--repo',
-            repo,
-          ]);
-          if (res.code !== 0) throw gh.failure('gh issue create', res);
-          if (dryRun) return undefined;
-          const parsed = ISSUE_RE.exec(res.stdout)?.[1];
-          if (parsed === undefined) {
-            throw new GitHubError('GH_COMMAND', 'gh issue create succeeded but printed no issue number.', {
-              details: { stdout: res.stdout.trim().slice(-400) },
-            });
-          }
-          return Number(parsed);
-        });
+        const body = renderTaskIssue(spec, run, { repo: await gh.repo(), prefix });
+        const number = await withBodyFile(`issue-${spec.key}`, body, (bodyFile) =>
+          createIssue(run, spec, bodyFile),
+        );
 
         if (number !== undefined) {
           knownIssues.set(key, number);
@@ -263,6 +342,8 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
         ...(notes === '' ? {} : { notes }),
         ...(handback === undefined ? {} : { handback }),
         ...(issue === undefined ? {} : { closes: issue }),
+        repo: await gh.repo(),
+        prefix,
       });
 
       const worktree = task.worktreePath ?? options.cwd;
@@ -286,7 +367,7 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
 
       const target = issue === undefined ? '<issue-number>' : String(issue);
       const repo = await gh.repo();
-      const comment = renderMergedComment(spec, run);
+      const comment = renderMergedComment(spec, run, { repo, prefix });
 
       await withBodyFile(`merged-${task.taskKey}`, comment, async (bodyFile) => {
         const res = await gh.gh(['issue', 'comment', target, '--body-file', bodyFile, '--repo', repo]);
@@ -301,7 +382,7 @@ export function createGitHubTracker(options: GitHubTrackerOptions): GitHubTracke
     async openFinalPR(run: Run, body: string): Promise<string | undefined> {
       const integration = requireIntegrationBranch(run);
       const notes = body.trim();
-      const rendered = renderFinalPRBody(run);
+      const rendered = renderFinalPRBody(run, { repo: await gh.repo(), prefix });
       const prBody = notes === '' ? rendered : `${notes}\n\n---\n\n${rendered}`;
 
       const push = await gh.git(['push', '-u', 'origin', integration], options.cwd);
