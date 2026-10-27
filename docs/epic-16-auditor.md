@@ -333,7 +333,8 @@ The store/server need no auditor-specific work: publish the returned verdict as 
   changed.
 - **`lint` records `ok: false` for a failing advisory lint** while the final `pass` ignores it unless
   `lintBlocking`. The plan said "blocking only if `lintBlocking`"; recording the actual command
-  result is the honest reading.
+  result is the honest reading. Consequently a blocking lint failure is also part of the final pass
+  formula (`lintBlocking ? lint.ok : true`), which the plan's abbreviated formula omitted.
 - **The reviewer is skipped for an empty diff**, in addition to the specified "LLM errors or
   times out" case. No model call is useful when there is nothing to read.
 - **Contradiction guard:** the final `pass` additionally requires every `dod` entry to be `met` when
