@@ -78,20 +78,17 @@ export function Playground({
   reducedMotion: reducedMotionProp = false,
   fixture,
 }: PlaygroundProps) {
-  const [events, setEvents] = useState<readonly StarlingEvent[]>(providedEvents ?? []);
-  const [revealed, setRevealed] = useState(providedEvents ? providedEvents.length : 0);
+  const [events, setEvents] = useState<readonly StarlingEvent[]>(() => providedEvents ?? []);
+  const [revealed, setRevealed] = useState(() => providedEvents?.length ?? 0);
   const [playing, setPlaying] = useState(autoplay);
   const [reducedMotion, setReducedMotion] = useState(reducedMotionProp);
   const [skipped, setSkipped] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (providedEvents) {
-      setEvents(providedEvents);
-      setRevealed(providedEvents.length);
-      setLoadError(null);
-      return;
-    }
+    // Explicit events win and are read once at mount: a parent that rebuilds the array on every
+    // render must not reset the playhead. The fixture props are initial inputs for the same reason.
+    if (providedEvents) return;
     if (fixture !== undefined) {
       const parsed = parseEventLog(fixture);
       setEvents(parsed.events);

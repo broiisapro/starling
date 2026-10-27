@@ -5,6 +5,8 @@ import { QrCode } from './QrCode';
 
 export interface JoinCardProps {
   join?: JoinInfo;
+  /** Element id used by the panel's "Add a laptop" links so multiple panels stay addressable. */
+  anchorId: string;
 }
 
 /**
@@ -12,11 +14,11 @@ export interface JoinCardProps {
  * one scan away, so the QR is the visual anchor and the command is copyable for people who prefer a
  * terminal. Renders a graceful "flock off" state when the hub has no join info.
  */
-export function JoinCard({ join }: JoinCardProps) {
+export function JoinCard({ join, anchorId }: JoinCardProps) {
   if (!join) {
     return (
       <section
-        id="flock-join"
+        id={anchorId}
         data-testid="join-card"
         data-join-disabled="true"
         aria-label="Add a laptop to the flock"
@@ -37,7 +39,7 @@ export function JoinCard({ join }: JoinCardProps) {
 
   return (
     <section
-      id="flock-join"
+      id={anchorId}
       data-testid="join-card"
       data-join-code={join.code}
       aria-label="Add a laptop to the flock"

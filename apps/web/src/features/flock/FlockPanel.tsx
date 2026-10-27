@@ -1,5 +1,5 @@
 import { Plus } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import { CompactFlock } from './CompactFlock';
 import { EmptyFlock } from './EmptyFlock';
 import { isHub, sessionTotals, sortRoosts } from './format';
@@ -28,6 +28,9 @@ export function FlockPanel({
   const { entries } = usePresence(roosts, reducedMotion);
   const clock = useNow(now);
   const totals = sessionTotals(roosts);
+  const reactId = useId();
+  // Two panels may be on screen (full + compact); keep the join anchors unique and selector-safe.
+  const anchorId = `flock-join-${reactId.replace(/[^a-zA-Z0-9_-]/g, '') || 'panel'}`;
   const firstRoost = roosts[0];
   const onlyHub = roosts.length === 1 && firstRoost !== undefined && isHub(firstRoost);
 
@@ -56,7 +59,7 @@ export function FlockPanel({
         </div>
         {join ? (
           <a
-            href="#flock-join"
+            href={`#${anchorId}`}
             className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:border-sky-300/40 hover:bg-sky-400/10 hover:text-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
@@ -67,7 +70,7 @@ export function FlockPanel({
 
       {onlyHub ? (
         <div className="mt-3">
-          <EmptyFlock />
+          <EmptyFlock anchorId={anchorId} />
         </div>
       ) : null}
 
@@ -83,7 +86,7 @@ export function FlockPanel({
             onSelectTask={onSelectTask}
           />
         ))}
-        <JoinCard join={join} />
+        <JoinCard join={join} anchorId={anchorId} />
       </div>
 
       <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5 text-[10px] text-slate-500">

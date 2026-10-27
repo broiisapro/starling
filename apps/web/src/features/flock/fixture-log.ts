@@ -10,4 +10,3 @@
 import launchDay from '../../../../../fixtures/runs/sky-todo-launch-day.jsonl?raw';
 
 export const LAUNCH_DAY_JSONL: string = launchDay;
-export const LAUNCH_DAY_PATH = 'fixtures/runs/sky-todo-launch-day.jsonl';

@@ -104,6 +104,10 @@ describe('FlockPanel roost cards', () => {
     expect(text(container)).toContain('2 roosts');
     expect(text(container)).toContain('6/13 sessions busy');
     expect(text(container)).toContain('7 free');
+    // Without an `onSelectTask` handler the chips announce themselves as non-interactive.
+    expect(one(card(container, 'hub'), '[data-testid="task-chip"]').getAttribute('aria-disabled')).toBe(
+      'true',
+    );
   });
 
   test('a roost card carries name, hub/perch badge, hardware, latency and lent models', async () => {
