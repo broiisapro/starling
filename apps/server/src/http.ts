@@ -16,6 +16,7 @@ export type ApiErrorCode =
   | 'RUN_NOT_FOUND'
   | 'NOT_FOUND'
   | 'UNAUTHORIZED'
+  | 'FORBIDDEN'
   | 'FLOCK_DISABLED'
   | 'REPLAY_DISABLED'
   | 'INTERNAL'

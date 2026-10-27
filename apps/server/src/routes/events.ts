@@ -17,6 +17,8 @@ export interface EventRouteDeps {
   bus: EventBus;
   keepAliveMs: number;
   onStreamError: (err: unknown) => void;
+  /** Hub shutdown: aborting every SSE stream. */
+  shutdownSignal?: AbortSignal;
 }
 
 /**
@@ -45,7 +47,12 @@ export function mountEvents(app: Hono, deps: EventRouteDeps): void {
         loadBacklog: () => deps.store.events(runId, since.since),
         subscribe: (fn) => deps.bus.subscribe((event) => (event.runId === runId ? fn(event) : undefined)),
       },
-      { since: since.since, keepAliveMs: deps.keepAliveMs, onError: deps.onStreamError },
+      {
+        since: since.since,
+        keepAliveMs: deps.keepAliveMs,
+        onError: deps.onStreamError,
+        ...(deps.shutdownSignal === undefined ? {} : { signal: deps.shutdownSignal }),
+      },
     );
   });
 
@@ -59,7 +66,12 @@ export function mountEvents(app: Hono, deps: EventRouteDeps): void {
         loadBacklog: () => allEvents(deps.store, since.since),
         subscribe: (fn) => deps.bus.subscribe(fn),
       },
-      { since: since.since, keepAliveMs: deps.keepAliveMs, onError: deps.onStreamError },
+      {
+        since: since.since,
+        keepAliveMs: deps.keepAliveMs,
+        onError: deps.onStreamError,
+        ...(deps.shutdownSignal === undefined ? {} : { signal: deps.shutdownSignal }),
+      },
     );
   });
 }
