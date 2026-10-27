@@ -25,14 +25,14 @@ least-privileged.
 | `test (ubuntu-latest)` | `ubuntu-latest` | `bun run test` → packages/server/CLI/skills/integrations/tools/evals, then `apps/web` in its own process |
 | `test (macos-latest)` | `macos-latest` | `bun test packages/workspace packages/merger packages/perch` |
 
-Every job: `actions/checkout@v4`, `oven-sh/setup-bun@v2` pinned to **Bun 1.4.4**, a cache of
+Every job: `actions/checkout@v7`, `oven-sh/setup-bun@v2` pinned to **Bun 1.4.4**, a cache of
 `~/.bun/install/cache` keyed on `bun.lock`, `bun install --frozen-lockfile`, then the job's command.
 Each job has a 15–20 minute timeout.
 
 ### `.github/workflows/web-build.yml` — `Web build`
 
 Same triggers and setup, then `bun run build` in `apps/web` (Vite 8 + Tailwind v4) and
-`actions/upload-artifact@v4` of `apps/web/dist` as artifact `web-dist` with `if-no-files-found: error`
+`actions/upload-artifact@v7` of `apps/web/dist` as artifact `web-dist` with `if-no-files-found: error`
 and seven-day retention.
 
 ### Why no test guards were needed
@@ -88,6 +88,9 @@ Put these under the `# Starling 🐦` heading (Epic 60 owns `README.md`; this sn
   anywhere can break a test anywhere. A path filter would trade correctness for a few seconds.
 - **No live tests.** `*.live.test.ts` already self-skips unless `STARLING_LIVE=1`; CI never sets it, so
   no model, opencode server or GitHub call happens in CI (L23/L29).
+- **Current action majors (`checkout@v7`, `cache@v6`, `upload-artifact@v7`).** The v4 line targets
+  deprecated Node 20 and GitHub emits a warning on every run; the current majors run on Node 24 and
+  keep the same inputs we use.
 - **Bun version is an env var (`BUN_VERSION`) in each workflow.** Both files pin 1.4.4 exactly; the
   variable exists so the two occurrences cannot drift within a file. The `check` job also asserts that
   `.bun-version` and `package.json#packageManager` agree with it, so an edit to one pin cannot silently
