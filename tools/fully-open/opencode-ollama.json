@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/qwen3.8:27b-mlx",
+  "providers": {
+    "ollama": {
+      "name": "Ollama (local)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:11434/v1",
+        "apiKey": "ollama"
+      },
+      "models": {
+        "qwen3.8:27b-mlx": {
+          "modelID": "qwen3.8:27b-mlx",
+          "name": "Qwen3.8 27B MLX (local)",
+          "capabilities": {
+            "tools": true,
+            "temperature": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}
