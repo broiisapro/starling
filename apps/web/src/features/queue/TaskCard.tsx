@@ -27,6 +27,13 @@ export function TaskCard({ card, from, now, onSelect }: TaskCardProps) {
   const detail = card.problem?.detail;
   const detailId = `starling-queue-detail-${card.taskKey}`;
   const attempts = card.run.attempts;
+  const hasStarted = card.run.startedAt !== undefined;
+  const hasFooter =
+    card.run.nodeId !== undefined ||
+    hasStarted ||
+    card.commit !== undefined ||
+    card.column === 'grounded' ||
+    card.waitingReason === 'blocked';
 
   const nameParts = [card.taskKey, status.label];
   if (card.column === 'wire' && card.wireIndex !== undefined)
@@ -69,23 +76,27 @@ export function TaskCard({ card, from, now, onSelect }: TaskCardProps) {
         ) : null}
       </span>
 
-      <span className="mt-1 flex items-center gap-1.5 text-[10px] leading-3">
-        {card.run.nodeId !== undefined ? (
-          <span className={`rounded border px-1 py-px uppercase tracking-wide ${NEUTRAL_CHIP}`}>
-            {card.run.nodeId}
-          </span>
-        ) : null}
-        <span className="tabular-nums text-slate-500">{formatDuration(elapsed)}</span>
-        {card.column === 'wire' && card.commit !== undefined ? (
-          <span className="ml-auto shrink-0 font-mono text-[9px] text-emerald-300/80">{card.commit}</span>
-        ) : null}
-        {card.column === 'grounded' ? <span className={`ml-auto ${status.text}`}>{status.label}</span> : null}
-        {card.waitingReason === 'blocked' ? (
-          <span className="ml-auto truncate text-slate-500" title={waitingLabel(card)}>
-            blocked
-          </span>
-        ) : null}
-      </span>
+      {hasFooter ? (
+        <span className="mt-1 flex items-center gap-1.5 text-[10px] leading-3">
+          {card.run.nodeId !== undefined ? (
+            <span className={`rounded border px-1 py-px uppercase tracking-wide ${NEUTRAL_CHIP}`}>
+              {card.run.nodeId}
+            </span>
+          ) : null}
+          {hasStarted ? <span className="tabular-nums text-slate-500">{formatDuration(elapsed)}</span> : null}
+          {card.column === 'wire' && card.commit !== undefined ? (
+            <span className="ml-auto shrink-0 font-mono text-[9px] text-emerald-300/80">{card.commit}</span>
+          ) : null}
+          {card.column === 'grounded' ? (
+            <span className={`ml-auto ${status.text}`}>{status.label}</span>
+          ) : null}
+          {card.waitingReason === 'blocked' ? (
+            <span className="ml-auto truncate text-slate-500" title={waitingLabel(card)}>
+              blocked
+            </span>
+          ) : null}
+        </span>
+      ) : null}
 
       {detail === undefined ? null : (
         <span id={detailId} className="sr-only">

@@ -29,7 +29,7 @@
   required header comment. Local `STATUS_STYLE` palette in `features/queue/palette.ts` until C1.
 - `Playground.tsx` per feature, driven by `fixtures/runs/sky-todo-launch-day.jsonl` (`?raw`) with an
   event scrubber; the pure fold lives in `replay.ts` (`replayQueue`, `replayMetrics`) and is tested.
-- 124 new tests in 8 files (queue 54, metrics 70), including a status→column table for all ten
+- 125 new tests in 8 files (queue 55, metrics 70), including a status→column table for all ten
   statuses, wire order, cost math against the recorded fixture cross-checked with core pricing,
   formatting edge cases (0, sub-cent, millions of tokens, hours), sparkline geometry, ticking vs frozen
   clocks, tooltip token counts and both reduced-motion paths.
@@ -59,7 +59,7 @@
 **Verification (exact commands + results):**
 
 - `bun install` (worktree root): `Checked 133 installs across 192 packages (no changes)`.
-- `bun test apps/web/src/features/queue apps/web/src/features/metrics`: **124 pass / 0 fail**, 409
+- `bun test apps/web/src/features/queue apps/web/src/features/metrics`: **125 pass / 0 fail**, 411
   expect() calls, 8 files.
 - `bun run test` (root, all workspaces): **311 pass / 0 fail**,
   `Ran 311 tests across 45 files. [333.00ms]`.

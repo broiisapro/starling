@@ -330,6 +330,18 @@ test('motion is on by default', async () => {
   }
 });
 
+test('a planned task that has not started shows no clock or node yet', async () => {
+  const plan = makePlan({ tasks: [makeTaskSpec({ key: 'theme' })] });
+  const view = await mount(<MergeQueue plan={plan} tasks={{}} merges={[]} onSelectTask={() => {}} />);
+  try {
+    const card = cardFor(view.container, 'theme');
+    expect(card?.textContent).toBe('theme');
+    expect(card?.getAttribute('aria-label')).toBe('theme, pending');
+  } finally {
+    await view.unmount();
+  }
+});
+
 test('a cancelled task is shown as grounded, not lost', async () => {
   const tasks: Record<string, TaskRun> = {
     theme: makeTaskRun({ taskKey: 'theme', status: 'cancelled', startedAt: Date.now() - 2_000 }),
