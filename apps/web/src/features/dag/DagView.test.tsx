@@ -1,4 +1,4 @@
-import { afterAll, expect, test } from 'bun:test';
+import { afterAll, afterEach, expect, test } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { makePlan, makeTaskRun, makeTaskSpec } from '@starling/core/testing';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -9,6 +9,8 @@ const registeredHere = typeof document === 'undefined';
 if (registeredHere) GlobalRegistrator.register({ url: 'http://localhost/' });
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 installDomShims();
+
+afterEach(() => cleanup());
 
 const plan = makePlan({
   id: 'plan-dag-view',
