@@ -1,6 +1,6 @@
 ## Epic 00 Handback — Foundation & frozen contracts
 
-**Status:** Complete. Branch `epic/00-foundation` @ `1da6da2`.
+**Status:** Complete. Branch `epic/00-foundation` @ `079bb87`.
 **Delivered:**
 - Bun 1.4.4 workspace pinned in `packageManager` + `.bun-version`; root scripts `test`, `check`, `typecheck`, `format`, `dev:web`, `dev:server`, `starling`. 18 workspaces (`packages/*`, `apps/*`), source-only exports, no inter-package build step.
 - `@starling/core` with every ARCHITECTURE §6 contract as a zod v4 schema (types via `z.infer`), every §6 port verbatim, and additive helpers (`StarlingEventOf`, `PlanIssueCode`, `NodeStatus`, `StartTaskOptionsRepo`).
