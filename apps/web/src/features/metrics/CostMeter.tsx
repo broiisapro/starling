@@ -1,11 +1,19 @@
 import type { RunMetrics, TokenUsage } from '@starling/core';
+import { Info } from 'lucide-react';
 
 import type { TokenSplit } from './cost';
 import { costBreakdown } from './cost';
+import { useCountUp } from './count-up';
 import { formatTokens, formatTokensExact, formatUsd } from './format';
+import { peakNote, savedDetail } from './pricing';
 
 export interface CostMeterProps {
   metrics?: RunMetrics;
+  /**
+   * Animate the money figures towards their new value. Off by default so replay scrubbing and tests
+   * read exact numbers on the first paint; `MetricsPanel` turns it on while the stream is live.
+   */
+  animate?: boolean;
 }
 
 const BAR_WIDTH = 200;
@@ -15,49 +23,87 @@ const BAR_HEIGHT = 6;
  * The open-weight story in four numbers: API spend, local spend ($0.00, badge included), estimated
  * savings, and the API/local token split. Every figure comes from `RunMetrics`; nothing is re-priced
  * here, so the meter can never disagree with the engine's invoice.
+ *
+ * Projector details: the API number counts up while a run is live, the note under it shows the
+ * off-peak equivalent (core bills peak on purpose), and "You saved" explains its estimate in a
+ * tooltip instead of asking the audience to trust a number.
  */
-export function CostMeter({ metrics }: CostMeterProps) {
+export function CostMeter({ metrics, animate = false }: CostMeterProps) {
   const breakdown = costBreakdown(metrics);
   const api = breakdown.apiTokens;
   const local = breakdown.localTokens;
+  const apiSpend = useCountUp(breakdown.apiSpendUsd, animate);
+  const saved = useCountUp(breakdown.savedUsd, animate);
+  const note = peakNote(breakdown.apiSpendUsd);
   const summary = `${formatUsd(breakdown.apiSpendUsd)} on DeepSeek, ${formatUsd(
     breakdown.localSpendUsd,
   )} on this laptop, ${formatUsd(breakdown.savedUsd)} saved`;
+  const calls = breakdown.localCallCount;
 
   return (
     <section className="flex flex-col gap-1" aria-label={summary} data-testid="cost-meter">
-      <dl className="flex flex-wrap items-end gap-x-4 gap-y-1">
-        <div>
-          <dt className="text-[9px] uppercase tracking-[0.12em] text-slate-500">API · DeepSeek</dt>
+      <dl className="flex flex-wrap items-start gap-x-4 gap-y-1.5">
+        <div className="min-w-[5.5rem]">
+          <dt className="text-[12px] uppercase tracking-[0.1em] text-slate-400">API · DeepSeek</dt>
           <dd className="text-lg leading-6 tabular-nums text-sky-200" data-testid="cost-api">
-            {formatUsd(breakdown.apiSpendUsd)}
+            {formatUsd(apiSpend)}
           </dd>
+          {note !== undefined ? (
+            <p
+              className="max-w-[11rem] text-[12px] leading-4 text-slate-400"
+              data-testid="cost-offpeak"
+              title={note.detail}
+            >
+              {note.text}
+            </p>
+          ) : null}
         </div>
-        <div>
-          <dt className="flex items-center gap-1 text-[9px] uppercase tracking-[0.12em] text-slate-500">
+
+        <div className="min-w-[6.5rem]">
+          <dt className="flex flex-wrap items-center gap-1 text-[12px] uppercase tracking-[0.1em] text-slate-400">
             Local · this laptop
-            <span className="rounded border border-emerald-400/40 bg-emerald-400/10 px-1 py-px text-[8px] uppercase tracking-[0.08em] text-emerald-200">
+            <span className="rounded border border-emerald-400/40 bg-emerald-400/10 px-1 py-px text-[12px] uppercase tracking-[0.06em] text-emerald-200">
               local
             </span>
           </dt>
           <dd className="text-lg leading-6 tabular-nums text-emerald-200" data-testid="cost-local">
             {formatUsd(breakdown.localSpendUsd)}
           </dd>
+          <p className="text-[12px] leading-4 text-slate-400" data-testid="cost-local-calls">
+            <span className="tabular-nums text-emerald-200">{calls}</span> local{' '}
+            {calls === 1 ? 'call' : 'calls'}
+          </p>
         </div>
-        <div>
-          <dt className="text-[9px] uppercase tracking-[0.12em] text-slate-500">You saved</dt>
-          <dd className="text-lg leading-6 tabular-nums text-amber-200" data-testid="cost-saved">
-            {formatUsd(breakdown.savedUsd)}
+
+        <div className="min-w-[5.5rem]">
+          <dt className="flex items-center gap-1 text-[12px] uppercase tracking-[0.1em] text-slate-400">
+            You saved
+            <span
+              className="inline-flex cursor-help items-center text-slate-400"
+              title={savedDetail(local)}
+              aria-hidden="true"
+            >
+              <Info className="h-3.5 w-3.5" />
+            </span>
+          </dt>
+          <dd
+            className="text-lg leading-6 tabular-nums text-amber-200"
+            data-testid="cost-saved"
+            aria-describedby="cost-saved-note"
+          >
+            {formatUsd(saved)}
           </dd>
+          <p id="cost-saved-note" className="sr-only">
+            {savedDetail(local)}
+          </p>
         </div>
       </dl>
 
       <TokenSplitBar split={breakdown.split} api={api} local={local} />
 
-      <p className="text-[10px] leading-3 text-slate-500">
+      <p className="text-[12px] leading-4 tabular-nums text-slate-400">
         {formatTokens(breakdown.totalTokenCount)} tokens ·{' '}
-        <span className="text-emerald-300/80">{formatTokens(breakdown.localTokenCount)} local</span> ·{' '}
-        {breakdown.localCallCount} local {breakdown.localCallCount === 1 ? 'call' : 'calls'}
+        <span className="text-emerald-300">{formatTokens(breakdown.localTokenCount)} local</span>
       </p>
     </section>
   );
@@ -108,7 +154,7 @@ function TokenSplitBar({ split, api, local }: TokenSplitBarProps) {
       <div
         role="tooltip"
         data-testid="token-split-tooltip"
-        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-[18rem] rounded-md border border-white/10 bg-slate-900/95 px-2 py-1 text-[10px] leading-4 text-slate-300 shadow-lg group-hover:block"
+        className="pointer-events-none absolute bottom-full left-0 z-20 mb-1 hidden w-max max-w-[18rem] rounded-md border border-white/10 bg-slate-900/95 px-2 py-1 text-[12px] leading-4 text-slate-300 shadow-lg group-hover:block"
       >
         <p className="tabular-nums">
           <span className="text-sky-300">API</span> {formatTokensExact(api.input)} in (
