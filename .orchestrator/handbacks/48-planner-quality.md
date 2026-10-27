@@ -1,6 +1,6 @@
 ## Epic 48 Handback — Planner quality pass (evals with the real model)
 
-**Status:** Complete. Branch `epic/48-planner-quality` @ `680141c` (rebased on `origin/main`).
+**Status:** Complete. Branch `epic/48-planner-quality` @ `737dbd3` (rebased on `origin/main`).
 
 **Delivered:**
 - `packages/planner/src/prompt.ts`: rewritten `PLANNER_SYSTEM_PROMPT` around capabilities — one task per user-visible behaviour/surface/bug fix, no layer splits, no wiring/docs/scaffold/test-only tasks, feature-folder ownership, shared shell/store/manifest files read-only unless the goal names them, producer→consumer (not runtime-trigger) `dependsOn`. Two snapshot-tested prompt turns (plan + repair) and unit tests for the new rules.
