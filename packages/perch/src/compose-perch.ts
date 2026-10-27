@@ -5,6 +5,7 @@ import type { AgentRunner, BundleOps, Clock, EventBus, Workspace } from '@starli
 import { createLocalNode, type LocalNode } from '@starling/flock';
 import { createOpencodeRunner } from '@starling/runner';
 import { createWorkspace } from '@starling/workspace';
+import type { DrainOptions, DrainReport } from './drain';
 import type { MdnsAdvertiser } from './handshake';
 import { type PerchHandle, startPerch } from './perch-daemon';
 import { type ExecFn, type OsProbe, probeOs } from './perch-info';
@@ -37,6 +38,17 @@ export interface ComposePerchOptions {
   exec?: ExecFn;
   bus?: EventBus;
   heartbeatMs?: number;
+  /** Heartbeat jitter fraction. Default 0.1 (±10%); 0 makes the period exact. */
+  heartbeatJitter?: number;
+  /** Uniform source in `[0, 1)` for the heartbeat jitter (tests). */
+  random?: () => number;
+  /**
+   * Publish the join code in the mDNS TXT record (SEC-07). Default **false**: discovery does not
+   * need it, and a TXT record is readable by everyone on the Wi-Fi.
+   */
+  advertiseCode?: boolean;
+  /** Override the disk probe used by `/perch/health` (tests). */
+  freeBytes?: () => Promise<number>;
   /** Host the hub should dial. Tests pass `127.0.0.1`; production uses the LAN address. */
   publicHost?: string;
   /** Executable used for `opencode serve`. Default `opencode`. */
@@ -55,6 +67,11 @@ export interface RealPerch {
   statusLine(): string;
   /** Stop the daemon, abort sessions, close the runner. Idempotent. */
   stop(): Promise<void>;
+  /**
+   * Drain gracefully (refuse new tasks, wait for the hub to delete them), then close the runner.
+   * This is what `starling perch` calls on SIGTERM; see the C3 wiring in the epic doc.
+   */
+  drain(opts?: DrainOptions): Promise<DrainReport>;
 }
 
 /** Filesystem-safe, stable node id for a display name. `MacBook Pro` → `perch-macbook-pro`. */
@@ -149,10 +166,22 @@ export async function composePerch(options: ComposePerchOptions = {}): Promise<R
     ...(options.exec === undefined ? {} : { exec: options.exec }),
     ...(options.bus === undefined ? {} : { bus: options.bus }),
     ...(options.heartbeatMs === undefined ? {} : { heartbeatMs: options.heartbeatMs }),
+    ...(options.heartbeatJitter === undefined ? {} : { heartbeatJitter: options.heartbeatJitter }),
+    ...(options.random === undefined ? {} : { random: options.random }),
+    ...(options.advertiseCode === undefined ? {} : { advertiseCode: options.advertiseCode }),
+    ...(options.freeBytes === undefined ? {} : { freeBytes: options.freeBytes }),
+    worktreeRoot,
     ...(options.publicHost === undefined ? {} : { publicHost: options.publicHost }),
   });
 
   let stopped = false;
+
+  const closeAll = async (): Promise<void> => {
+    if (stopped) return;
+    stopped = true;
+    await node.close();
+    await runner.close();
+  };
 
   return {
     node,
@@ -170,10 +199,14 @@ export async function composePerch(options: ComposePerchOptions = {}): Promise<R
       }),
     async stop() {
       if (stopped) return;
-      stopped = true;
       await handle.stop();
-      await node.close();
-      await runner.close();
+      await closeAll();
+    },
+    async drain(drainOpts?: DrainOptions) {
+      if (stopped) return { finished: [], aborted: [], waitedMs: 0 };
+      const report = await handle.drain(drainOpts);
+      await closeAll();
+      return report;
     },
   };
 }

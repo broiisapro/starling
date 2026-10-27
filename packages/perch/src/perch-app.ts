@@ -4,7 +4,6 @@ import {
   type ExecutionNode,
   isStarlingError,
   type NodeInfo,
-  StartTaskOptionsSchema,
   systemClock,
   type TaskHandle,
   type TaskResult,
@@ -13,7 +12,30 @@ import { type Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { type ZodType, z } from 'zod';
 import { FLOCK_TOKEN_HEADER, tokensMatch } from './auth';
+import {
+  type DrainOptions,
+  type DrainReport,
+  defaultDrainSleep,
+  PERCH_DRAIN_POLL_MS,
+  PERCH_DRAIN_TIMEOUT_MS,
+} from './drain';
 import { createEventLog } from './event-log';
+import { buildPerchHealth, type PerchHealth, type PerchHealthProbes } from './health';
+import {
+  isSafeId,
+  isSafeRef,
+  PerchCollectSchema,
+  PerchPromptSchema,
+  PerchStartTaskSchema,
+} from './validate';
+
+/**
+ * Largest request body the perch will parse (SEC-05). A hub never legitimately sends more: the
+ * biggest field is a worker prompt, and 256 KiB is several thousand lines of instructions. The
+ * limit is enforced twice — the declared `content-length` first (cheap rejection) and then the
+ * bytes actually streamed (a chunked body can lie about, or omit, its length).
+ */
+export const PERCH_MAX_BODY_BYTES = 256 * 1024;
 
 export interface PerchAppDeps {
   /** The local `ExecutionNode` this perch exposes (Epic 30's `LocalNode` in production). */
@@ -27,22 +49,33 @@ export interface PerchAppDeps {
   clock?: Clock;
   /** SSE keep-alive comment interval. Default 15 s. */
   keepAliveMs?: number;
+  /**
+   * Probes behind `GET /perch/health`. `startPerch` always wires them; a bare app (tests, embedding)
+   * may omit them, in which case the route answers 503 `health-unavailable` instead of lying.
+   */
+  health?: PerchHealthProbes;
 }
 
 /**
- * `createPerchApp` returns a Hono app plus the two hooks the daemon needs. The extra surface is
- * deliberately small: `startPerch` must be able to list in-flight tasks (for a graceful stop) and
- * abort them without reaching into the app's private maps.
+ * `createPerchApp` returns a Hono app plus the hooks the daemon needs. The extra surface is
+ * deliberately small: `startPerch` must be able to list in-flight tasks (for a graceful stop or a
+ * drain) and abort them without reaching into the app's private maps.
  */
 export type PerchApp = Hono & {
   /** Handles accepted and not yet cleaned up. */
   handles(): TaskHandle[];
   /** Abort every in-flight session. Best-effort; failures are logged, not thrown. */
   close(): Promise<void>;
+  /**
+   * Enter/leave drain mode. While draining, `POST /perch/tasks` answers 503 `draining` for a new
+   * task (a retry of an existing handle still gets that handle back).
+   */
+  setDraining(on: boolean): void;
+  isDraining(): boolean;
+  /** Wait for the hub to delete every task, aborting whatever is left at the timeout. */
+  drainTasks(opts?: DrainOptions): Promise<DrainReport>;
 };
 
-const PromptBodySchema = z.object({ prompt: z.string().min(1) });
-const CollectBodySchema = z.object({ baseRef: z.string().min(1) });
 const ErrorSchema = z.object({ error: z.object({ code: z.string(), message: z.string() }) });
 
 const taskKey = (runId: string, key: string): string => `${runId}/${key}`;
@@ -71,6 +104,7 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
     events.append(event);
   });
   const app = new Hono();
+  let draining = false;
 
   const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, key?: string): void => {
     deps.bus?.publish({
@@ -94,8 +128,25 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
 
   app.get('/perch/info', async (c) => c.json(await deps.info()));
 
+  // Token-guarded like every other route: the presence of a perch on the LAN is not public.
+  app.get('/perch/health', async (c) => {
+    if (deps.health === undefined) {
+      return c.json(
+        errorBody('health-unavailable', 'this perch was started without health probes'),
+        503,
+      );
+    }
+    // The app's own drain state wins over the probe's, so a caller cannot report "healthy" while
+    // this app is refusing new tasks.
+    const health: PerchHealth = await buildPerchHealth({
+      ...deps.health,
+      draining: () => draining || deps.health?.draining() === true,
+    });
+    return c.json(health, health.ok ? 200 : 503);
+  });
+
   app.post('/perch/tasks', async (c) => {
-    const body = await readJson(c, StartTaskOptionsSchema);
+    const body = await readJson(c, PerchStartTaskSchema);
     if (!body.ok) return body.response;
     if (body.data.repo.kind !== 'bundle') {
       return c.json(
@@ -111,9 +162,17 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
     const existing = handles.get(key);
     if (existing !== undefined) {
       // The hub retried a POST whose response it missed. Return the same session instead of
-      // starting a second agent on the same branch (flaky Wi-Fi is the normal case on a LAN).
+      // starting a second agent on the same branch (flaky Wi-Fi is the normal case on a LAN), even
+      // while draining: a retry is not new work.
       log('debug', `perch replayed the handle for ${existing.taskKey}`, existing.taskKey);
       return c.json(existing);
+    }
+    if (draining) {
+      log('warn', `perch is draining; refused ${body.data.taskKey}`, body.data.taskKey);
+      return c.json(
+        errorBody('draining', 'this perch is draining for a restart and accepts no new tasks'),
+        503,
+      );
     }
 
     const handle = await deps.node.startTask(body.data);
@@ -123,10 +182,15 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   });
 
   app.post('/perch/tasks/:runId/:key/prompt', async (c) => {
-    const handle = handles.get(taskKey(c.req.param('runId'), c.req.param('key')));
-    if (handle === undefined) return unknownTask(c);
-    const body = await readJson(c, PromptBodySchema);
+    const params = readTaskParams(c);
+    if (params === undefined) return invalidParams(c);
+    // Read the body before looking the handle up: a hub that sends a 1 MiB body gets the same 413
+    // whether or not the session still exists (SEC-05).
+    const body = await readJson(c, PerchPromptSchema);
     if (!body.ok) return body.response;
+
+    const handle = handles.get(taskKey(params.runId, params.key));
+    if (handle === undefined) return unknownTask(c);
 
     await deps.node.sendPrompt(handle, body.data.prompt);
     log('info', `perch forwarded a fixer prompt for ${handle.taskKey}`, handle.taskKey);
@@ -134,7 +198,9 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   });
 
   app.post('/perch/tasks/:runId/:key/abort', async (c) => {
-    const handle = handles.get(taskKey(c.req.param('runId'), c.req.param('key')));
+    const params = readTaskParams(c);
+    if (params === undefined) return invalidParams(c);
+    const handle = handles.get(taskKey(params.runId, params.key));
     if (handle === undefined) return unknownTask(c);
 
     await deps.node.abort(handle);
@@ -143,11 +209,14 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   });
 
   app.post('/perch/tasks/:runId/:key/collect', async (c) => {
-    const key = taskKey(c.req.param('runId'), c.req.param('key'));
+    const params = readTaskParams(c);
+    if (params === undefined) return invalidParams(c);
+    const body = await readJson(c, PerchCollectSchema);
+    if (!body.ok) return body.response;
+
+    const key = taskKey(params.runId, params.key);
     const handle = handles.get(key);
     if (handle === undefined) return unknownTask(c);
-    const body = await readJson(c, CollectBodySchema);
-    if (!body.ok) return body.response;
 
     // The second argument is the *hub's* repo. A perch never touches it: for bundle-sourced tasks
     // `LocalNode.collect` commits the perch worktree and writes a result bundle instead.
@@ -158,12 +227,17 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   });
 
   app.get('/perch/tasks/:runId/:key/bundle', async (c) => {
-    const key = taskKey(c.req.param('runId'), c.req.param('key'));
+    const params = readTaskParams(c);
+    if (params === undefined) return invalidParams(c);
+    const key = taskKey(params.runId, params.key);
     if (!handles.has(key)) return unknownTask(c);
 
     const base = c.req.query('base');
     if (base !== undefined && base.trim().length === 0) {
       return c.json(errorBody('invalid-query', 'base must not be empty when supplied'), 400);
+    }
+    if (base !== undefined && !isSafeRef(base)) {
+      return c.json(errorBody('invalid-query', 'base must be a plain git ref'), 400);
     }
 
     const result = results.get(key);
@@ -187,7 +261,9 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   });
 
   app.delete('/perch/tasks/:runId/:key', async (c) => {
-    const key = taskKey(c.req.param('runId'), c.req.param('key'));
+    const params = readTaskParams(c);
+    if (params === undefined) return invalidParams(c);
+    const key = taskKey(params.runId, params.key);
     const handle = handles.get(key);
     // Cleanup is idempotent: a hub that retries after a dropped response must not see an error.
     if (handle === undefined) return c.json({ ok: true });
@@ -275,8 +351,60 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
     return c.json(errorBody('internal', message), 500);
   });
 
+  /**
+   * Wait for the hub to delete every task, then abort whatever is left.
+   *
+   * The hub's `DELETE` is the only signal that a task's worktree and session are safe to drop, so
+   * the loop polls the handle map instead of guessing from agent events (a session can go idle long
+   * before its bundle is collected and merged). Injected `now`/`sleep` make the timeout provable.
+   */
+  const drainTasks = async (opts: DrainOptions = {}): Promise<DrainReport> => {
+    draining = true;
+    const now = opts.now ?? ((): number => clock.now());
+    const sleep = opts.sleep ?? defaultDrainSleep;
+    const pollMs = opts.pollMs ?? PERCH_DRAIN_POLL_MS;
+    const timeoutMs = opts.timeoutMs ?? PERCH_DRAIN_TIMEOUT_MS;
+    const startedAt = now();
+    const before = new Map<string, string>();
+    for (const [key, handle] of handles) before.set(key, handle.taskKey);
+
+    while (handles.size > 0 && now() - startedAt < timeoutMs) {
+      await sleep(pollMs);
+    }
+
+    // Anything the hub already deleted is "finished"; anything still here ran out of time.
+    const finished = [...before.entries()]
+      .filter(([key]) => !handles.has(key))
+      .map(([, key]) => key);
+    const aborted: string[] = [];
+    for (const [key, handle] of [...handles.entries()]) {
+      try {
+        await deps.node.abort(handle);
+        aborted.push(handle.taskKey);
+        log('warn', `perch aborted ${handle.taskKey} after the drain timeout`, handle.taskKey);
+      } catch (err) {
+        log(
+          'warn',
+          `perch could not abort ${handle.taskKey} during drain: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+          handle.taskKey,
+        );
+      }
+      handles.delete(key);
+      results.delete(key);
+    }
+
+    return { finished, aborted, waitedMs: Math.max(0, now() - startedAt) };
+  };
+
   return Object.assign(app, {
     handles: () => [...handles.values()],
+    setDraining: (on: boolean): void => {
+      draining = on;
+    },
+    isDraining: (): boolean => draining,
+    drainTasks,
     close: async (): Promise<void> => {
       unsubscribeNode();
       const running = [...handles.values()];
@@ -299,10 +427,64 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   }) as PerchApp;
 }
 
-async function readJson<T>(c: Context, schema: ZodType<T>): Promise<ParsedBody<T>> {
+async function readJson<T>(
+  c: Context,
+  schema: ZodType<T>,
+  opts: { maxBytes: number } = { maxBytes: PERCH_MAX_BODY_BYTES },
+): Promise<ParsedBody<T>> {
+  const tooLarge = (): ParsedBody<T> => ({
+    ok: false,
+    response: c.json(
+      {
+        error: {
+          code: 'payload-too-large',
+          message: `request body must be at most ${opts.maxBytes} bytes`,
+        },
+      },
+      413,
+    ),
+  });
+
+  // Cheap rejection first: a declared length over the limit never needs to be read. A lying or
+  // absent length is caught by the byte count below, so this is an optimisation, not the check.
+  const declared = c.req.header('content-length');
+  if (declared !== undefined) {
+    const length = Number(declared);
+    if (Number.isFinite(length) && length > opts.maxBytes) return tooLarge();
+  }
+
+  let text = '';
+  const body = c.req.raw.body;
+  if (body !== null) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let total = 0;
+    try {
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        total += chunk.value.byteLength;
+        if (total > opts.maxBytes) {
+          await reader.cancel().catch(() => undefined);
+          return tooLarge();
+        }
+        text += decoder.decode(chunk.value, { stream: true });
+      }
+      text += decoder.decode();
+    } catch {
+      return {
+        ok: false,
+        response: c.json(
+          { error: { code: 'invalid-json', message: 'request body could not be read' } },
+          400,
+        ),
+      };
+    }
+  }
+
   let raw: unknown;
   try {
-    raw = await c.req.json();
+    raw = JSON.parse(text);
   } catch {
     return {
       ok: false,
@@ -321,6 +503,36 @@ async function readJson<T>(c: Context, schema: ZodType<T>): Promise<ParsedBody<T
     };
   }
   return { ok: true, data: parsed.data };
+}
+
+interface TaskParams {
+  runId: string;
+  key: string;
+}
+
+/**
+ * `:runId` and `:key` are a path segment each, so they are validated as ids. A param that fails is
+ * a 400, not a 404: "your run id contains a slash" is a hub bug, not a missing task, and answering
+ * 404 would send the hub down its re-register path.
+ */
+function readTaskParams(c: Context): TaskParams | undefined {
+  const runId = c.req.param('runId');
+  const key = c.req.param('key');
+  if (runId === undefined || key === undefined) return undefined;
+  if (!isSafeId(runId) || !isSafeId(key)) return undefined;
+  return { runId, key };
+}
+
+function invalidParams(c: Context): Response {
+  return c.json(
+    {
+      error: {
+        code: 'invalid-params',
+        message: `runId and task key must match ${/^[A-Za-z0-9._-]{1,128}$/.source}`,
+      },
+    },
+    400,
+  );
 }
 
 function unknownTask(c: Context): Response {

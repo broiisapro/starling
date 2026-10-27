@@ -8,11 +8,15 @@ export const PACKAGE = '@starling/perch' as const;
 
 export * from './auth';
 export * from './compose-perch';
+export * from './drain';
 export * from './event-log';
 export * from './handshake';
+export * from './health';
+export * from './heartbeat';
 export * from './join-code';
 export * from './lan';
 export * from './mdns';
 export * from './perch-app';
 export * from './perch-daemon';
 export * from './perch-info';
+export * from './validate';
