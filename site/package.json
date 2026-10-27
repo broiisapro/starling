@@ -1,0 +1,14 @@
+{
+  "name": "starling-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Starling's one-page landing site: what the flock is, how it flies, and how to join it.",
+  "scripts": {
+    "build": "bun run build.ts",
+    "preview": "bun run build.ts && bun run serve.ts",
+    "serve": "bun run serve.ts",
+    "test": "bun test src",
+    "typecheck": "bunx tsc --noEmit -p tsconfig.json"
+  }
+}
