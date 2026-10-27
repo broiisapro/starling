@@ -1,6 +1,6 @@
 ## Epic 45 Handback — Conflict-resolver loop
 
-**Status:** Complete. Branch `epic/45-resolver` @ b4b80a7 (+ docs/handback commit).
+**Status:** Complete. Branch `epic/45-resolver` @ e99d311 (four commits: prompts, shared suite runner, resolver, docs).
 Closes #32.
 
 **Delivered:**
