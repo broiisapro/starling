@@ -58,11 +58,11 @@ export function JoinCard({ join, anchorId, nodeCount = 1 }: JoinCardProps) {
       data-testid="join-card"
       data-join-code={join.code}
       aria-label="Add a laptop to the flock"
-      className="relative overflow-hidden rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-500/[0.09] via-violet-500/[0.05] to-transparent p-3.5"
+      className="relative overflow-hidden rounded-xl border border-amber-300/20 bg-gradient-to-br from-amber-400/[0.08] via-violet-500/[0.04] to-transparent p-3.5"
     >
       <span
         aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-sky-400/70 to-transparent"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-300/70 to-transparent"
       />
 
       <header className="flex items-start justify-between gap-2">
@@ -75,22 +75,22 @@ export function JoinCard({ join, anchorId, nodeCount = 1 }: JoinCardProps) {
             Add a roost
           </h3>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[12px] text-slate-200">
+        <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[12px] text-slate-200">
           <Wifi aria-hidden="true" className="h-2.5 w-2.5 text-emerald-300" />
           same wifi
         </span>
       </header>
 
-      <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="mt-3 flex flex-col items-center gap-3">
         <QrCode value={payload} size={104} label="Scan to join the flock" className="shrink-0" />
 
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className="w-full min-w-0 flex-1 space-y-2">
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <p className="text-[12px] uppercase tracking-[0.16em] text-slate-300">join code</p>
               <p
                 data-testid="join-code"
-                className="select-all font-mono text-lg font-semibold tracking-[0.18em] text-sky-100"
+                className="select-all font-mono text-2xl font-semibold tracking-[0.16em] text-amber-200 drop-shadow-[0_0_12px_rgb(245_181_68/0.45)]"
               >
                 {join.code}
               </p>
