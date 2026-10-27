@@ -23,12 +23,16 @@ export interface SchedulerOptions {
  */
 export function rankNodes(nodes: NodeInfo[], options: SchedulerOptions = {}): NodeInfo[] {
   const hubId = options.hubId ?? 'hub';
+  const latencyOf = (node: NodeInfo): number => node.latencyMs ?? Number.POSITIVE_INFINITY;
   return nodes.filter(isSchedulable).sort((a, b) => {
     const bySlots = freeSlots(b) - freeSlots(a);
     if (bySlots !== 0) return bySlots;
 
-    const byLatency = (a.latencyMs ?? Number.POSITIVE_INFINITY) - (b.latencyMs ?? Number.POSITIVE_INFINITY);
-    if (byLatency !== 0) return byLatency;
+    // Compare, don't subtract: `Infinity - Infinity` is NaN, and a NaN comparator silently leaves
+    // the array in insertion order — which made "every tie breaks by id" depend on heartbeat order.
+    const aLatency = latencyOf(a);
+    const bLatency = latencyOf(b);
+    if (aLatency !== bLatency) return aLatency < bLatency ? -1 : 1;
 
     const aHub = a.id === hubId || a.kind === 'local' ? 0 : 1;
     const bHub = b.id === hubId || b.kind === 'local' ? 0 : 1;
