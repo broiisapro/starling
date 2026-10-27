@@ -54,7 +54,8 @@
 - sky-todo source checks: `bun test` → **71 pass / 0 fail, 1,156 expect() calls, 12 files**; `bunx tsc --noEmit` → clean.
 - Seeded bugs reproduce in the generated repo (`/tmp/x2`): `py-ledger add -a 0.29 …` → `added … $0.28`, so the demo has a real bug to hunt.
 - `bun run test` (root): packages half — `1359 pass, 4 skip, 0 fail` / `Ran 1363 tests across 162 files`; web half — `426 pass, 0 fail` / `Ran 426 tests across 39 files`. **0 fail overall.**
-- `bun run check`: `Checked 704 files in 279ms. No fixes applied.` and the per-workspace `tsc --noEmit` loop exits 0 (no output).
+  - Flake seen once in four post-rebase runs, in another lane: `packages/flock/src/remote-node.test.ts:213` (`RemoteNode against a fake perch > start → SSE events → collect → bundle download → fetch into the hub repo`) — `Expected to contain: "session.idle"`, `Received: []`. It is an SSE-timing race in Epic 30's test, not touched by this lane; the next run was green (`1359 pass, 0 fail`).
+- `bun run check`: `Checked 705 files in 854ms. No fixes applied.` and the per-workspace `tsc --noEmit` loop exits 0 (no output).
 
 **Dependencies added:** none (py-ledger’s runtime has zero dependencies; its `[dev]` extra pins nothing beyond `pytest>=8.3`, `ruff>=0.13` and is installed in a per-repo `.venv`, never in the workspace).
 
