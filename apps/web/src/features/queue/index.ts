@@ -1,2 +1,29 @@
-/** Feature lane placeholder: queue. Owned by a later Wave 1 epic. */
+/** Feature lane: the merge queue board (Epic 26). */
 export const FEATURE = 'queue' as const;
+
+export type {
+  QueueBoard,
+  QueueCard,
+  QueueColumnId,
+  QueueColumnMeta,
+  WaitingReason,
+  WireEntry,
+} from './columns';
+export {
+  assignColumn,
+  buildQueueBoard,
+  COLUMN_BY_STATUS,
+  latestMergeResult,
+  pendingRun,
+  QUEUE_COLUMN_META,
+  QUEUE_COLUMNS,
+  taskElapsedMs,
+  transitionOffset,
+  unmetDependencies,
+  waitingLabel,
+  wireOrder,
+} from './columns';
+export type { MergeQueueProps } from './handshake';
+export { MergeQueue } from './MergeQueue';
+export type { StatusStyle } from './palette';
+export { NEUTRAL_CHIP, STATUS_STYLE } from './palette';
