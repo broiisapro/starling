@@ -115,7 +115,8 @@ are optional so `ComponentType<FeatureProps>` stays honest. Any future shell can
 - **Board-level blurb.** The `Board` shape in the brief has one `blurb` field, so the one-liner is
   computed from the leader ("… landed in 33.4s — a personal best for the flock") rather than repeated
   per row. No per-entry field was invented.
-- **56 tests** instead of the required ≥ 24: 41 derive/avatar/rank and 15 component/render tests.
+- **56 tests** instead of the required ≥ 24: 39 pure derive/avatar/rank tests and 17 component tests
+  (11 panel, 6 avatar).
 - **Thriftiest averages per node** (rationale above).
 
 ## Known limitations / deferred
