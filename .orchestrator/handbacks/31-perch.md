@@ -1,6 +1,6 @@
 ## Epic 31 Handback — Perch daemon
 
-**Status:** Complete. Branch `epic/31-perch` @ `dbdc947`.
+**Status:** Complete. Branch `epic/31-perch` @ `d11570b`.
 
 **Delivered:**
 
