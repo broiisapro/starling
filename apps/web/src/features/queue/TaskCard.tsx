@@ -66,13 +66,16 @@ export function TaskCard({ card, from, now, selected = false, onSelect }: TaskCa
       title={tooltip === '' ? undefined : tooltip}
       aria-describedby={detail === undefined ? undefined : detailId}
       aria-label={ariaLabel}
-      className={`flex w-full min-w-0 items-center gap-1 rounded-md border px-1 py-1 text-left transition-colors hover:border-sky-300/40 hover:bg-white/[0.08] focus-visible:border-sky-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/40 ${
+      className={`flex w-full min-w-0 items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left shadow-[inset_0_1px_0_rgb(255_255_255/0.05)] transition-colors hover:border-sky-300/40 hover:bg-white/[0.08] focus-visible:border-sky-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/40 ${
         selected
           ? 'border-sky-400/80 bg-sky-400/10 ring-1 ring-sky-400/50'
-          : 'border-white/10 bg-white/[0.04]'
+          : 'border-white/[0.08] bg-white/[0.035]'
       }`}
     >
-      <span aria-hidden="true" className={`h-2 w-2 shrink-0 rounded-full ${status.dot}`} />
+      <span
+        aria-hidden="true"
+        className={`h-2 w-2 shrink-0 rounded-full ${status.dot}${card.commit !== undefined ? ' land-flash' : ''}`}
+      />
       <span className="min-w-0 flex-1 truncate text-sm font-medium leading-5 text-slate-100">
         {card.taskKey}
       </span>

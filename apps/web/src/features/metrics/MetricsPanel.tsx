@@ -73,7 +73,7 @@ export function MetricsPanel({
           <div className="min-w-[7.5rem]">
             <p className="text-[12px] uppercase tracking-[0.1em] text-slate-400">Agents active</p>
             <div className="flex items-end gap-2">
-              <span className="text-base leading-5 tabular-nums text-sky-200" data-testid="metrics-agents">
+              <span className="text-[17px] font-semibold leading-5 tracking-tight tabular-nums text-sky-200" data-testid="metrics-agents">
                 {agentsNow}
               </span>
               <SparklineChart
@@ -134,7 +134,7 @@ function Metric({ label, value, tone, testId, live }: MetricProps) {
     <div className="flex items-baseline gap-1.5">
       <dt className="text-[12px] uppercase tracking-[0.08em] text-slate-400">{label}</dt>
       <dd
-        className={`text-base leading-5 tabular-nums ${tone}`}
+        className={`text-[17px] font-semibold leading-5 tracking-tight tabular-nums ${tone}`}
         data-testid={testId}
         data-live={live === undefined ? undefined : live ? 'true' : 'false'}
       >

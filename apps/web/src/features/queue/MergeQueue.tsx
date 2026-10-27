@@ -184,12 +184,12 @@ function QueueColumn({ id, cards, fromColumns, now, selectedTask, onSelect }: Qu
       aria-labelledby={headingId}
       data-column-section={id}
       data-virtualized={range.virtualized ? 'true' : 'false'}
-      className="flex min-h-0 min-w-[7rem] flex-1 shrink-0 flex-col gap-1"
+      className="flex min-h-0 min-w-[7rem] flex-1 shrink-0 flex-col gap-1.5 rounded-xl border border-white/[0.05] bg-white/[0.015] p-1"
     >
       <div className="flex items-baseline justify-between gap-1">
         <h3
           id={headingId}
-          className={`flex items-baseline gap-1.5 text-[12px] font-semibold uppercase tracking-[0.12em] ${meta.text}`}
+          className={`flex min-w-0 items-baseline gap-1.5 truncate whitespace-nowrap text-[12px] font-semibold uppercase tracking-[0.04em] ${meta.text}`}
           title={meta.hint}
         >
           {meta.title}
@@ -205,7 +205,7 @@ function QueueColumn({ id, cards, fromColumns, now, selectedTask, onSelect }: Qu
       </div>
 
       {cards.length === 0 ? (
-        <p className="rounded-md border border-dashed border-white/5 px-2 py-2 text-[12px] leading-4 text-slate-400">
+        <p className="rounded-lg border border-dashed border-white/[0.06] px-2 py-2 text-[12px] leading-4 text-slate-400">
           {meta.empty}
         </p>
       ) : (
