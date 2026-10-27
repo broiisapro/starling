@@ -152,7 +152,7 @@ Run in this worktree on 2026-10-27, macOS arm64, Bun 1.4.4.
 | skill installer | `integrations/opencode/install.sh --dry-run` | both targets "would install" |
 | alias tip | `bun run --cwd <repo> starling --version` | `0.0.0` |
 | tests | `bun run test` | packages: **1359 pass, 4 skip, 0 fail**; web: **426 pass, 0 fail** (1,785 total) |
-| check | `bun run check` | Biome clean (708 files), typecheck clean |
+| check | `bun run check` | Biome clean (710 files), typecheck clean |
 
 Tests and check were run against the merged Wave 1/C1 base plus this lane's Markdown and SVG only; no code
 changed.

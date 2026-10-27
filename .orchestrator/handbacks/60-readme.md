@@ -62,7 +62,7 @@ diff is the source of truth). Closes #42.
 - `integrations/opencode/install.sh --dry-run` → `skills/starling would install`, `commands/swarm.md would install`
 - `bun run --cwd <repo> starling --version` → `0.0.0`
 - **`bun run test` (root)** → packages: `1359 pass · 4 skip · 0 fail · Ran 1363 tests across 162 files [20.52s]`; web: `426 pass · 0 fail · Ran 426 tests across 39 files [2.63s]`; `EXIT=0`
-- **`bun run check`** → `Checked 708 files in 144ms. No fixes applied.` + `tsc --noEmit` loop clean, `EXIT=0`
+- **`bun run check`** → `Checked 710 files in 818ms. No fixes applied.` + `tsc --noEmit` loop clean, `EXIT=0`
 - `xmllint --noout docs/assets/diagrams/*.svg` → XML_OK
 - Diagrams rendered at 1120 px on white and `#0d1117` in headless Chrome; both readable.
 
