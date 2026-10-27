@@ -184,6 +184,7 @@ if (import.meta.main) {
   });
   for (const note of result.notes) console.error(`note: ${note}`);
   for (const problem of result.problems) console.error(`problem: ${problem}`);
-  if (result.ok) console.log(`ok: ${result.path} can run ollama/${argValue(argv, 'model', 'qwen3.8:27b-mlx')}`);
+  if (result.ok)
+    console.log(`ok: ${result.path} can run ollama/${argValue(argv, 'model', 'qwen3.8:27b-mlx')}`);
   else process.exitCode = 1;
 }

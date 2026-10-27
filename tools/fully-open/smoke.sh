@@ -8,22 +8,28 @@
 #   1. Resolves the local model (STARLING_LOCAL_MODEL → tools/local-models/results/recommendation.json
 #      → the compiled-in default qwen3.8:27b-mlx) and the laptop profile (mbp/air).
 #   2. Waits for ARCHITECTURE §7 **L31** quiet window: ≤ 3 `opencode` processes and ≥ 22 GB free.
-#      `--force` skips the wait; `--dry-run` only reports the measurements.
+#      `--force` skips the wait; `--dry-run` only reports, and touches nothing outside this process.
 #   3. Writes a *project-level* opencode config (`providers.ollama`, see opencode-ollama.json) into a
 #      throwaway directory — never the user's global config.
-#   4. Drives the opencode → Ollama provider with one one-shot prompt (`opencode run --standalone`).
-#      When `starling run --profile local` exists on main (Epic 40), it uses that instead, so the
-#      whole harness is exercised end to end.
-#   5. Measures the same one-shot against Ollama's OpenAI-compatible endpoint (what the router and
+#   4. Drives the opencode → Ollama provider with one one-shot prompt that has to write a file, so a
+#      pass proves tools work and not merely that the model can chat. When `starling run --profile`
+#      exists on main (Epic 40), it runs that instead, so the whole harness is exercised.
+#   5. Measures the same prompt against Ollama's OpenAI-compatible endpoint (what the router and
 #      opencode's provider both speak) to report honest tokens/second, then unloads the model.
 #   6. Writes tools/fully-open/results/smoke-<host>-<model>-<ts>.json.
 #
-# Exit codes: 0 ok · 1 failed · 2 usage · 3 deferred (quiet window never arrived, nothing loaded).
+# --dry-run prints the plan of action, the resolved model/profile/config path and the L31 readings,
+# makes no network call and loads no model. That is the mode to use on a busy machine.
+#
+# Exit codes: 0 ok · 1 failed · 2 usage · 3 deferred (quiet window never arrived) · 4 partial
+# (the model answered but did not use tools — the file was not written).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RESULTS_DIR="$ROOT/tools/fully-open/results"
 RECOMMENDATION="$ROOT/tools/local-models/results/recommendation.json"
+STARLING_CLI="$ROOT/apps/cli/src/index.ts"
+SKY_TODO="$ROOT/examples/sky-todo"
 
 OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
 MIN_FREE_GB="${STARLING_MIN_FREE_GB:-22}"
@@ -35,10 +41,12 @@ OUT=""
 DRY_RUN=0
 FORCE=0
 KEEP_LOADED=0
-PROMPT="Reply with exactly one short sentence: which bird is the fastest?"
+LOADED=0
+PROMPT='Create a file named LOCAL_SMOKE.md in the current directory containing exactly one line: # local bird. Do not do anything else.'
+SMOKE_FILE="LOCAL_SMOKE.md"
 
 usage() {
-  sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,27p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
   exit "${1:-0}"
 }
 
@@ -74,7 +82,14 @@ jget() {
 }
 
 # ── host + model resolution (mirrors packages/llm/src/profiles-recommend.ts) ──
-mem_gb() { sysctl -n hw.memsize | awk '{ printf "%d", $1 / 1073741824 }'; }
+mem_gb() {
+  local bytes
+  if bytes="$(sysctl -n hw.memsize 2>/dev/null)"; then
+    printf '%d' $((bytes / 1073741824))
+  else
+    awk '/MemTotal/ { printf "%d", $2 / 1048576 }' /proc/meminfo
+  fi
+}
 
 host_profile() {
   local forced="${STARLING_LOCAL_PROFILE:-}"
@@ -98,17 +113,26 @@ opencode_count() { pgrep -f opencode 2>/dev/null | wc -l | tr -d ' '; }
 # Free RAM as macOS counts it: free + inactive + speculative pages (what a model can claim without
 # swapping). `memory_pressure`'s percentage is reported too, for the log, but the gate is GB.
 free_gb() {
-  vm_stat | awk '
-    /page size of/ { page = 16384; for (i = 1; i <= NF; i++) if ($i == "of") page = $(i + 1) + 0 }
-    /Pages free/ { gsub(/\./, "", $3); free = $3 + 0 }
-    /Pages inactive/ { gsub(/\./, "", $3); inactive = $3 + 0 }
-    /Pages speculative/ { gsub(/\./, "", $3); speculative = $3 + 0 }
-    END { printf "%.1f", (free + inactive + speculative) * page / 1073741824 }
-  '
+  if command -v vm_stat >/dev/null 2>&1; then
+    vm_stat | awk '
+      /page size of/ { for (i = 1; i <= NF; i++) if ($i == "of") page = $(i + 1) + 0 }
+      /Pages free/ { gsub(/\./, "", $3); free = $3 + 0 }
+      /Pages inactive/ { gsub(/\./, "", $3); inactive = $3 + 0 }
+      /Pages speculative/ { gsub(/\./, "", $3); speculative = $3 + 0 }
+      END { printf "%.1f", (free + inactive + speculative) * page / 1073741824 }
+    '
+  else
+    awk '/MemAvailable/ { printf "%.1f", $2 / 1048576 }' /proc/meminfo
+  fi
 }
 
 free_pct() {
-  memory_pressure 2>/dev/null | awk -F': ' '/free percentage/ { gsub(/%/, "", $2); printf "%d", $2 + 0 }'
+  if command -v memory_pressure >/dev/null 2>&1; then
+    memory_pressure 2>/dev/null | awk -F': ' '/free percentage/ { gsub(/%/, "", $2); printf "%d", $2 + 0 }'
+  else
+    awk '/MemTotal/ { total = $2 } /MemAvailable/ { avail = $2 } END { printf "%d", avail * 100 / total }' \
+      /proc/meminfo
+  fi
 }
 
 rails_ok() {
@@ -125,17 +149,33 @@ report_rails() {
 }
 
 # ── project-level opencode config (never the user's global config) ────────────
+# Mirrors tools/fully-open/opencode-ollama.json. `modelID` and `package` are both required by
+# opencode 2.1.2 — see the README before dropping either.
 write_project_config() { # <dir>
   mkdir -p "$1"
-  MODEL="$MODEL" bun -e '
-    const model = process.env.MODEL;
+  MODEL_FILE="$MODEL" OLLAMA_V1="$OLLAMA_V1" bun -e '
+    const model = process.env.MODEL_FILE;
     const config = {
       $schema: "https://opencode.ai/config.json",
       model: `ollama/${model}`,
       providers: {
         ollama: {
           name: "Ollama (local)",
-          models: { [model]: { name: `${model} (local)`, capabilities: { tools: true, temperature: true } } },
+          package: "@opencode/ai/providers/openai-compatible",
+          settings: { baseURL: process.env.OLLAMA_V1, apiKey: "ollama" },
+          models: {
+            [model]: {
+              modelID: model,
+              name: `${model} (local)`,
+              capabilities: {
+                tools: true,
+                temperature: true,
+                input: ["text", "image"],
+                output: ["text"],
+              },
+              limit: { context: 32768, output: 8192 },
+            },
+          },
         },
       },
     };
@@ -146,22 +186,14 @@ write_project_config() { # <dir>
 unload_model() {
   curl -s --max-time 30 "$OLLAMA_URL/api/generate" \
     -H 'content-type: application/json' \
-    -d "$(MODEL="$MODEL" bun -e 'console.log(JSON.stringify({ model: process.env.MODEL, keep_alive: 0 }))')" \
+    -d "$(MODEL_UNLOAD="$MODEL" bun -e 'console.log(JSON.stringify({ model: process.env.MODEL_UNLOAD, keep_alive: 0 }))')" \
     >/dev/null 2>&1 || true
 }
 
-# Prove the project config is what opencode reads *before* loading 18 GB of weights.
-assert_opencode_model() { # <dir>
-  if ( cd "$1" && opencode models 2>/dev/null | grep -qx "ollama/$MODEL" ); then
-    log "  opencode lists ollama/$MODEL from the project config"
-    return 0
-  fi
-  log "✘ opencode does not list ollama/$MODEL — run 'ollama list' and check the project config"
-  return 1
-}
-
-write_report() { # <status> <detail> <work-dir> <started> <finished> <opencode-ms> <tokens> <completion-ms> <text-chars>
-  local status="$1" detail="$2" work="$3" started="$4" finished="$5" oc_ms="$6" tokens="$7" comp_ms="$8" chars="$9"
+# write_report <status> <detail> <mode> <started> <finished> <opencode-ms> <chars> <tokens> <completion-ms> <file-written>
+write_report() {
+  local status="$1" detail="$2" mode="$3" started="$4" finished="$5" oc_ms="$6" chars="$7"
+  local tokens="$8" comp_ms="$9" written="${10}"
   local stamp path
   stamp="$(date +%Y%m%dT%H%M%S)"
   if [ -z "$OUT" ]; then
@@ -171,12 +203,12 @@ write_report() { # <status> <detail> <work-dir> <started> <finished> <opencode-m
     mkdir -p "$(dirname "$OUT")"
     path="$OUT"
   fi
-  STATUS="$status" DETAIL="$detail" MODEL="$MODEL" HOST_PROFILE="$(host_profile)" \
+  STATUS="$status" DETAIL="$detail" MODE="$mode" MODEL="$MODEL" HOST_PROFILE="$(host_profile)" \
   HOST_NAME="$(hostname)" MEM_GB="$(mem_gb)" STARTED="$started" FINISHED="$finished" \
-  OC_MS="$oc_ms" TOKENS="$tokens" COMP_MS="$comp_ms" CHARS="$chars" \
+  OC_MS="$oc_ms" CHARS="$chars" TOKENS="$tokens" COMP_MS="$comp_ms" WRITTEN="$written" \
   OLLAMA_URL="$OLLAMA_URL" PROCS="$(opencode_count)" FREE_GB="$(free_gb)" FREE_PCT="$(free_pct)" \
-  MAX_OPENCODE="$MAX_OPENCODE" MIN_FREE_GB="$MIN_FREE_GB" \
-  WORK="$work" OUT_PATH="$path" REPORT_PATH="$path" bun -e '
+  MAX_OPENCODE="$MAX_OPENCODE" MIN_FREE_GB="$MIN_FREE_GB" SMOKE_FILE="$SMOKE_FILE" \
+  WORK="$WORK" OUT_PATH="$path" bun -e '
     const env = process.env;
     const num = (value) => (value === "" || value === undefined ? null : Number(value));
     const ms = num(env.COMP_MS);
@@ -190,10 +222,18 @@ write_report() { # <status> <detail> <work-dir> <started> <finished> <opencode-m
       finishedAt: new Date(Number(env.FINISHED)).toISOString(),
       host: { name: env.HOST_NAME, profile: env.HOST_PROFILE, memGb: num(env.MEM_GB) },
       model: env.MODEL,
+      mode: env.MODE,
       ollama: { url: env.OLLAMA_URL },
-      rails: { maxOpencode: num(env.MAX_OPENCODE ?? ""), opencodeProcesses: num(env.PROCS), freeGb: num(env.FREE_GB), freePercent: num(env.FREE_PCT), minFreeGb: 22 },
+      rails: {
+        maxOpencode: num(env.MAX_OPENCODE),
+        opencodeProcesses: num(env.PROCS),
+        freeGb: num(env.FREE_GB),
+        freePercent: num(env.FREE_PCT),
+        minFreeGb: num(env.MIN_FREE_GB),
+      },
       workDir: env.WORK,
       opencode: { wallMs: num(env.OC_MS), textChars: num(env.CHARS) },
+      tools: { file: env.SMOKE_FILE, fileWritten: env.WRITTEN === "yes" },
       completion: {
         wallMs: ms,
         completionTokens: tokens,
@@ -203,31 +243,52 @@ write_report() { # <status> <detail> <work-dir> <started> <finished> <opencode-m
     await Bun.write(env.OUT_PATH, `${JSON.stringify(report, null, 2)}\n`);
     console.log(`wrote ${env.OUT_PATH}`);
   '
-  REPORT_PATH="$path"
 }
 
 # ── main ─────────────────────────────────────────────────────────────────────
 MODEL="$(resolve_model)"
+OLLAMA_V1="$OLLAMA_URL/v1"
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/starling-fully-open.XXXXXX")"
-cleanup() { [ "$KEEP_LOADED" -eq 1 ] || unload_model; }
+cleanup() {
+  if [ "$LOADED" -eq 1 ] && [ "$KEEP_LOADED" -ne 1 ]; then unload_model; fi
+}
 trap cleanup EXIT
 
 log "🐦 fully-open smoke — model $MODEL on $(host_profile), ollama $OLLAMA_URL"
+
+# ── dry run: describe exactly what a real run would do, touch nothing ─────────
+if [ "$DRY_RUN" -eq 1 ]; then
+  log ""
+  log "PLAN OF ACTION (dry run — no network call, no model load)"
+  log "  1. read    $RECOMMENDATION for host $(host_profile)"
+  log "             resolved model: $MODEL  (STARLING_LOCAL_MODEL wins when set)"
+  log "  2. gate    L31: ≤ $MAX_OPENCODE opencode processes and ≥ $MIN_FREE_GB GB free"
+  report_rails
+  log "  3. write   $WORK/opencode.json  (providers.ollama → $OLLAMA_V1, modelID $MODEL)"
+  if [ -f "$STARLING_CLI" ] && bun "$STARLING_CLI" run --help 2>&1 | grep -q -- '--profile'; then
+    log "  4. run     starling run \"add a footer stat showing done/total tasks\" --profile local"
+    log "             in a copy of examples/sky-todo ($SKY_TODO)"
+    log "  5. measure the run's own token usage and elapsed time"
+  else
+    log "  4. run     opencode run --standalone --auto -m ollama/$MODEL  (Epic 40's --profile is not on main)"
+    log "             prompt: $PROMPT"
+    log "  5. check   $WORK/$SMOKE_FILE exists (proves the model used tools)"
+  fi
+  log "  6. measure one non-streamed completion on $OLLAMA_V1/chat/completions for tokens/second"
+  log "  7. unload  $MODEL via keep_alive:0 (unless --keep-loaded)"
+  log "  8. write   $RESULTS_DIR/smoke-<host>-<model>-<ts>.json"
+  log ""
+  log "dry run complete — nothing was loaded and Ollama was not contacted."
+  rm -rf "$WORK"
+  exit 0
+fi
+
 report_rails
 
 if ! curl -s --max-time 5 "$OLLAMA_URL/api/tags" -o "$WORK/tags-before.json"; then
   log "✘ Ollama is not answering at $OLLAMA_URL — start it with 'ollama serve'."
-  write_report "failed" "ollama unreachable" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0
+  write_report "failed" "ollama unreachable" "none" "$(now_ms)" "$(now_ms)" 0 0 0 0 no
   exit 1
-fi
-
-if [ "$DRY_RUN" -eq 1 ]; then
-  log "dry run: rails, model and config resolution are what a real run would use."
-  log "  would write project config to $WORK/opencode.json and prompt: $PROMPT"
-  write_project_config "$WORK"
-  assert_opencode_model "$WORK" || { write_report "failed" "opencode does not expose ollama/$MODEL" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0; exit 1; }
-  write_report "dry-run" "no model was loaded" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0
-  exit 0
 fi
 
 # L31: wait for the quiet window. Polling forever would break the "never stop" rule, so cap it.
@@ -241,8 +302,8 @@ if ! rails_ok; then
       if [ "$waited" -ge "$MAX_WAIT_SECONDS" ]; then
         log "✘ no quiet window after ${waited}s — deferring the live smoke (nothing was loaded)."
         report_rails
-        write_report "deferred" "L31 quiet window did not arrive within ${MAX_WAIT_SECONDS}s" "$WORK" \
-          "$(now_ms)" "$(now_ms)" 0 0 0 0
+        write_report "deferred" "L31 quiet window did not arrive within ${MAX_WAIT_SECONDS}s" "none" \
+          "$(now_ms)" "$(now_ms)" 0 0 0 0 no
         exit 3
       fi
       sleep "$POLL_SECONDS"
@@ -255,21 +316,23 @@ fi
 STARTED="$(now_ms)"
 STATUS="ok"
 DETAIL=""
+MODE="opencode-run"
 OC_MS=0
 CHARS=0
 TOKENS=0
 COMP_MS=0
+WRITTEN="no"
 
 write_project_config "$WORK"
 log "  project config → $WORK/opencode.json"
-assert_opencode_model "$WORK" || { write_report "failed" "opencode does not expose ollama/$MODEL" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0; exit 1; }
 
 # Preferred path: the real harness, when Epic 40's `--profile` flag is on main.
-STARLING_CLI="$ROOT/apps/cli/src/index.ts"
 if [ -f "$STARLING_CLI" ] && bun "$STARLING_CLI" run --help 2>&1 | grep -q -- '--profile'; then
+  MODE="starling-run"
   log "→ starling run --profile local (one task, fresh sky-todo copy)"
   REPO="$WORK/sky-todo"
-  cp -R "$ROOT/examples/sky-todo" "$REPO"
+  cp -R "$SKY_TODO" "$REPO"
+  LOADED=1
   OC_START="$(now_ms)"
   if ( cd "$REPO" && STARLING_LLM_PROFILE=local STARLING_LOCAL_MODEL="$MODEL" \
         bun "$STARLING_CLI" run "add a footer stat showing done/total tasks" --repo . --profile local --no-dash ); then
@@ -279,11 +342,17 @@ if [ -f "$STARLING_CLI" ] && bun "$STARLING_CLI" run --help 2>&1 | grep -q -- '-
   fi
 else
   log "→ opencode run --standalone -m ollama/$MODEL (Epic 40's --profile is not on main yet)"
+  LOADED=1
   OC_START="$(now_ms)"
   if ( cd "$WORK" && opencode run --standalone --auto --format json -m "ollama/$MODEL" "$PROMPT" ) \
       >"$WORK/opencode.out" 2>"$WORK/opencode.err"; then
     OC_MS=$(( $(now_ms) - OC_START ))
     CHARS="$(wc -c <"$WORK/opencode.out" | tr -d ' ')"
+    if [ -f "$WORK/$SMOKE_FILE" ]; then
+      WRITTEN="yes"
+    else
+      STATUS="partial"; DETAIL="the model answered but did not write $SMOKE_FILE (no tool use)"
+    fi
   else
     STATUS="failed"; DETAIL="opencode run failed (see $WORK/opencode.err)"
     OC_MS=$(( $(now_ms) - OC_START ))
@@ -291,17 +360,17 @@ else
 fi
 
 # Honest tokens/second on the endpoint both opencode's provider and the router call, now warm.
-if [ "$STATUS" = "ok" ]; then
-  request="$(MODEL="$MODEL" PROMPT="$PROMPT" bun -e '
+if [ "$STATUS" != "failed" ]; then
+  request="$(MODEL_CHAT="$MODEL" PROMPT_CHAT="$PROMPT" bun -e '
     console.log(JSON.stringify({
-      model: process.env.MODEL,
-      messages: [{ role: "user", content: process.env.PROMPT }],
+      model: process.env.MODEL_CHAT,
+      messages: [{ role: "user", content: process.env.PROMPT_CHAT }],
       temperature: 0,
       max_tokens: 64,
       stream: false,
     }));
   ')"
-  COMP_MS="$(curl -s --max-time 300 "$OLLAMA_URL/v1/chat/completions" \
+  COMP_MS="$(curl -s --max-time 300 "$OLLAMA_V1/chat/completions" \
       -H 'content-type: application/json' -d "$request" \
       -o "$WORK/completion.json" -w '%{time_total}' | awk '{ printf "%.0f", $1 * 1000 }')"
   TOKENS="$(jget "$WORK/completion.json" 'usage.completion_tokens')"
@@ -311,9 +380,13 @@ fi
 FINISHED="$(now_ms)"
 log ""
 log "status: $STATUS ${DETAIL:+($DETAIL)}"
-log "  opencode one-shot: ${OC_MS} ms, ${CHARS} bytes of output"
+log "  opencode one-shot: ${OC_MS} ms, ${CHARS} bytes of output, tools used: $WRITTEN"
 log "  tokens/s:          $(awk -v t="$TOKENS" -v ms="$COMP_MS" 'BEGIN { if (ms > 0) printf "%.2f (%d tokens in %d ms)", t / (ms / 1000), t, ms; else print "n/a" }')"
-log "  ollama after:      $(curl -s --max-time 5 "$OLLAMA_URL/api/ps" | bun -e 'try { const d = await Bun.stdin.json(); console.log((d.models ?? []).map((m) => m.name).join(", ") || "nothing loaded"); } catch { console.log("?"); }')"
+log "  ollama after:      $(curl -s --max-time 5 "$OLLAMA_URL/api/ps" | bun -e 'try { const d = await Bun.stdin.json(); console.log((d.models ?? []).map((m) => m.name).join(", ") || "nothing loaded"); } catch { console.log("?") }')"
 
-write_report "$STATUS" "${DETAIL:-}" "$WORK" "$STARTED" "$FINISHED" "$OC_MS" "$TOKENS" "$COMP_MS" "$CHARS"
-[ "$STATUS" = "ok" ] || exit 1
+write_report "$STATUS" "${DETAIL:-}" "$MODE" "$STARTED" "$FINISHED" "$OC_MS" "$CHARS" "$TOKENS" "$COMP_MS" "$WRITTEN"
+case "$STATUS" in
+  ok) exit 0 ;;
+  partial) exit 4 ;;
+  *) exit 1 ;;
+esac

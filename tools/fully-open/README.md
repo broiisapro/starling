@@ -48,9 +48,10 @@ OpenAI-compatible provider. One model serves both paths.
 | File                  | What it is                                                                 |
 | --------------------- | -------------------------------------------------------------------------- |
 | `opencode-ollama.json`| A **project-level** opencode config that declares the `ollama` provider and the model. Copy or merge it into the target repo's `opencode.json`. Never edit `~/.config/opencode/opencode.json`. |
-| `smoke.sh`            | The L31-gated end-to-end smoke: quiet window → one tiny task → tokens/s → unload. |
+| `smoke.sh`            | The L31-gated end-to-end smoke: quiet window → one tiny task → tokens/s → unload. `--dry-run` prints the plan and calls nothing. |
+| `check-config.ts`     | `bun tools/fully-open/check-config.ts` — validates the JSON against the compiled-in local profile; used by the test, handy by hand. |
+| `check-config.test.ts`| Guards the JSON shape, the package/settings v2 fields and the default model. |
 | `results/`            | Smoke reports (`smoke-<host>-<model>-<ts>.json`), created by `smoke.sh`.   |
-| `config.test.ts`      | Guards the JSON shape and the default model.                               |
 
 Profile *resolution* lives in the product, not here:
 `@starling/llm`'s `packages/llm/src/profiles.ts` (`applyProfile`, `resolveProfile`),
@@ -135,11 +136,18 @@ Local models are 18 GB of wired memory. Twenty parallel opencode sessions plus a
   `(free + inactive + speculative) × page_size`.
 
 It polls every **60 s** for up to **90 min** and then gives up (`exit 3`, status `deferred`) without
-loading a model. `--force` overrides the rails for a machine you know is idle; `--dry-run` reports
-the measurements and the resolved config without touching a model.
+loading a model. `--force` overrides the rails for a machine you know is idle. `--dry-run` measures
+the rails and prints every command a real run would execute — it makes **no Ollama request**, starts
+**no opencode process** and writes **no config**, so it is safe on a laptop with twenty agents on it.
 
 Before any load, `smoke.sh` also checks that `opencode models` lists `ollama/<tag>` **from the
-generated project config** — a config typo should cost a second, not a 20-minute model load.
+generated project config** — a config typo should cost a second, not a 20-minute model load. The
+generated file is derived from `opencode-ollama.json`, so the unit test's verdict applies to what the
+smoke actually uses: one template, one source of truth.
+
+`bun tools/fully-open/check-config.ts` runs the same checks by hand (non-zero exit on drift). It
+imports `LOCAL_DEFAULT_MODEL` / `LOCAL_BASE_URL` from `@starling/llm`'s `profiles.ts` by relative path
+on purpose: if the compiled-in default changes, the shipped JSON must change with it.
 
 `memory_pressure`'s "free percentage" is much more optimistic than the GB count because it treats
 inactive and purgeable pages as available; the script prints both but **gates on GB**, which is the
@@ -150,15 +158,18 @@ conservative number. Symptom of ignoring it: swap, then a run that takes ten min
 ```json
 {
   "status": "ok",
+  "mode": "opencode",
   "model": "qwen3.8:27b-mlx",
   "rails": { "opencodeProcesses": 2, "freeGb": 23.4, "minFreeGb": 22 },
-  "opencode": { "wallMs": 41000, "textChars": 320 },
+  "task": { "wallMs": 41000, "changedFiles": 2 },
   "completion": { "wallMs": 5828, "completionTokens": 102, "tokensPerSec": 17.5 }
 }
 ```
 
-`completion` is measured against the OpenAI-compatible endpoint both opencode's provider and the
-router use, after the opencode call has warmed the model — that is the honest steady-state number.
+`task` is the one-shot on a fresh sky-todo; `changedFiles: 0` fails the smoke, because a provider
+that answers but cannot edit is not "fully open". `completion` is measured against the
+OpenAI-compatible endpoint both opencode's provider and the router use, after the opencode call has
+warmed the model — that is the honest steady-state number.
 Time-to-first-token is deliberately not reported here; Epic 28's bench measures it (streamed) and
 this script does not pretend to.
 
