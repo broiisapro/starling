@@ -147,3 +147,27 @@ test('reduced motion skips the count-up entirely', async () => {
     Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: original });
   }
 });
+
+test('every counter uses tabular numerals so digits never reflow', async () => {
+  const view = await mount(<MetricsPanel metrics={finalMetrics} history={samples} />);
+  try {
+    for (const id of [
+      'metrics-samples',
+      'metrics-agents',
+      'metrics-merged',
+      'metrics-failed',
+      'metrics-elapsed',
+      'metrics-throughput',
+      'cost-api',
+      'cost-local',
+      'cost-saved',
+    ]) {
+      const element = view.container.querySelector(`[data-testid="${id}"]`);
+      expect(element?.className).toContain('tabular-nums');
+    }
+    const calls = view.container.querySelector('[data-testid="cost-local-calls"] span');
+    expect(calls?.className).toContain('tabular-nums');
+  } finally {
+    await view.unmount();
+  }
+});

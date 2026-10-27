@@ -205,3 +205,12 @@ test('word-level marks appear only inside small hunks', () => {
   expect([...marks].map((mark) => mark.textContent).join('|')).toContain('2');
   expect(view.container.querySelector('[data-line-kind="add"]')?.getAttribute('data-word-diff')).toBe('true');
 });
+
+test('the header counters use tabular numerals', () => {
+  const run = makeTaskRun({ taskKey: 'theme', status: 'running', startedAt: Date.now() - 5_000 });
+  const view = render(<AgentDrawer {...props({ run })} />);
+
+  for (const id of ['drawer-elapsed', 'drawer-cost', 'drawer-attempts', 'drawer-tokens', 'drawer-events']) {
+    expect(view.getByTestId(id).className).toContain('tabular-nums');
+  }
+});

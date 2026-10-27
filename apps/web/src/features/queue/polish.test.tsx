@@ -160,3 +160,19 @@ test('a published nodeName is preferred over the node id on a card', async () =>
     await view.unmount();
   }
 });
+
+test('queue counters use tabular numerals', async () => {
+  const { plan, tasks } = manyTasks(2);
+  const started = { t00: makeTaskRun({ taskKey: 't00', status: 'running', startedAt: 1, attempts: 2 }) };
+  const view = await mount(
+    <MergeQueue plan={plan} tasks={{ ...tasks, ...started }} merges={[]} onSelectTask={() => {}} />,
+  );
+  try {
+    const card = view.container.querySelector<HTMLElement>('[data-task-key="t00"]');
+    expect(card?.innerHTML).toContain('tabular-nums');
+    const count = view.container.querySelector<HTMLElement>('[data-column-section="flying"] h3 + span');
+    expect(count?.className).toContain('tabular-nums');
+  } finally {
+    await view.unmount();
+  }
+});
