@@ -1,6 +1,6 @@
 ## Epic 68 Handback — Built-by-the-flock stats page
 
-**Status:** Complete. Branch `epic/68-swarm-stats` @ `3a724b6` (code, tests and snapshot; this handback and its fix requests follow that commit).
+**Status:** Complete. Branch `epic/68-swarm-stats` @ `b038063` (code, tests, snapshot and fix 1; the fix-1 section below has its own verification).
 
 **Delivered:**
 - `tools/stats/collect.ts` — `collectStats(options)` / `writeStats(stats, path)` / `summaryLines(stats)` / `parseArgs(argv)`; CLI writes `tools/stats/out/stats.json` and prints a 5-line summary. Flags: `--repo`, `--out`, `--logs <path>|none`, `--no-gh`, `--json`, `-h`.
