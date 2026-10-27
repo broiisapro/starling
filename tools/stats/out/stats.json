@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "generatedAt": "2026-10-27T19:52:43.188Z",
+  "generatedAt": "2026-10-27T19:58:09.208Z",
   "repo": {
     "root": "/Users/moksh/Code/starling-wt/68-swarm-stats",
-    "head": "0cb7742",
-    "headAt": "2026-10-27T15:51:37-04:00"
+    "head": "59a8a8f",
+    "headAt": "2026-10-27T15:52:43-04:00"
   },
   "sources": {
     "git": true,
@@ -19,19 +19,19 @@
     "epicsObserved": 51,
     "plannedEpics": 9,
     "prs": 28,
-    "commits": 348,
-    "added": 132998,
-    "removed": 2659,
-    "files": 1313,
+    "commits": 370,
+    "added": 140320,
+    "removed": 3111,
+    "files": 1369,
     "mergedPrsFromGh": 28,
     "tests": 1873,
     "testFiles": 217,
-    "testsAdded": 269,
+    "testsAdded": 278,
     "waves": 4,
     "agentSessions": 51,
     "peakConcurrentAgents": 23,
     "wallTimeMs": 17644000,
-    "agentHours": 19.1,
+    "agentHours": 20.5,
     "inFlight": 23
   },
   "epics": [
@@ -752,7 +752,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:30:59.000Z",
-        "end": "2026-10-27T19:52:39.933Z",
+        "end": "2026-10-27T19:57:09.978Z",
         "logFile": "40-integration-captain.log"
       }
     },
@@ -773,7 +773,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:01.000Z",
-        "end": "2026-10-27T19:52:41.349Z",
+        "end": "2026-10-27T19:57:09.970Z",
         "logFile": "41-live-dashboard.log"
       }
     },
@@ -794,7 +794,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:03.000Z",
-        "end": "2026-10-27T19:52:26.774Z",
+        "end": "2026-10-27T19:57:09.992Z",
         "logFile": "42-flock-e2e.log"
       }
     },
@@ -806,16 +806,16 @@
       "lane": "packages/github",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:05.000Z",
-      "commits": 0,
-      "added": 0,
-      "removed": 0,
-      "files": 0,
-      "testsAdded": 0,
+      "commits": 5,
+      "added": 1661,
+      "removed": 163,
+      "files": 13,
+      "testsAdded": 1,
       "branch": "epic/43-github-e2e",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:05.000Z",
-        "end": "2026-10-27T19:51:30.149Z",
+        "end": "2026-10-27T19:57:09.987Z",
         "logFile": "43-github-e2e.log"
       }
     },
@@ -848,16 +848,16 @@
       "lane": "packages/merger, prompts resolver",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:09.000Z",
-      "commits": 2,
-      "added": 215,
-      "removed": 58,
-      "files": 10,
-      "testsAdded": 0,
+      "commits": 3,
+      "added": 2405,
+      "removed": 60,
+      "files": 22,
+      "testsAdded": 4,
       "branch": "epic/45-resolver",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:09.000Z",
-        "end": "2026-10-27T19:52:11.150Z",
+        "end": "2026-10-27T19:57:09.969Z",
         "logFile": "45-resolver.log"
       }
     },
@@ -878,7 +878,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:11.000Z",
-        "end": "2026-10-27T19:52:41.350Z",
+        "end": "2026-10-27T19:57:09.968Z",
         "logFile": "47-sky-polish.log"
       }
     },
@@ -920,7 +920,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:15.000Z",
-        "end": "2026-10-27T19:52:41.562Z",
+        "end": "2026-10-27T19:57:09.987Z",
         "logFile": "49-robustness.log"
       }
     },
@@ -932,8 +932,8 @@
       "lane": "packages/llm/src/profiles, perch llm-proxy",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:17.000Z",
-      "commits": 6,
-      "added": 2689,
+      "commits": 9,
+      "added": 2692,
       "removed": 32,
       "files": 18,
       "testsAdded": 4,
@@ -941,7 +941,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:17.000Z",
-        "end": "2026-10-27T19:52:42.089Z",
+        "end": "2026-10-27T19:55:46.842Z",
         "logFile": "51-fully-open.log"
       }
     },
@@ -995,16 +995,16 @@
       "lane": "apps/web/src/features/{dag,agents,queue,metrics,flock}",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:23.000Z",
-      "commits": 4,
-      "added": 2440,
-      "removed": 298,
-      "files": 43,
-      "testsAdded": 9,
+      "commits": 6,
+      "added": 2899,
+      "removed": 359,
+      "files": 56,
+      "testsAdded": 11,
       "branch": "epic/55-web-panels-polish",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:23.000Z",
-        "end": "2026-10-27T19:52:41.350Z",
+        "end": "2026-10-27T19:57:09.987Z",
         "logFile": "55-web-panels-polish.log"
       }
     },
@@ -1025,7 +1025,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:25.000Z",
-        "end": "2026-10-27T19:52:39.119Z",
+        "end": "2026-10-27T19:57:09.988Z",
         "logFile": "56-repomap-prompts.log"
       }
     },
@@ -1037,16 +1037,16 @@
       "lane": "packages/workspace, tools/stress",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:27.000Z",
-      "commits": 3,
-      "added": 2125,
+      "commits": 4,
+      "added": 2897,
       "removed": 94,
-      "files": 13,
-      "testsAdded": 4,
+      "files": 17,
+      "testsAdded": 5,
       "branch": "epic/57-workspace-hardening",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:27.000Z",
-        "end": "2026-10-27T19:52:38.810Z",
+        "end": "2026-10-27T19:57:09.975Z",
         "logFile": "57-workspace-hardening.log"
       }
     },
@@ -1058,16 +1058,16 @@
       "lane": "examples/",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:29.000Z",
-      "commits": 5,
-      "added": 3010,
-      "removed": 42,
+      "commits": 6,
+      "added": 3031,
+      "removed": 43,
       "files": 45,
       "testsAdded": 0,
       "branch": "epic/58-demo-targets",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:29.000Z",
-        "end": "2026-10-27T19:52:19.570Z",
+        "end": "2026-10-27T19:57:09.970Z",
         "logFile": "58-demo-targets.log"
       }
     },
@@ -1088,7 +1088,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:31.000Z",
-        "end": "2026-10-27T19:52:43.011Z",
+        "end": "2026-10-27T19:57:09.971Z",
         "logFile": "59-landing-site.log"
       }
     },
@@ -1100,8 +1100,8 @@
       "lane": "README.md, docs/assets",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:33.000Z",
-      "commits": 8,
-      "added": 1153,
+      "commits": 9,
+      "added": 1152,
       "removed": 10,
       "files": 8,
       "testsAdded": 0,
@@ -1109,7 +1109,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:33.000Z",
-        "end": "2026-10-27T19:52:41.566Z",
+        "end": "2026-10-27T19:53:02.863Z",
         "logFile": "60-readme.log"
       }
     },
@@ -1121,16 +1121,16 @@
       "lane": "apps/cli init/doctor/perch",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:35.000Z",
-      "commits": 0,
-      "added": 0,
-      "removed": 0,
-      "files": 0,
-      "testsAdded": 0,
+      "commits": 6,
+      "added": 2067,
+      "removed": 225,
+      "files": 13,
+      "testsAdded": 1,
       "branch": "epic/61-onboarding",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:35.000Z",
-        "end": "2026-10-27T19:51:39.819Z",
+        "end": "2026-10-27T19:57:09.975Z",
         "logFile": "61-onboarding.log"
       }
     },
@@ -1142,16 +1142,16 @@
       "lane": "apps/web/src/features/about, tools/stats",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:37.000Z",
-      "commits": 3,
-      "added": 4427,
+      "commits": 4,
+      "added": 4563,
       "removed": 1,
-      "files": 27,
+      "files": 28,
       "testsAdded": 4,
       "branch": "epic/68-swarm-stats",
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:37.000Z",
-        "end": "2026-10-27T19:52:35.758Z",
+        "end": "2026-10-27T19:57:09.970Z",
         "logFile": "68-swarm-stats.log"
       }
     },
@@ -1163,8 +1163,8 @@
       "lane": "tools/security",
       "machine": "mbp",
       "startedAt": "2026-10-27T19:31:39.000Z",
-      "commits": 9,
-      "added": 2017,
+      "commits": 10,
+      "added": 2031,
       "removed": 0,
       "files": 18,
       "testsAdded": 13,
@@ -1172,7 +1172,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:39.000Z",
-        "end": "2026-10-27T19:52:41.351Z",
+        "end": "2026-10-27T19:57:09.971Z",
         "logFile": "69-security-review.log"
       }
     },
@@ -1193,7 +1193,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:41.000Z",
-        "end": "2026-10-27T19:51:57.732Z",
+        "end": "2026-10-27T19:57:09.973Z",
         "logFile": "70-load-test.log"
       }
     },
@@ -1214,7 +1214,7 @@
       "handbackStatus": "missing",
       "agentSession": {
         "start": "2026-10-27T19:31:43.000Z",
-        "end": "2026-10-27T19:51:46.626Z",
+        "end": "2026-10-27T19:57:09.977Z",
         "logFile": "71-web-e2e.log"
       }
     }
@@ -1268,9 +1268,9 @@
       "agents": 23,
       "startedAt": "2026-10-27T19:30:59.000Z",
       "testsAfter": 0,
-      "commits": 70,
-      "added": 28702,
-      "removed": 951,
+      "commits": 92,
+      "added": 36024,
+      "removed": 1403,
       "merged": 0
     }
   ]
