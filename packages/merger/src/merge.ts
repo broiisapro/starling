@@ -1,10 +1,8 @@
 import { type Clock, type MergeResult, StarlingError, type TaskRun } from '@starling/core';
 import { type Git, outputTail } from './git.ts';
 import { assertBranch, assertGitRepo, isAncestor } from './refs.ts';
+import { runSuite } from './suite.ts';
 import type { ExecFn, MergeOptions } from './types.ts';
-
-/** A regression suite that takes longer than this is treated as failed (and rolled back). */
-export const DEFAULT_TEST_TIMEOUT_MS = 10 * 60 * 1000;
 
 export interface MergeDeps {
   git: Git;
@@ -13,44 +11,6 @@ export interface MergeDeps {
   testTimeoutMs: number;
   /** Ensures (and returns) the long-lived worktree for `integrationBranch`. */
   integrationWorktree(repo: string, integrationBranch: string): Promise<string>;
-}
-
-interface TestOutcome {
-  ok: boolean;
-  detail: string;
-}
-
-/**
- * Run the regression suite in the integration worktree.
- *
- * A timeout or a spawn failure is not "green", so both are reported as failed and the caller rolls
- * the merge back. The integration branch must never keep a commit the suite did not vouch for.
- */
-async function runTestCommand(
-  deps: MergeDeps,
-  cwd: string,
-  command: string,
-  taskKey: string,
-): Promise<TestOutcome> {
-  try {
-    const result = await deps.exec(['bash', '-c', command], {
-      cwd,
-      timeoutMs: deps.testTimeoutMs,
-      // CI=1 makes most runners non-interactive; STARLING_TASK lets suites branch on the task.
-      env: { CI: '1', STARLING_TASK: taskKey },
-    });
-    const tail = outputTail(result);
-    if (result.code === 0) {
-      return { ok: true, detail: `tests passed in ${result.durationMs}ms` };
-    }
-    return {
-      ok: false,
-      detail: `tests failed (exit ${result.code}) after ${result.durationMs}ms${tail.length > 0 ? `\n${tail}` : ''}`,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return { ok: false, detail: `the test command could not complete: ${message}` };
-  }
 }
 
 /** Unmerged paths from an in-progress merge. Empty means the failure was not a content conflict. */
@@ -214,7 +174,10 @@ export async function mergeTask(
     };
   }
 
-  const tests = await runTestCommand(deps, worktree, testCommand, task.taskKey);
+  const tests = await runSuite(deps.exec, worktree, testCommand, {
+    timeoutMs: deps.testTimeoutMs,
+    taskKey: task.taskKey,
+  });
   if (tests.ok) {
     return {
       taskKey: task.taskKey,

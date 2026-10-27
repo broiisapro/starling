@@ -8,10 +8,16 @@
 export const PACKAGE = '@starling/merger' as const;
 
 export { createGit, type Git, outputTail, tailText } from './git.ts';
-export { DEFAULT_TEST_TIMEOUT_MS, type MergeDeps, mergeTask } from './merge.ts';
+export { type MergeDeps, mergeTask } from './merge.ts';
 export { createMerger } from './merger.ts';
 export { parseMergeTree, runPreflight } from './preflight.ts';
 export { createMergeQueue, type MergeFn, type MergeQueueDeps } from './queue.ts';
+export {
+  DEFAULT_TEST_TIMEOUT_MS,
+  runSuite,
+  type SuiteOptions,
+  type SuiteOutcome,
+} from './suite.ts';
 export type {
   ExecFn,
   MergeOptions,

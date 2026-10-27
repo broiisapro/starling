@@ -2,9 +2,10 @@ import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { exec as coreExec, type MergeResult, StarlingError, systemClock, type TaskRun } from '@starling/core';
 import { createGit, outputTail } from './git.ts';
-import { DEFAULT_TEST_TIMEOUT_MS, mergeTask } from './merge.ts';
+import { mergeTask } from './merge.ts';
 import { runPreflight } from './preflight.ts';
 import { createMergeQueue } from './queue.ts';
+import { DEFAULT_TEST_TIMEOUT_MS } from './suite.ts';
 import type { ExecFn, MergeOptions, MergerOptions, MergerService } from './types.ts';
 import { canonicalPath, ensureIntegrationWorktree, integrationWorktreePath } from './worktree.ts';
 
