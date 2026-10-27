@@ -80,12 +80,18 @@ async function readRoster(hubUrl: string, context: CliContext): Promise<Roster> 
     return { nodes: parsed.data, ...(join === undefined ? {} : { join }) };
   } catch {
     // A dashboard that is not running yet is the normal first-run state, not an error worth a stack.
-    const flock = context.composition().flock;
-    return {
-      nodes: flock?.registry.list() ?? [],
-      ...(flock?.joinInfo() === undefined ? {} : { join: flock.joinInfo() }),
-      offlineHub: hubUrl,
-    };
+    // The in-process composition is only available in mock mode; in real mode a missing server is
+    // still just "no hub answering", so show the empty roster instead of a wiring error.
+    try {
+      const flock = context.composition().flock;
+      return {
+        nodes: flock?.registry.list() ?? [],
+        ...(flock?.joinInfo() === undefined ? {} : { join: flock.joinInfo() }),
+        offlineHub: hubUrl,
+      };
+    } catch {
+      return { nodes: [], offlineHub: hubUrl };
+    }
   }
 }
 
