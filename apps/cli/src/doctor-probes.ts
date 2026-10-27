@@ -211,12 +211,13 @@ export function freeLoopbackPort(): number {
 }
 
 /**
- * Is `port` bindable on every interface? Binding `0.0.0.0` fails when anything already owns the
- * port on any local address, which is exactly the question flock asks (7777/7778 on the LAN).
+ * Is `port` bindable? The check binds loopback rather than `0.0.0.0` on purpose: a `doctor` run
+ * must never trigger a macOS "accept incoming connections?" firewall dialog. Starling's own server
+ * and perch bind these ports, so a squatter on loopback is exactly the case worth reporting.
  */
 export async function defaultPortFree(port: number): Promise<boolean> {
   try {
-    const server = Bun.serve({ port, hostname: '0.0.0.0', fetch: () => new Response('') });
+    const server = Bun.serve({ port, hostname: '127.0.0.1', fetch: () => new Response('') });
     server.stop(true);
     return true;
   } catch {
