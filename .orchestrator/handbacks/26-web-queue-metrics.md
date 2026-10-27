@@ -114,3 +114,5 @@ field exists.
 - The meter shows `metrics.tasksFailed` as-is, so a task that failed an attempt and later merged still
   counts as merged (not failed) — that matches the engine's accounting, but product may want a
   "retried" chip in the Audit column later.
+
+Closes #20
