@@ -1,0 +1,33 @@
+maxParallel: 8
+maxAttempts: 3
+baseBranch: main
+integrationBranch: auto              # starling/<runShort>/integration
+worktreeRoot: ../.starling-worktrees
+testCommand: auto                    # detected by repomap, overridable
+lintCommand: auto
+opencode: { mode: spawn, port: 4096, url: null }      # spawn | attach
+models:
+  planner:    { provider: deepseek, model: deepseek-v4.1-flash }
+  worker:     { provider: deepseek, model: deepseek-v4.1-flash }   # opencode providerID/modelID
+  resolver:   { provider: deepseek, model: deepseek-v4.1-flash }
+  auditor:    { provider: ollama,   model: qwen3.6:35b-a3b }
+  summarizer: { provider: ollama,   model: qwen3.6:35b-a3b }
+  writer:     { provider: ollama,   model: qwen3.6:35b-a3b }
+providers:
+  deepseek: { baseUrl: https://api.deepseek.com/v1, apiKeyEnv: DEEPSEEK_API_KEY }
+  ollama:   { baseUrl: http://127.0.0.1:11434/v1 }
+github: { enabled: false, repo: null }
+budget: { maxUsd: 5 }
+server: { port: 7777 }
+flock:
+  enabled: true
+  hubMaxSessions: 8          # LocalNode capacity on the hub
+  mdns: true
+  heartbeatMs: 3000
+  offlineAfterMs: 15000
+perch:                       # used by `starling perch`
+  port: 7778
+  maxSessions: 5
+  name: auto                 # hostname
+  cacheDir: ~/.starling/perch
+  lendModels: true           # stretch: expose local ollama to hub

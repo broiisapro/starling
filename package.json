@@ -1,0 +1,27 @@
+{
+  "name": "starling-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Starling — one goal in, a murmuration of open-weight coding agents out.",
+  "license": "MIT",
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "bun test packages apps skills integrations tools evals",
+    "check": "biome check . && bun run typecheck",
+    "typecheck": "for d in packages/* apps/*; do tsc --noEmit -p \"$d/tsconfig.json\" || exit 1; done",
+    "format": "biome check --write .",
+    "dev:web": "cd apps/web && bun run dev",
+    "dev:server": "cd apps/server && bun run dev",
+    "starling": "bun apps/cli/src/index.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "@types/bun": "1.4.4",
+    "typescript": "5.9.3"
+  }
+}
