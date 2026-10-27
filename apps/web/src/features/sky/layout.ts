@@ -21,7 +21,7 @@ export interface Roost {
   nodeId: string;
   name: string;
   kind: NodeInfo['kind'];
-  /** Centre of the branch, at the bottom of the sky. */
+  /** Centre of the branch, near the bottom of the sky (labels sit under it). */
   x: number;
   y: number;
   width: number;
@@ -31,9 +31,33 @@ export interface Roost {
   dimTarget: number;
   /** 0 → 1 as a newly joined roost grows in and glows. */
   grow: number;
+  /** 0 → 1 session pressure (`activeSessions / maxSessions`), smoothed by the sim. */
+  busy: number;
+  activeSessions: number;
+  maxSessions: number;
+  /** The hub — the only roost with a crown. */
+  isHub: boolean;
+  /** Seconds since this roost joined (drives the ripple), or -1 when it has settled. */
+  ripple: number;
+  /** Seconds since this roost left (drives the "flown away" caption), or -1. */
+  left: number;
 }
 
 const WIRE_SLOTS_MARGIN = 52;
+
+/**
+ * Roosts sit `ROOST_LIFT` px above the bottom edge so the label (and the sessions gauge under it)
+ * fits inside the canvas. At 1080p that means a ~21 px label on a 816 px-tall sky, readable from the
+ * back of a room; at 720p it never drops below 15 px.
+ */
+export const ROOST_LIFT = 84;
+export const LABEL_BASELINE = 26;
+export const GAUGE_BASELINE = 52;
+
+/** Label size for the roost name, scaled by sky height and clamped for projector + laptop. */
+export function roostLabelFont(height: number): number {
+  return Math.round(Math.min(24, Math.max(15, height * 0.026)));
+}
 
 /**
  * The wire is a real catenary: `y = anchorY + sag · (cosh(k) − cosh(k·u)) / (cosh(k) − 1)` with
@@ -73,23 +97,30 @@ export function wireSlotX(wire: Wire, slot: number, slots: number): number {
  * at the right branch; more machines share each side evenly.
  */
 export function layoutRoosts(nodes: readonly NodeInfo[], width: number, height: number): Roost[] {
-  const margin = Math.min(120, Math.max(72, width * 0.09));
-  const y = height - 26;
+  const margin = Math.min(140, Math.max(84, width * 0.09));
+  const y = Math.max(ROOST_LIFT + 40, height - ROOST_LIFT);
   const locals = nodes.filter((n) => n.kind === 'local');
   const remotes = nodes.filter((n) => n.kind !== 'local');
-  const spacing = Math.min(178, Math.max(96, ((width - margin * 2) * 0.86) / Math.max(2, nodes.length)));
-  const roostWidth = Math.min(158, spacing * 0.94);
+  const spacing = Math.min(210, Math.max(104, ((width - margin * 2) * 0.86) / Math.max(2, nodes.length)));
+  const roostWidth = Math.min(200, spacing * 0.94);
   const out: Roost[] = [];
   locals.forEach((node, i) => {
-    out.push(roost(node, margin + i * spacing, y, roostWidth, 'left'));
+    out.push(roost(node, margin + i * spacing, y, roostWidth, 'left', i === 0 && node.kind === 'local'));
   });
   remotes.forEach((node, i) => {
-    out.push(roost(node, width - margin - i * spacing, y, roostWidth, 'right'));
+    out.push(roost(node, width - margin - i * spacing, y, roostWidth, 'right', false));
   });
   return out;
 }
 
-function roost(node: NodeInfo, x: number, y: number, width: number, side: 'left' | 'right'): Roost {
+function roost(
+  node: NodeInfo,
+  x: number,
+  y: number,
+  width: number,
+  side: 'left' | 'right',
+  isHub: boolean,
+): Roost {
   const active = node.status !== 'offline';
   return {
     nodeId: node.id,
@@ -102,6 +133,12 @@ function roost(node: NodeInfo, x: number, y: number, width: number, side: 'left'
     dim: active ? 1 : 0.25,
     dimTarget: active ? 1 : 0.25,
     grow: 1,
+    busy: 0,
+    activeSessions: node.activeSessions,
+    maxSessions: node.maxSessions,
+    isHub,
+    ripple: -1,
+    left: -1,
   };
 }
 

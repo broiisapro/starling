@@ -55,7 +55,7 @@ export function applyCalmLayout({ flocks, birds, roosts, wire, width, height }: 
       continue;
     }
     if (status === 'merged') {
-      const slots = Math.max(1, flocks.length);
+      const slots = Math.max(1, flocks.filter((flock) => flock.status === 'merged').length);
       for (const flock of list) {
         const x = wireSlotX(wire, Math.max(0, flock.mergedSlot), slots);
         flock.leaderX = x;
