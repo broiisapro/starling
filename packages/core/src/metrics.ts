@@ -12,17 +12,28 @@ export interface ModelPricing {
 /**
  * Prices in USD per million tokens, keyed by model id (and by `provider/model` for convenience).
  *
- * DeepSeek V4.1 Flash: output $0.60/M and cached input $0.003/M are the figures given to Epic 00.
- * The uncached input price ($0.28/M) is a documented placeholder — DeepSeek's pricing page is a
- * client-rendered SPA that could not be read at build time. Re-check before the demo; only this
- * table needs to change. Local models cost nothing, which is the entire point of the cost meter.
+ * Source: DeepSeek's "Models & Pricing" page, <https://api-docs.deepseek.com/quick_start/pricing>,
+ * read on 2026-10-27 for `deepseek-flash` = **DeepSeek-V4.1-Flash-1017**. DeepSeek quotes two
+ * tariffs (off-peak is exactly half of peak; peak is 01:00–04:00 and 06:00–10:00 UTC, Mon–Fri):
+ *
+ * | per 1M tokens      | off-peak | peak  |
+ * |--------------------|----------|-------|
+ * | input, cache miss  | $0.15    | $0.30 |
+ * | input, cache hit   | $0.003   | $0.006|
+ * | output             | $0.60    | $1.20 |
+ *
+ * We bill at the **peak** rate on purpose: this table feeds the `budget.maxUsd` guardrail, and a
+ * guardrail must never under-count a run that happens to land in peak hours. Halve the input and
+ * output figures if you would rather report a typical (off-peak) bill.
+ *
+ * Local models cost nothing, which is the entire point of the cost meter.
  */
 export const PRICING: Record<string, ModelPricing> = {
-  'deepseek-v4.1-flash': { inputPerM: 0.28, cachedInputPerM: 0.003, outputPerM: 0.6 },
-  'deepseek/deepseek-v4.1-flash': { inputPerM: 0.28, cachedInputPerM: 0.003, outputPerM: 0.6 },
+  'deepseek-v4.1-flash': { inputPerM: 0.3, cachedInputPerM: 0.006, outputPerM: 1.2 },
+  'deepseek/deepseek-v4.1-flash': { inputPerM: 0.3, cachedInputPerM: 0.006, outputPerM: 1.2 },
   // Legacy alias accepted by the DeepSeek API; served by V4.1 Flash and billed at Flash prices.
-  'deepseek-flash': { inputPerM: 0.28, cachedInputPerM: 0.003, outputPerM: 0.6 },
-  'deepseek/deepseek-flash': { inputPerM: 0.28, cachedInputPerM: 0.003, outputPerM: 0.6 },
+  'deepseek-flash': { inputPerM: 0.3, cachedInputPerM: 0.006, outputPerM: 1.2 },
+  'deepseek/deepseek-flash': { inputPerM: 0.3, cachedInputPerM: 0.006, outputPerM: 1.2 },
   'qwen3.6:35b-a3b': { inputPerM: 0, cachedInputPerM: 0, outputPerM: 0 },
   'ollama/qwen3.6:35b-a3b': { inputPerM: 0, cachedInputPerM: 0, outputPerM: 0 },
 };

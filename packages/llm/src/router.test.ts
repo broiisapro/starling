@@ -307,7 +307,7 @@ describe('createLLM — opencode provider', () => {
 
     expect(res.text).toBe('from opencode');
     expect(res.local).toBe(false);
-    expect(res.costUsd).toBeCloseTo(0.28, 6);
+    expect(res.costUsd).toBeCloseTo(0.3, 6);
     expect(client.calls[0]?.providerID).toBe('opencode-go');
     expect(client.calls[0]?.modelID).toBe('deepseek-v4.1-flash');
     expect(client.calls[0]?.system).toBe('You plan.');
