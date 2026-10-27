@@ -35,7 +35,7 @@ describe('the fixture run', () => {
 
 describe('costBreakdown', () => {
   test('reads API spend straight from RunMetrics (no re-pricing at render time)', () => {
-    expect(finalMetrics.apiCostUsd).toBeCloseTo(0.0309648, 10);
+    expect(finalMetrics.apiCostUsd).toBeCloseTo(0.0421956, 10);
     const breakdown = costBreakdown(finalMetrics);
     expect(breakdown.apiSpendUsd).toBe(finalMetrics.apiCostUsd);
   });

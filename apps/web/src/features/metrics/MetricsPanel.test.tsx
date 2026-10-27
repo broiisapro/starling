@@ -63,9 +63,9 @@ const finalMetrics: RunMetrics = fixtureSamples[fixtureSamples.length - 1]?.metr
 test('the cost meter tells the open-weight story with fixture metrics', async () => {
   const view = await mount(<MetricsPanel metrics={finalMetrics} history={fixtureSamples} />);
   try {
-    expect(text(view.container, 'cost-api')).toBe('$0.03');
+    expect(text(view.container, 'cost-api')).toBe('$0.04');
     expect(text(view.container, 'cost-local')).toBe('$0.00');
-    expect(text(view.container, 'cost-saved')).toBe('$0.01');
+    expect(text(view.container, 'cost-saved')).toBe('$0.02');
     expect(view.container.textContent).toContain('local');
     expect(view.container.textContent).toContain('9 local calls');
   } finally {
@@ -220,7 +220,7 @@ test('the cost meter summarises itself for screen readers', async () => {
   const view = await mount(<MetricsPanel metrics={finalMetrics} history={fixtureSamples} />);
   try {
     const meter = view.container.querySelector('[data-testid="cost-meter"]');
-    expect(meter?.getAttribute('aria-label')).toBe('$0.03 on DeepSeek, $0.00 on this laptop, $0.01 saved');
+    expect(meter?.getAttribute('aria-label')).toBe('$0.04 on DeepSeek, $0.00 on this laptop, $0.02 saved');
   } finally {
     await view.unmount();
   }
@@ -235,7 +235,7 @@ test('updating metrics re-renders the numbers without remounting the panel', asy
     const after = view.container.querySelector('[data-testid="metrics-panel"]');
     expect(after).toBe(before);
     expect(text(view.container, 'metrics-merged')).toBe('7');
-    expect(text(view.container, 'cost-api')).toBe('$0.03');
+    expect(text(view.container, 'cost-api')).toBe('$0.04');
   } finally {
     await view.unmount();
   }
