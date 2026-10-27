@@ -10,6 +10,12 @@ export interface PromptCompilerOptions {
   style?: PromptStyle;
   /** Hard ceiling for a worker prompt. Only the repo map and sibling list are shrunk to fit. */
   maxChars?: number;
+  /**
+   * Optional overall token budget (`estimateTokens`, ~4 chars per token). When set, the least
+   * important sections are trimmed first; the task, lane and finish line never are. Unset means
+   * only the per-section ceilings in `DEFAULT_SECTION_BUDGETS` apply.
+   */
+  budgetTokens?: number;
 }
 
 export interface ResolvedPromptOptions {
@@ -18,6 +24,8 @@ export interface ResolvedPromptOptions {
   style: PromptStyle;
   /** Fraction of `maxRepoMapChars` the style is allowed to use. */
   mapShare: number;
+  /** Overall token budget, when the caller asked for one. */
+  budgetTokens?: number;
 }
 
 /** 24k characters ≈ 6k tokens, small enough for a fast model to read in one pass. */
@@ -33,6 +41,7 @@ export function resolveOptions(options: PromptCompilerOptions = {}): ResolvedPro
   const maxChars = options.maxChars ?? DEFAULT_MAX_CHARS;
   const maxRepoMapChars = options.maxRepoMapChars ?? DEFAULT_MAX_REPO_MAP_CHARS;
   const style = options.style ?? 'full';
+  const budgetTokens = options.budgetTokens;
 
   if (!Number.isFinite(maxChars) || maxChars <= 0) {
     throw new StarlingError('INVALID_ARGUMENT', 'maxChars must be a positive number', {
@@ -49,6 +58,17 @@ export function resolveOptions(options: PromptCompilerOptions = {}): ResolvedPro
       details: { style },
     });
   }
+  if (budgetTokens !== undefined && (!Number.isFinite(budgetTokens) || budgetTokens <= 0)) {
+    throw new StarlingError('INVALID_ARGUMENT', 'budgetTokens must be a positive number', {
+      details: { budgetTokens },
+    });
+  }
 
-  return { maxChars, maxRepoMapChars, style, mapShare: MAP_SHARE[style] };
+  return {
+    maxChars,
+    maxRepoMapChars,
+    style,
+    mapShare: MAP_SHARE[style],
+    ...(budgetTokens === undefined ? {} : { budgetTokens }),
+  };
 }
