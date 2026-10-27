@@ -1,6 +1,6 @@
 ## Epic 103 Handback — Auditor round 2: lane traversal, command policy, verdict explanations
 
-**Status:** Complete. Branch `epic/103-auditor-r2` @ `5a32470` (code), docs and this handback on top. Closes #113.
+**Status:** Complete. Branch `epic/103-auditor-r2` @ `eeb9417`…`d5c24de` (5 commits, rebased onto `bea040e`), docs and this handback on top. Closes #113.
 
 **Delivered:**
 - **SEC-08 in the auditor.** `canonicalLanePath(raw) → { path, problem?: 'traversal' | 'absolute' | 'invalid' }` in `packages/auditor/src/lane.ts`: `\` → `/`, `normalizeGlobPath`, then `posix.normalize`; any raw `..` segment (even one that normalises back inside the lane), an absolute path (`/x`, `C:/x`, UNC), an empty path or a NUL byte is a violation **before** glob matching. `checkLane` uses it and reports the raw path as the violation; `isBookkeepingPath` uses it too, so `.starling/../package.json` is no longer exempt. Additive `LaneCheckResult.problems?: Record<string, 'traversal' | 'absolute' | 'invalid' | 'outside-lane'>`.
@@ -22,12 +22,12 @@
 - Browser-safe explain module: no runtime core import, no `node:`, no `bun:`; the whole feature is a pure projection of the locked contract.
 
 **Verification (exact commands + results):**
-- `bun install` (worktree): `Checked 172 installs across 225 packages (no changes)` — `bun.lock` and root `package.json` unchanged (`git status` clean for both).
+- `bun install` (worktree): `Checked 180 installs across 225 packages (no changes)` after the rebase — `bun.lock` and root `package.json` unchanged (`git status` clean for both).
 - `bun test packages/auditor`: **184 pass / 0 fail**, 1 snapshot, 652 expect() calls, 10 files. Baseline on this branch was 109 tests, so **75 new tests** (≥ 35 required).
 - `bunx tsc --noEmit -p packages/auditor`: clean.
 - `bun test tools/security/auditor-lane.test.ts tools/security/exec-argv.test.ts`: **13 pass / 0 fail**, 22 expect() calls — three traversal probes flipped, `exec-argv` still sees exactly `apps/cli/src/doctor.ts`, `packages/auditor/src/commands.ts`, `packages/merger/src/suite.ts`.
-- `bash .orchestrator/bin/heavy.sh bun run test` (root): packages half `2013 pass, 4 skip, 0 fail` (`Ran 2017 tests across 225 files`); web half `581 pass, 0 fail` (`Ran 581 tests across 60 files`). Both summary lines reproduce verbatim above.
-- `bash .orchestrator/bin/heavy.sh bun run check`: `biome check .` → `Checked 979 files in 281ms. No fixes applied.` then the per-workspace `tsc --noEmit` loop finished with exit 0 (no diagnostics).
+- `bash .orchestrator/bin/heavy.sh bun run test` (root, after rebasing onto `bea040e`): packages half `2049 pass, 5 skip, 0 fail` (`Ran 2054 tests across 229 files`); web half `581 pass, 0 fail` (`Ran 581 tests across 60 files`). Both summary lines reproduce verbatim above.
+- `bash .orchestrator/bin/heavy.sh bun run check` (after the rebase): `biome check .` → `Checked 995 files in 249ms. No fixes applied.` then the per-workspace `tsc --noEmit` loop finished with exit 0 (no diagnostics).
 - Fixture output, failing verdict (`theme`, attempt 1):
   ```
   ✘ Failed: 2 blocking checks.
