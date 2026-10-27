@@ -196,3 +196,49 @@ export function describeSky(run: Run | undefined, nodes: readonly NodeInfo[]): s
   if (total === 0) return `No run. ${machines}.`;
   return `${total} ${total === 1 ? 'task' : 'tasks'}: ${states.join(', ')} · ${machines}`;
 }
+
+/** The stress mode's task count — 30 flocks × 12 birds = the Sky's 360-bird ceiling. */
+export const STRESS_TASKS = 30;
+
+const STRESS_STATUSES: readonly TaskStatus[] = [
+  'running',
+  'running',
+  'auditing',
+  'fixing',
+  'ready',
+  'merging',
+  'merged',
+  'pending',
+  'running',
+  'failed',
+];
+
+/**
+ * A deterministic 30-task version of a frame, used by the Playground's "stress" toggle to measure
+ * 360 birds on a real canvas. Synthetic tasks alternate between the hub and the first remote node
+ * so both roosts are full; the real plan's tasks stay at the front (the sim caps at `MAX_TASKS`).
+ */
+export function withStressTasks(
+  run: Run | undefined,
+  nodes: readonly NodeInfo[],
+  count = STRESS_TASKS,
+): Run | undefined {
+  if (!run) return undefined;
+  const hubId = nodes.find((node) => node.kind === 'local')?.id ?? 'hub';
+  const remoteId = nodes.find((node) => node.kind !== 'local')?.id;
+  const tasks = { ...run.tasks };
+  for (let i = 0; i < count; i++) {
+    const taskKey = `stress-${String(i + 1).padStart(2, '0')}`;
+    const status = STRESS_STATUSES[i % STRESS_STATUSES.length] ?? 'running';
+    tasks[taskKey] = {
+      runId: run.id,
+      taskKey,
+      status,
+      attempts: status === 'fixing' ? 2 : 0,
+      usage: { input: 0, output: 0, cached: 0 },
+      costUsd: 0,
+      nodeId: remoteId && i % 3 === 1 ? remoteId : hubId,
+    };
+  }
+  return { ...run, tasks };
+}

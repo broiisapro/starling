@@ -2,7 +2,7 @@ import type { StarlingEvent } from '@starling/core';
 import type { ChangeEvent, CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { statusColor, TASK_STATUSES } from './palette';
-import { buildFrame, indexAtTs, nextBeat, parseEventJsonl, statusCounts } from './replay';
+import { buildFrame, indexAtTs, nextBeat, parseEventJsonl, statusCounts, withStressTasks } from './replay';
 import { SkyView } from './SkyView';
 
 /**
@@ -14,6 +14,9 @@ import { SkyView } from './SkyView';
  *   so the demo works even if the API is down),
  * - `<Playground src="/fixtures/runs/sky-todo-launch-day.jsonl" />` — fetch at runtime, or drop a
  *   JSONL file on the page if the fixture is not being served.
+ *
+ * Epic 47 adds the measured fps readout and a "stress" toggle that inflates the frame to 30 flocks
+ * (360 birds) so the 60 fps claim is checkable on your own machine.
  */
 export interface PlaygroundProps {
   events?: readonly StarlingEvent[];
@@ -22,6 +25,8 @@ export interface PlaygroundProps {
   autoPlay?: boolean;
   /** Start with the calm (reduced-motion) layout, for screenshots and accessibility checks. */
   initialCalm?: boolean;
+  /** Start with 30 synthetic flocks, for the frame-rate measurement. */
+  initialStress?: boolean;
 }
 
 export const DEFAULT_FIXTURE_URL = '/fixtures/runs/sky-todo-launch-day.jsonl';
@@ -32,6 +37,7 @@ export function Playground({
   initialIndex = 0,
   autoPlay = false,
   initialCalm = false,
+  initialStress = false,
 }: PlaygroundProps) {
   const [loaded, setLoaded] = useState<StarlingEvent[] | null>(events ? [...events] : null);
   const [error, setError] = useState<string | null>(null);
@@ -39,6 +45,8 @@ export function Playground({
   const [playing, setPlaying] = useState(autoPlay);
   const [speed, setSpeed] = useState(4);
   const [calm, setCalm] = useState(initialCalm);
+  const [stress, setStress] = useState(initialStress);
+  const [fps, setFps] = useState<number | undefined>();
   const [selected, setSelected] = useState<string | undefined>();
   // Remounting SkyView on a manual scrub resets the sim, so scrubbing backwards is exact.
   const [epoch, setEpoch] = useState(0);
@@ -77,7 +85,11 @@ export function Playground({
 
   const list = useMemo(() => loaded ?? [], [loaded]);
   const frame = useMemo(() => buildFrame(list, index), [list, index]);
-  const counts = useMemo(() => statusCounts(frame.run), [frame.run]);
+  const displayRun = useMemo(
+    () => (stress ? withStressTasks(frame.run, frame.nodes) : frame.run),
+    [stress, frame.run, frame.nodes],
+  );
+  const counts = useMemo(() => statusCounts(displayRun), [displayRun]);
   const firstTs = list[0]?.ts ?? frame.ts;
   const offsetSeconds = Math.max(0, Math.round((frame.ts - firstTs) / 1000));
 
@@ -150,6 +162,8 @@ export function Playground({
           <h1 style={TITLE_STYLE}>Sky playground</h1>
           <p style={SUBTITLE_STYLE}>
             fixture · t+{offsetSeconds}s · {list.length} events · frame {frame.index}
+            {fps === undefined ? '' : ` · ${fps} fps`}
+            {stress ? ` · ${Object.keys(displayRun?.tasks ?? {}).length} tasks (stress)` : ''}
           </p>
         </div>
         <div style={BUTTON_ROW}>
@@ -173,6 +187,17 @@ export function Playground({
           <label style={CHECKBOX}>
             <input type="checkbox" checked={calm} onChange={(event) => setCalm(event.target.checked)} />
             reduced motion
+          </label>
+          <label style={CHECKBOX}>
+            <input
+              type="checkbox"
+              checked={stress}
+              onChange={(event) => {
+                setStress(event.target.checked);
+                setFps(undefined);
+              }}
+            />
+            stress 30 flocks
           </label>
           <label style={CHECKBOX}>
             speed
@@ -203,13 +228,14 @@ export function Playground({
       <div style={SKY_BOX}>
         {list.length > 0 ? (
           <SkyView
-            key={epoch}
-            run={frame.run}
+            key={`${epoch}-${stress ? 'stress' : 'real'}`}
+            run={displayRun}
             nodes={frame.nodes}
             recent={frame.recent}
             selectedTask={selected}
             onSelectTask={setSelected}
             reducedMotion={calm}
+            onFps={setFps}
           />
         ) : (
           <div style={EMPTY_STYLE}>No events loaded.</div>
