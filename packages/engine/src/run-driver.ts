@@ -263,6 +263,13 @@ export class RunDriver implements PipelineHost {
       this.#completePlanned();
       return;
     }
+    if (this.#stopped) {
+      // Cancellation arrived while the mapper/planner was thinking: the plan exists now, so close
+      // the run out instead of leaving freshly-created pending tasks with no dispatcher.
+      for (const key of unfinishedTaskKeys(this.#run)) this.transition(key, 'cancelled');
+      await this.#maybeFinish();
+      return;
+    }
     const blocking = issues.filter((issue) => issue.severity === 'error');
     if (blocking.length > 0) {
       const first = blocking[0];
@@ -804,6 +811,8 @@ export class RunDriver implements PipelineHost {
     if (this.#done) return;
     const detail = messageOf(err);
     this.log('error', `run failed: ${detail}`);
+    // A run that never starts must not leave fresh tasks looking schedulable.
+    for (const key of unfinishedTaskKeys(this.#run)) this.transition(key, 'cancelled');
     this.#run.status = 'failed';
     this.#run.finishedAt = this.now();
     this.#run.metrics = computeRunMetrics(this.#run, this.#ledger, this.now());

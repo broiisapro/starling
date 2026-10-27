@@ -55,6 +55,7 @@ describe('planning failures', () => {
     expect(run.status).toBe('failed');
     expect(h.nodes[0]?.startedTasks).toHaveLength(0);
     expect(h.ofType('plan.created')).toHaveLength(1);
+    expect(Object.values(run.tasks).every((task) => task.status === 'cancelled')).toBe(true);
     expect(h.logs('error').some((msg) => msg.includes('refusing to dispatch'))).toBe(true);
     expect(h.ofType('run.finished')[0]?.payload.summary).toContain('ended:');
   });
@@ -120,6 +121,21 @@ describe('cancellation', () => {
     expect(h.transitionsFor('a')).toEqual(['pending->ready', 'ready->running', 'running->cancelled']);
     expect(h.ofType('run.finished')[0]?.payload.summary).toContain('was cancelled');
     expect(h.tracker.calls.some((call) => call.method === 'openFinalPR')).toBe(false);
+  });
+
+  test('cancel while the planner is thinking still finishes as cancelled', async () => {
+    const h = buildHarness({ plan: smallPlan([makeTaskSpec({ key: 'a' })]) });
+    h.deps.planner.plan = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      return { plan: smallPlan([makeTaskSpec({ key: 'a' })]), issues: [] };
+    };
+    const runId = await h.start();
+    await h.engine.cancel(runId);
+    const run = await h.engine.waitForFinish(runId);
+    expect(run.status).toBe('cancelled');
+    expect(run.tasks.a?.status).toBe('cancelled');
+    expect(h.ofType('plan.created')).toHaveLength(1);
+    expect(h.nodes[0]?.startedTasks).toHaveLength(0);
   });
 
   test('cancel after the run finished is a no-op', async () => {
