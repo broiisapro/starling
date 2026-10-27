@@ -6,8 +6,8 @@ import { createLocalNode, type LocalNode } from '@starling/flock';
 import { createOpencodeRunner } from '@starling/runner';
 import { createWorkspace } from '@starling/workspace';
 import type { MdnsAdvertiser } from './handshake';
-import { type ExecFn, type OsProbe, probeOs } from './perch-info';
 import { type PerchHandle, startPerch } from './perch-daemon';
+import { type ExecFn, type OsProbe, probeOs } from './perch-info';
 
 export interface ComposePerchOptions {
   /** Hub base URL, e.g. `http://192.168.1.20:7777`. Omit for mDNS-only discovery. */
@@ -108,7 +108,10 @@ export async function composePerch(options: ComposePerchOptions = {}): Promise<R
       : (osFacts.computerName ?? osFacts.hostname);
   const name = resolvedName;
 
-  const root = join(expandHome(options.cacheDir ?? join(home, '.starling', 'perch'), home), perchNodeId(name));
+  const root = join(
+    expandHome(options.cacheDir ?? join(home, '.starling', 'perch'), home),
+    perchNodeId(name),
+  );
   const worktreeRoot = join(root, 'worktrees');
   await mkdir(worktreeRoot, { recursive: true });
 

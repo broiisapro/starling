@@ -94,7 +94,10 @@ describe('composePerch', () => {
 
     const first = await make('Loop One', 0);
     const second = await make('Loop Two', 0);
-    cleanups.push(() => first.stop(), () => second.stop());
+    cleanups.push(
+      () => first.stop(),
+      () => second.stop(),
+    );
 
     expect(first.root).not.toBe(second.root);
     expect(first.node.id).not.toBe(second.node.id);
