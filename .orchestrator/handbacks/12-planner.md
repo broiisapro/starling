@@ -1,6 +1,6 @@
 ## Epic 12 Handback — Planner: goal to lane-safe task DAG
 
-**Status:** Complete. Branch `epic/12-planner` @ 6ef0df7 (docs commit follows).
+**Status:** Complete. Branch `epic/12-planner` @ 6ef0df7 (code) + a3d3bb6 (docs/handback), tip commit carries this handback.
 
 **Delivered:**
 - `createPlanner({ llm, clock?, maxRepairs?=2, minTasks?=2, maxTasks?=12, maxTokens?, temperature? })` implementing core's `Planner` port: prompt → `completeJson(PlanDraftSchema)` → validate → ≤ `maxRepairs` LLM repair turns → deterministic repair → warnings-only result.
