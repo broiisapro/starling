@@ -1,6 +1,6 @@
 ## Epic 102 Handback — Perch hardening: body limits, hostile refs, mDNS code opt-in, health, drain, jitter
 
-**Status:** Complete. Branch `epic/102-perch-hardening` @ <short-sha>.
+**Status:** Complete. Branch `epic/102-perch-hardening` @ `b2b1152` (the docs commit and this handback land on top of it).
 
 **Delivered:**
 - **SEC-05 body limit.** `PERCH_MAX_BODY_BYTES = 256 * 1024` exported from `packages/perch/src/perch-app.ts`; `readJson(c, schema, { maxBytes })` rejects a declared `content-length` over the limit first, then counts streamed bytes via `c.req.raw.body.getReader()`, answering **413** `{ error: { code: 'payload-too-large', message } }`. Wired into `/perch/tasks`, `…/prompt`, `…/collect`; prompt/collect parse before the handle lookup, so the limit is independent of session state.
