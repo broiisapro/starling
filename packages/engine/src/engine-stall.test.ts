@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { MockScriptContext } from '@starling/core/testing';
-import { makeTaskSpec } from '@starling/core/testing';
+import { MockAuditor, makeTaskSpec } from '@starling/core/testing';
 import { buildHarness, FakeTimers, smallPlan, waitFor } from './testing/harness';
 import { PatientNode } from './testing/nodes';
 
@@ -109,6 +109,40 @@ describe('stall policy', () => {
     expect(run.tasks.a?.status).toBe('failed');
     expect(node.prompts).toHaveLength(0);
     expect(h.policyLogs('stall.failed')).toHaveLength(1);
+  });
+
+  test('a stall during the fix loop resends the fixer prompt, not the worker prompt', async () => {
+    const timers = new FakeTimers();
+    const node = new PatientNode({
+      id: 'hub',
+      info: { kind: 'local', maxSessions: 8 },
+      events: (ctx: MockScriptContext) => {
+        if (ctx.pass === 1) return [STARTED, { kind: 'session.idle', data: {} }];
+        if (ctx.pass === 2) return [STARTED];
+        return [STARTED, { kind: 'session.idle', data: {} }];
+      },
+    });
+    const h = buildHarness({
+      plan: planOne(),
+      nodes: [node],
+      timers,
+      policies: { stallAfterMs: 1_000 },
+      audit: new MockAuditor({ script: { a: [false, true] } }),
+      config: { maxAttempts: 3 },
+    });
+
+    const runId = await h.start();
+    await waitFor(() => node.prompts.length === 1);
+    h.clock.advance(1_000);
+    timers.fireTimeouts();
+
+    const run = await h.engine.waitForFinish(runId);
+    expect(node.prompts).toHaveLength(2);
+    expect(node.prompts[1]?.prompt).toContain('FIX a attempt 1');
+    expect(run.tasks.a?.status).toBe('merged');
+    // attempt 1 failed the audit, the stall recovery spent attempt 2, the final audit is attempt 3.
+    expect(run.tasks.a?.attempts).toBe(3);
+    expect(node.abortCalls).toHaveLength(1);
   });
 
   test('the watchdog is not armed when stallAfterMs is 0 and leaves no timers behind', async () => {

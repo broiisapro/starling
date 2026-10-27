@@ -268,7 +268,12 @@ export class RunDriver implements PipelineHost {
       }
     }
     const before = unfinishedTaskKeys(this.#run);
-    const removed = await this.#removeWorktrees(before);
+    // Clean every worktree we still know about: unfinished tasks always, plus any earlier failure
+    // whose cleanup never ran. A merged task's worktree was already released.
+    const removable = Object.values(this.#run.tasks)
+      .filter((task) => task.status !== 'merged')
+      .map((task) => task.taskKey);
+    const removed = await this.#removeWorktrees(removable);
     for (const key of before) this.transition(key, 'cancelled');
     this.logPolicy(
       'cancel.cleanup',
@@ -280,22 +285,24 @@ export class RunDriver implements PipelineHost {
 
   /** Best-effort worktree removal for the given tasks. Branches are never touched. */
   async #removeWorktrees(taskKeys: readonly string[]): Promise<number> {
-    const removed = new Set<string>();
+    const attempted = new Set<string>();
+    let removed = 0;
     for (const key of taskKeys) {
       const task = this.#run.tasks[key];
-      if (task === undefined || isTerminalStatus(task.status)) continue;
+      if (task === undefined) continue;
       const path = task.worktreePath ?? this.#expectedWorktree(task.branch);
-      if (path === undefined || removed.has(path)) continue;
-      removed.add(path);
+      if (path === undefined || attempted.has(path)) continue;
+      attempted.add(path);
       try {
         await this.#deps.workspace.remove(path);
         task.worktreePath = undefined;
+        removed += 1;
         this.save();
       } catch (err) {
         this.log('warn', `could not remove worktree ${path}: ${messageOf(err)}`, key);
       }
     }
-    return removed.size;
+    return removed;
   }
 
   #expectedWorktree(branch: string | undefined): string | undefined {
@@ -861,6 +868,19 @@ export class RunDriver implements PipelineHost {
     live.lastCommit = commit;
   }
 
+  recordPrompt(taskKey: string, prompt: string): void {
+    const live = this.#live.get(taskKey);
+    if (live === undefined) return;
+    live.prompt = prompt;
+  }
+
+  clearWorktree(taskKey: string): void {
+    const task = this.#run.tasks[taskKey];
+    if (task === undefined || task.worktreePath === undefined) return;
+    task.worktreePath = undefined;
+    this.save();
+  }
+
   logPolicy(code: PolicyCode, level: LogLevel, msg: string, taskKey?: string): void {
     const payload = policyLogPayload(code, level, policyMessage(code, msg), taskKey);
     // `code` is additive: core's log payload is frozen until Epic 40 lands the field (FIX REQUEST).
@@ -1036,7 +1056,7 @@ export class RunDriver implements PipelineHost {
     });
     if (keys.length === 0) return;
     for (const key of keys) this.#budgetSkipped.add(key);
-    this.log('warn', `Cancelling ${keys.length} undispatched task(s): ${reason}`);
+    this.logPolicy('budget.skipped', 'warn', `Skipping ${keys.length} undispatched task(s): ${reason}`);
     for (const key of keys) this.transition(key, 'cancelled');
   }
 

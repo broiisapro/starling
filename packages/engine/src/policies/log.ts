@@ -17,11 +17,11 @@ export type PolicyCode =
   | 'parallelism.increased'
   | 'budget.warn'
   | 'budget.stop'
+  | 'budget.skipped'
   | 'cancel.cleanup'
   | 'cancel.forced'
   | 'perch.loss'
-  | 'perch.resume'
-  | 'run.status';
+  | 'perch.resume';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 

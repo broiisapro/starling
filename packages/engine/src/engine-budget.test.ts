@@ -49,6 +49,8 @@ describe('budget policy', () => {
     expect(h.policyLogs('budget.warn')[0]?.msg).toContain('80%');
     expect(h.policyLogs('budget.stop')).toHaveLength(1);
     expect(h.policyLogs('budget.stop')[0]?.msg).toContain('$1');
+    expect(h.policyLogs('budget.skipped')).toHaveLength(1);
+    expect(h.policyLogs('budget.skipped')[0]?.msg).toContain('Skipping 2');
 
     const summary = h.ofType('run.finished')[0]?.payload.summary ?? '';
     expect(summary).toContain('Budget cap $1.00 reached');

@@ -43,6 +43,10 @@ export interface PipelineHost {
   branchOf(taskKey: string): string;
   /** A node collected a commit for this task: remember it so a perch loss does not discard the work. */
   recordCollect(taskKey: string, commit: string): void;
+  /** Remember the prompt that is currently in flight, so a stall resends exactly that one. */
+  recordPrompt(taskKey: string, prompt: string): void;
+  /** The node released this task's worktree; stop treating the path as removable. */
+  clearWorktree(taskKey: string): void;
   enqueue(live: LiveTask, generation: number, step: () => Promise<void>): void;
   onStepError(live: LiveTask, generation: number, err: unknown, phase: string): void;
 }
@@ -185,6 +189,23 @@ export class TaskPipeline {
         return;
       }
       case 'conflict': {
+        // ── RESOLVER HOOK (Epic 45) ────────────────────────────────────────────────────────────
+        // Epic 45's PR was not on `main` when this epic finished, so `conflict` stays terminal.
+        // When it lands, this is the only insertion point. The intended flow, matching the Epic 45
+        // doc's `engine-hook.md` section and ARCHITECTURE §4:
+        //
+        //   const attempt = this.#host.run.tasks[key]?.attempts ?? 0;
+        //   if (attempt < maxAttempts) {
+        //     this.#host.transition(key, 'fixing');
+        //     await node.sendPrompt(handle, this.#deps.prompts.resolver(ctx, result));
+        //   } else {
+        //     this.#host.transition(key, 'conflict');
+        //   }
+        //
+        // The resolver reuses the live session (same node, same worktree); its next `session.idle`
+        // re-enters `#auditThenMerge`, so no new state-machine edge is needed beyond the existing
+        // `fixing → auditing`. Gate it on the same attempt budget so a resolver cannot loop.
+        // ──────────────────────────────────────────────────────────────────────────────────────
         this.#host.transition(key, 'conflict');
         await this.#cleanup(live);
         return;
@@ -222,6 +243,7 @@ export class TaskPipeline {
       return;
     }
     const prompt = this.#deps.prompts.fixer(ctx, verdict);
+    this.#host.recordPrompt(live.key, prompt);
     try {
       await node.sendPrompt(handle, prompt);
     } catch (err) {
@@ -251,6 +273,7 @@ export class TaskPipeline {
     if (node === undefined || handle === undefined) return;
     try {
       await node.cleanup(handle);
+      this.#host.clearWorktree(live.key);
     } catch (err) {
       this.#host.log('warn', `node cleanup failed for ${live.key}: ${messageOf(err)}`, live.key);
     }
