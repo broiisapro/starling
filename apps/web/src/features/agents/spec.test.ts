@@ -6,6 +6,14 @@ import { dodChecklist, dodEvidence } from './spec';
 
 const dod = makeTaskSpec().definitionOfDone;
 
+/** Attach C1's optional per-item DoD evidence to a verdict (the field is not in core yet). */
+function withDod(
+  verdict: ReturnType<typeof makeAuditVerdict>,
+  judgements: { item: string; met?: boolean; ok?: boolean; evidence?: string }[],
+): ReturnType<typeof makeAuditVerdict> {
+  return { ...verdict, dod: judgements } as unknown as ReturnType<typeof makeAuditVerdict>;
+}
+
 describe('checkDuration', () => {
   test('reads an opportunistic durationMs and ignores its absence', () => {
     const check = { name: 'tests', ok: true, detail: 'ok' };
@@ -77,5 +85,37 @@ describe('dodChecklist', () => {
   test('leaves everything unticked without a verdict', () => {
     expect(dodChecklist(dod, undefined).every((entry) => !entry.done)).toBe(true);
     expect(dodEvidence(undefined)).toBeUndefined();
+  });
+
+  test('reads per-item evidence when a verdict carries it (C1 core field)', () => {
+    // `dod` arrives with C1's core consolidation; until it lands the test attaches it by cast, which
+    // is exactly how the drawer feature-detects it.
+    const verdict = withDod(
+      makeAuditVerdict({
+        pass: false,
+        checks: [{ name: 'definition-of-done', ok: false, detail: 'two items missing' }],
+      }),
+      [
+        { item: dod[0] ?? 'first', met: true, evidence: 'test added' },
+        { item: dod[1] ?? 'second', met: false, evidence: 'no reload coverage' },
+      ],
+    );
+    const checklist = dodChecklist(dod, verdict);
+    // Matched items use their own judgement; unmatched ones inherit the check's failure.
+    expect(checklist[0]).toEqual({ item: dod[0] ?? '', done: true, evidence: 'test added' });
+    expect(checklist[1]).toEqual({ item: dod[1] ?? '', done: false, evidence: 'no reload coverage' });
+    expect(checklist.slice(2).every((entry) => !entry.done)).toBe(true);
+    expect(dodEvidence(verdict)).toBe('1 of 2 items met');
+  });
+
+  test('accepts the `ok` spelling and tolerates an empty dod array', () => {
+    const verdict = withDod(makeAuditVerdict({ pass: true, checks: [] }), [
+      { item: dod[0] ?? 'first', ok: true },
+    ]);
+    expect(dodChecklist(dod, verdict)[0]?.done).toBe(true);
+
+    const empty = withDod(makeAuditVerdict({ pass: true, checks: [] }), []);
+    expect(dodChecklist(dod, empty).every((entry) => entry.done)).toBe(true);
+    expect(dodEvidence(empty)).toBeUndefined();
   });
 });

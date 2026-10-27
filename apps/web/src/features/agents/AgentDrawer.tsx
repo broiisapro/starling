@@ -1,6 +1,7 @@
 import type { TaskStatus } from '@starling/core';
 import { Activity, FileDiff, ListChecks, ScrollText, X } from 'lucide-react';
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useState } from 'react';
+import { statusChip } from '../../lib/status';
 import { ActivityTab } from './ActivityTab';
 import { AuditTab } from './AuditTab';
 import { sortVerdicts } from './audit';
@@ -17,19 +18,6 @@ const TAB_ICONS = {
   diff: FileDiff,
   spec: ScrollText,
 } as const;
-
-const STATUS_PILL: Record<TaskStatus, string> = {
-  pending: 'border-slate-600 bg-slate-800/60 text-slate-300',
-  ready: 'border-sky-700 bg-sky-950/60 text-sky-200',
-  running: 'border-blue-600 bg-blue-950/60 text-blue-200',
-  auditing: 'border-amber-600 bg-amber-950/60 text-amber-200',
-  fixing: 'border-orange-600 bg-orange-950/60 text-orange-200',
-  merging: 'border-violet-600 bg-violet-950/60 text-violet-200',
-  merged: 'border-emerald-600 bg-emerald-950/60 text-emerald-200',
-  failed: 'border-rose-600 bg-rose-950/60 text-rose-200',
-  conflict: 'border-yellow-600 bg-yellow-950/60 text-yellow-200',
-  cancelled: 'border-slate-700 bg-slate-900/60 text-slate-500',
-};
 
 /**
  * The "everything about one task" drawer. Right side, four tabs, read-only. Esc closes. Props-only
@@ -82,7 +70,7 @@ export function AgentDrawer({ task, run, events, verdicts, diff, onClose }: Agen
                 {taskKey ?? 'no-task'}
               </code>
               <span
-                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${STATUS_PILL[status]}`}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${statusChip(status)}`}
                 data-testid="drawer-status"
               >
                 {status}
