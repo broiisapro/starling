@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { makeGoal } from '@starling/core/testing';
+import { renderRepoMap as renderRepomap } from '@starling/repomap';
 import {
   buildPlanPrompt,
   buildRepairMessages,
@@ -71,6 +72,34 @@ describe('buildPlanPrompt', () => {
     const prompt = buildPlanPrompt({ ...goal, constraints: ['  ', ''] }, map, { minTasks: 3, maxTasks: 6 });
     expect(prompt.user).toContain('# Constraints\n- none');
     expect(prompt.user).toContain('between 3 and 6 tasks');
+  });
+});
+
+describe('one renderer', () => {
+  test('the default prompt embeds exactly @starling/repomap output', () => {
+    const prompt = buildPlanPrompt(goal, map);
+    const expected = renderRepomap(map, { maxTokens: 3000 });
+
+    expect(prompt.user.endsWith(`# Repository map\n${expected}`)).toBe(true);
+    expect(prompt.user).not.toContain('Files (path (bytes');
+  });
+
+  test('mapTokens is passed straight to the repomap renderer', () => {
+    for (const maxTokens of [200, 800, 1500]) {
+      const prompt = buildPlanPrompt(goal, map, { mapTokens: maxTokens });
+      expect(prompt.user.endsWith(renderRepomap(map, { maxTokens }))).toBe(true);
+    }
+  });
+
+  test('mapTokens is clamped to a floor of 200 tokens, as before', () => {
+    const prompt = buildPlanPrompt(goal, map, { mapTokens: 10 });
+    expect(prompt.user.endsWith(renderRepomap(map, { maxTokens: 200 }))).toBe(true);
+  });
+
+  test('the legacy renderer is reachable only by asking for it', () => {
+    expect(DEFAULT_MAP_RENDERER).toBe('repomap');
+    expect(buildPlanPrompt(goal, map).user).not.toContain('symbols: ');
+    expect(buildPlanPrompt(goal, map, { mapRenderer: 'verbose' }).user).toContain('symbols: ');
   });
 });
 

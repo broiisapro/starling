@@ -1,13 +1,18 @@
 /**
- * Compact, deterministic repo-map rendering for the planner prompt.
+ * Legacy, planner-local repo-map rendering.
  *
- * This is intentionally local to the planner: the repomap package gets its own renderer and at
- * checkpoint C1 the orchestrator decides which one survives. Keeping it here means the prompt can
- * budget characters per file/symbol/summary without depending on a sibling that is still being
- * written in parallel.
+ * @deprecated Use `@starling/repomap`'s `renderRepoMap(map, { maxTokens })` instead; it is the
+ * single renderer shared by planner and worker prompts, and the planner prompt has defaulted to it
+ * since Epic 48 (`DEFAULT_MAP_RENDERER`). This module is kept only to reproduce the recorded A/B
+ * (`docs/epic-48-planner-quality.md`) and is scheduled for removal. Nothing in the planner calls it
+ * unless a caller explicitly asks for `MapRenderer = 'verbose'`.
  */
 import type { RepoMap } from '@starling/core';
 
+/**
+ * @deprecated Use `@starling/repomap`'s `RenderRepoMapOptions` (`maxTokens`, `focus`, `lanes`,
+ * `related`). Kept for the deprecated verbose renderer only.
+ */
 export interface RenderRepoMapOptions {
   /** Hard cap on listed files. The rest are summarised as a count. */
   maxFiles?: number;
@@ -45,7 +50,12 @@ function renderLanguages(languages: Record<string, number>): string {
   return entries.map(([lang, count]) => `${lang} ${count}`).join(', ');
 }
 
-/** Render a repo map as the plain-text block the planner prompt embeds. */
+/**
+ * Render a repo map as the plain-text block the planner prompt embeds.
+ *
+ * @deprecated Use `renderRepoMap` from `@starling/repomap` with `{ maxTokens }` instead. See the
+ * module header for why this one survives and when it will go.
+ */
 export function renderRepoMap(map: RepoMap, options: RenderRepoMapOptions = {}): string {
   const maxFiles = clampPositive(options.maxFiles, DEFAULTS.maxFiles);
   const maxSymbols = clampPositive(options.maxSymbols, DEFAULTS.maxSymbols);
