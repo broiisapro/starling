@@ -1,6 +1,6 @@
 ## Epic 103 Handback — Auditor round 2: lane traversal, command policy, verdict explanations
 
-**Status:** Complete. Branch `epic/103-auditor-r2` @ `eeb9417`…`d5c24de` (5 commits, rebased onto `bea040e`), docs and this handback on top. Closes #113.
+**Status:** Complete. Branch `epic/103-auditor-r2` @ `eeb9417`…`d5c24de` (6 commits, rebased onto `bea040e`), docs and this handback on top. Closes #113.
 
 **Delivered:**
 - **SEC-08 in the auditor.** `canonicalLanePath(raw) → { path, problem?: 'traversal' | 'absolute' | 'invalid' }` in `packages/auditor/src/lane.ts`: `\` → `/`, `normalizeGlobPath`, then `posix.normalize`; any raw `..` segment (even one that normalises back inside the lane), an absolute path (`/x`, `C:/x`, UNC), an empty path or a NUL byte is a violation **before** glob matching. `checkLane` uses it and reports the raw path as the violation; `isBookkeepingPath` uses it too, so `.starling/../package.json` is no longer exempt. Additive `LaneCheckResult.problems?: Record<string, 'traversal' | 'absolute' | 'invalid' | 'outside-lane'>`.
