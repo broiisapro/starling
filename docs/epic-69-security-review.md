@@ -10,9 +10,10 @@ precise fix handed to the epic that owns it.
 This epic writes no production code. Its deliverable is:
 
 1. a threat model (below),
-2. 13 probe suites / 78 tests in `tools/security/`, 29 of which are `test.failing` because they
+2. 13 probe suites / 78 tests in `tools/security/`, 26 of which are `test.failing` because they
    **find** an issue (`bun run test` stays green; a fix turns the probe red and that is the prompt to
-   promote it to a regression test),
+   promote it to a regression test). Four replay probes were promoted this way in Fix 1 once Epic 41
+   landed the allow-list (see *Fix 1* below).
 3. 11 findings with severity, owner and an exact fix (`FIX REQUEST`s in the handback).
 
 ## Threat model
@@ -87,14 +88,35 @@ Every finding was reproduced against a real component on `127.0.0.1:0`. "Probe" 
 | SEC-01 | **High** | `apps/server` routes | Every hub route except `/api/flock/*` is unauthenticated while the server binds `0.0.0.0`. A LAN peer can `POST /api/runs` with any `repoPath` and any goal (an agent with shell access → code execution as the user), read every run, enumerate perches, stream all events, and replay a file. | `unauth-routes.test.ts`, `replay-confinement.test.ts` | apps/server (Epic 21 follow-up; no Wave 2 lane owns it) | Bind `127.0.0.1` by default, `--lan` to opt in; add one `requireFlockToken` middleware for all `/api/*` except `/api/health` and `/api/flock/join`; teach the web shell + CLI to send `x-flock-token`. |
 | SEC-02 | **High** | `packages/flock` `hub.ts` | Node identity is not reserved. `POST /api/flock/register` with `info.id: "hub"` replaces the hub's own `LocalNode` in the registry with a `RemoteNode` pointing at the attacker. A heartbeat for `nodeId: "hub"` rewrites the hub's stats (`maxSessions: 1000`, name, url). | `node-impersonation.test.ts` | Epic 42 (`packages/flock`) | In `register`, reject `info.id === 'hub'` or any id whose stored entry is `kind: 'local'` (409); in `heartbeat`, ignore/reject a touch when the stored entry is local unless it is the hub itself. |
 | SEC-03 | Medium | `packages/flock` `bundle()` + `apps/server` `/api/flock/bundle` | `?ref=` is passed unvalidated to `git rev-parse --verify <ref>^{commit}` and `git bundle create`. `--all`, `--not`, `--upload-pack=…`, `@{-1}`, `..` and newlines reach git as arguments; a failure is a 500 whose message quotes git's stderr — including the hub repo's absolute path (`HEAD:../../etc/passwd` → `'…' is outside repository at '/Users/…'`). A token holder can also force bundling of arbitrary revisions and grow the bundle cache without bound. | `bundle-ref.test.ts` | Epic 42 (`packages/flock`); route-level check in `apps/server` | Validate `ref` before spawning git: `^[A-Za-z0-9._/-]{1,200}$`, reject a leading `-`, `..`, `@{`, `:` and whitespace; answer 400 `INVALID_QUERY`. Never echo git stderr in an HTTP error (log it, return "ref not found"). Optionally allowlist the active run's branches. |
-| SEC-04 | Medium | `apps/server` `/api/replay` | Replay accepts any path the process can read: absolute paths, `../`, and symlinks. A valid recording outside the run directory is replayed (202); a non-recording answers `Invalid JSON on line 1 of <path>`, an existence oracle. Published events are attacker-chosen, so a LAN peer can inject a fake `node.joined` into the dashboard. | `replay-confinement.test.ts` | apps/server | Resolve with `realpath` and require the result to live under the store's run directory (or an explicit `--replay-dir`); reject otherwise with 403. Combined with SEC-01, also require the token. |
+| SEC-04 | Medium → **FIXED** | `apps/server` `/api/replay` | **Fixed by Epic 41.** Originally replay accepted any path the process could read: absolute paths, `../`, and symlinks. A valid recording outside the run directory was replayed (202); a non-recording answered `Invalid JSON on line 1 of <path>`, an existence oracle. Published events are attacker-chosen, so a LAN peer could inject a fake `node.joined` into the dashboard. | `replay-confinement.test.ts` (promoted) | apps/server / Epic 41 | **Landed:** `resolveReplayPath` (`apps/server/src/replay-paths.ts`) resolves the request path, `realpath`s an existing target and requires it under the active repo's `fixtures/` or `.starling/`, else 403 `FORBIDDEN`; the forged-recording probe asserts nothing is published. Still open: authentication (SEC-01). |
 | SEC-05 | Medium | `apps/server` `parseJsonBody`, `packages/perch` `readJson` | No maximum body size. A 1 MiB goal, registration URL, replay path, prompt or fixer prompt is accepted and parsed into memory; the hub then keeps it in events. One request can exhaust a demo laptop's memory. | `body-size.test.ts` | apps/server + Epic 42 (`packages/perch`) | Check `content-length` when present and cap streamed bytes while reading (e.g. 256 KiB for both apps); answer 413 `PAYLOAD_TOO_LARGE`. |
 | SEC-06 | Medium | `apps/server` `sse.ts` | No cap on concurrent SSE streams. Each connection adds a bus subscriber and an unbounded per-connection write chain; a client that never reads buffers every frame. 80 simultaneous `/api/events` connections are accepted. A stalled reader does *not* starve healthy clients and a closed tab does unsubscribe (both proven), so the gap is the missing cap, not a leak. | `sse-flood.test.ts` | apps/server | Track open streams and answer 429/503 past a documented cap (32 is plenty for a dashboard); optionally drop a client whose queued bytes exceed a threshold. Combine with SEC-01 auth so the cap is per-token. |
 | SEC-07 | Medium | `packages/perch` `perch-daemon.ts` | The join code is published in the mDNS TXT record (`txt: { code: token, node }`). Any device on the Wi-Fi that browses `_starling._tcp` learns the credential and can then start tasks, read diffs and command the perch. This defeats the token for the zero-config path. | `secrets.test.ts` | Epic 42 (`packages/perch`) / Epic 31 | Advertise the code only with an explicit `--mdns-code` opt-in (default off); or advertise a separate discovery secret and require a one-time code entry for control traffic. Document the tradeoff in the perch README. |
 | SEC-08 | Low | `packages/auditor` `lane.ts` / `packages/core` `normalizeGlobPath` | The lane check normalises `./`, `\` and duplicate slashes but not `..`. `checkLane(['src/../secrets.env'], ['src/**'])` returns `ok: true`, so a traversal-shaped path (only reachable from a hostile perch's `TaskResult.changedFiles`, since git never emits `..`) is reported as inside the lane. Relative escapes and absolute paths *are* caught. | `auditor-lane.test.ts` | Epic 44 (`packages/auditor`) | Canonicalise each path with `node:path.posix.normalize`, reject any path that starts `../`, is absolute, or still contains a `..` segment, before glob matching. |
 | SEC-09 | Low | `apps/server` `static.ts` | Static hosting is a lexical prefix check; `readFileIfPresent` follows symlinks. A symlink inside `apps/web/dist` serves any file the hub can read (`/leak.txt` → 200 with the target's bytes). | `static-confinement.test.ts` | apps/server | `realpath` the resolved candidate and compare it against the `realpath` of the web root before reading; reject with 404 when it escapes. |
 | SEC-10 | Low | `packages/perch` `POST /perch/tasks` | The perch forward `branch` and `fromRef` verbatim to `LocalNode.startTask`. Containment holds — `Workspace` sanitises the worktree path, git rejects the invalid branch, `exec` is argv-only, and the option-shaped `fromRef` does not execute — but the hub gets a 500 with git's stderr instead of a 400. | `perch-tasks.test.ts` | Epic 42 (`packages/perch`) | Validate `branch` (`^[A-Za-z0-9._/-]{1,200}$`, no `..`, no leading `-`) and `fromRef` (same plus no `@{`), and the `runId`/`taskKey` pair, in the route; answer 400 `invalid-body`. |
-| SEC-11 | Info | `packages/auditor`, `packages/merger` | The repo's own `testCommand`/`lintCommand` run through `bash -c` in the worktree and on the integration branch. A malicious repo controls those scripts. Also note the auditor/merger are the only two `bash -c` sites; everything else is argv-only. | `exec-argv.test.ts` | Epic 44 / Epic 17 (policy) | Not a code fix: document it as an accepted risk and offer `--no-tests` / a sandboxed runner in a later wave. The static probe keeps any new shell site visible. |
+| SEC-11 | Info | `packages/auditor`, `packages/merger`, `apps/cli` | The repo's own `testCommand`/`lintCommand` run through `bash -c` in the worktree and on the integration branch. A malicious repo controls those scripts. The allowed `sh -c`/`bash -c` set is now three sites: the auditor (`commands.ts`), the merger's suite runner (`suite.ts`, moved out of `merge.ts` by Epic 45), and the CLI doctor's constant `ulimit -n` (Epic 61) — everything else is argv-only. | `exec-argv.test.ts` | Epic 44 / Epic 17 (policy) | Not a code fix: document it as an accepted risk and offer `--no-tests` / a sandboxed runner in a later wave. The static probe keeps any new shell site visible. |
+
+### Fix 1 — probes promoted after the owner fixes landed
+
+The Orchestrator merged all 17 Wave 2 branches in a test copy. Epic 41 landed the replay allow-list
+(SEC-04) and Epic 45 moved the merger's suite (SEC-11's second shell site), so the affected probes were
+updated in place:
+
+- `replay-confinement.test.ts`: "recording outside", "symlink outside" and "absolute non-recording"
+  lost `.failing` and now assert 403; the forged-recording impact test asserts the *fixed* behaviour
+  (403, and no `node.joined` reaches the store) with a comment describing what it used to prove. The
+  unauthenticated-replay probe is still `.failing` (SEC-01).
+- `exec-argv.test.ts`: the allow-list is now `apps/cli/src/doctor.ts` (`'ulimit -n'`, a constant),
+  `packages/auditor/src/commands.ts` (config) and `packages/merger/src/suite.ts` (config, Epic 45).
+  `packages/merger/src/merge.ts` no longer has a site.
+- `support.ts` gained `repoRoot`, so the replay probes pin the allow-list base to the repo root instead
+  of whatever cwd the test runner inherited.
+
+Consequence: **this branch alone has 5 expected red probes** (`bun test tools/security` → 73 pass / 5
+fail) until Epic 41 and Epic 45 merge; the assertions encode the merged behaviour, not the branch's.
+Verified by tentatively merging them (see the handback): 78 pass / 0 fail. This is the tripwire
+working as designed, not a regression.
 
 ### Findings that turned out to be non-issues (kept as probes)
 
@@ -134,8 +156,9 @@ up automatically because it already includes `tools`.
 `test.failing` asserts "this test body fails". It is green today (the bug is real) and turns **red**
 when the owning epic fixes the bug — which is exactly the signal we want at integration time: promote
 the probe to a normal test, keep it forever. `skip` would hide the probe, and an `if (knownBug) return`
-would rot. 29 probes are in this state; they map onto the findings above (a couple of findings need
-more than one probe).
+would rot. 26 probes are in this state; they map onto the findings above (a couple of findings need
+more than one probe). Four fewer than at first delivery, because Epic 41 fixed SEC-04 and those probes
+were promoted (see *Fix 1*).
 
 ## Key decisions & reasoning
 
@@ -192,9 +215,11 @@ more than one probe).
   asserts the property that makes the comparison constant-time — every character folded into one
   accumulator, exactly one `return` — plus a functional check that a difference at every position
   is detected, and the length-independent SHA-256 path in `tokensMatch`.
-- **`exec-argv.test.ts` allowlists two `bash -c` sites.** Banning the pattern outright would fail on
-  the auditor/merger, which legitimately run repo test commands. The probe instead asserts the
-  allowed set and that neither expression is request-derived. A new site fails the probe on purpose.
+- **`exec-argv.test.ts` allowlists three `sh -c`/`bash -c` sites.** Banning the pattern outright
+  would fail on the auditor/merger (repo test commands) and the CLI doctor's constant `ulimit -n`. The
+  probe instead asserts the allowed set and that no expression is request-derived. A new site fails the
+  probe on purpose; Epic 45 moving the merger's suite to `suite.ts` and Epic 61 adding the doctor probe
+  were each a one-line update, which is the maintenance cost we accepted.
 - **The hub's `GET /api/nodes` and `GET /api/flock/join` are documented, not patched.** Both are
   architectural (dashboard + QR onboarding), so they are findings for the integrator, not probes.
 
@@ -217,4 +242,5 @@ more than one probe).
   work; the web app renders model output, which deserves its own CSP pass.
 - **Findings are point-in-time.** 23 agents are editing neighbouring files this wave. Any
   `test.failing` that turns red at rebase means the owner fixed it — demote the probe, do not
-  re-open the finding.
+  re-open the finding. Fix 1 is that rule in practice: Epic 41's replay allow-list turned four probes
+  red in the integration copy, so they were promoted and SEC-04 closed.
