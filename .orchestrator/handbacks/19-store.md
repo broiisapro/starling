@@ -1,5 +1,5 @@
 ## Epic 19 Handback — Store + record/replay
-**Status:** Complete. Branch `epic/19-store` @ <sha filled at PR time>.
+**Status:** Complete. Branch `epic/19-store` @ `a564407` (last implementation commit; the doc and handback commits follow it).
 
 Closes #13
 
