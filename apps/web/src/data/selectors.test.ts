@@ -91,6 +91,44 @@ describe('selectors produce the exact §8 prop shapes', () => {
     expect(props.onSelectTask).toBe(selectTask);
   });
 
+  test('the DAG, drawer and queue show node names, not node ids', () => {
+    // The fixture's roosts are `hub` = "MacBook Pro" and `air` = "MacBook Air".
+    const dag = dagProps(state, actions);
+    const nodeIds = Object.values(dag.tasks)
+      .map((task) => task.nodeId)
+      .filter((id): id is string => id !== undefined);
+    expect(nodeIds.length).toBeGreaterThan(0);
+    expect(new Set(nodeIds)).toEqual(new Set(['MacBook Pro', 'MacBook Air']));
+
+    // Whichever task the fixture ran on the Air shows its name in the drawer and the queue.
+    const airKey = Object.entries(state.runs[RUN_ID]?.tasks ?? {}).find(
+      ([, task]) => task.nodeId === 'air',
+    )?.[0];
+    if (airKey === undefined) throw new Error('fixture has no task on the Air');
+    expect(drawerProps({ ...state, selectedTask: airKey }, actions).run?.nodeId).toBe('MacBook Air');
+    expect(queueProps(state, actions).tasks[airKey]?.nodeId).toBe('MacBook Air');
+
+    // The store itself is untouched — only the display copies are renamed.
+    expect(state.runs[RUN_ID]?.tasks.theme?.nodeId).toBe('hub');
+    // Unknown nodes keep their id rather than disappearing.
+    const ghost = dagProps(
+      {
+        ...state,
+        nodes: {},
+      },
+      actions,
+    );
+    expect(ghost.tasks.theme?.nodeId).toBe('hub');
+    // ...and the flock panel keeps real ids, because it groups tasks per roost.
+    expect(flockProps(state).tasks.theme?.nodeId).toBe('hub');
+  });
+
+  test('display props keep their identity when nothing changed', () => {
+    const first = dagProps(state, actions).tasks;
+    const second = dagProps(state, actions).tasks;
+    expect(second).toBe(first);
+  });
+
   test('metricsProps satisfies MetricsPanelProps and prefers the newest sample', () => {
     const props = metricsProps(state) satisfies MetricsPanelProps;
     expect(props.metrics?.tasksMerged).toBe(7);
@@ -109,6 +147,20 @@ describe('selectors produce the exact §8 prop shapes', () => {
     expect(props.nodes.map((node) => node.id)).toEqual(['hub', 'air']);
     expect(Object.keys(props.tasks)).toHaveLength(7);
     expect(props.join).toEqual(join);
+  });
+
+  test('flockProps carries the additive panel props, including the selection callback', () => {
+    const props = flockProps(state, actions, { compact: true, reducedMotion: true, now: 1_731_000_000_000 });
+    expect(props.compact).toBe(true);
+    expect(props.reducedMotion).toBe(true);
+    expect(props.now).toBe(1_731_000_000_000);
+    props.onSelectTask?.('search');
+    expect(selectTask).toHaveBeenCalledWith('search');
+  });
+
+  test('metricsProps carries the additive liveness flag', () => {
+    expect(metricsProps(state, { live: false }).live).toBe(false);
+    expect(metricsProps({ ...state, runs: {} }, { live: true }).live).toBe(true);
   });
 
   test('every selector degrades gracefully before the first run', () => {
