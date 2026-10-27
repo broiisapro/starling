@@ -8,6 +8,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Build the dashboard on demand without touching a PR.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -32,6 +34,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
 
       - name: Cache Bun install
         uses: actions/cache@v4

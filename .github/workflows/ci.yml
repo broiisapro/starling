@@ -11,6 +11,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Useful when a red run needs a retry without a new commit, and when main is tagged.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -35,6 +37,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
 
       - name: Cache Bun install
         uses: actions/cache@v4
@@ -62,6 +69,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
 
       - name: Cache Bun install
         uses: actions/cache@v4
@@ -91,6 +103,11 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
 
       - name: Cache Bun install
         uses: actions/cache@v4
