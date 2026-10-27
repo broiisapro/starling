@@ -5,37 +5,71 @@ import { statusColor } from './palette';
 import { createSkyRenderer, type RenderOptions, type SkyRenderer } from './render';
 import { describeSky } from './replay';
 import { createSky, type SkyInput, type SkySimulation } from './sim';
+import { createSkyAudio, readSoundEnabled, type SkyAudio, writeSoundEnabled } from './sound';
 
 /**
  * The Sky: a live murmuration driven purely by `SkyViewProps` (ARCHITECTURE §8), so it works with
  * live SSE data, a replay or the recorded fixture without knowing which one it is looking at.
  *
- * - one `requestAnimationFrame` loop, paused while the tab is hidden
+ * - one `requestAnimationFrame` loop, paused while the tab is hidden or `paused` is true
  * - Canvas 2D only (L11); DPR + ResizeObserver aware
  * - click the nearest flock leader to select it, hover for a tooltip, arrow keys to cycle
  * - `reducedMotion` (or `prefers-reduced-motion`) switches to a calm, static status map
+ * - optional WebAudio soundscape (off by default, remembered per viewer) with a toggle
+ *
+ * Epic 47: the loop's cues feed the sound engine; `paused` stops and resumes it without a time jump.
  */
 export function SkyView(props: SkyViewProps) {
-  const { run, nodes, recent, selectedTask, onSelectTask, reducedMotion } = props;
+  const {
+    run,
+    nodes,
+    recent,
+    selectedTask,
+    onSelectTask,
+    reducedMotion,
+    paused = false,
+    onFps,
+    createAudio,
+  } = props;
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const simRef = useRef<SkySimulation | null>(null);
   const rendererRef = useRef<SkyRenderer | null>(null);
   const optsRef = useRef<RenderOptions>({});
   const calmRef = useRef(false);
+  const pausedRef = useRef(paused);
   const dirtyRef = useRef(true);
+  const drawOnceRef = useRef<(() => void) | null>(null);
+  const loopRef = useRef<((now: number) => void) | null>(null);
+  const rafRef = useRef(0);
+  const fpsRef = useRef(onFps);
+  fpsRef.current = onFps;
+  const audioRef = useRef<SkyAudio | null>(null);
+  const makeAudioRef = useRef(createAudio);
+  makeAudioRef.current = createAudio;
+  const [soundOn, setSoundOn] = useState(() => readSoundEnabled());
+  const soundOnRef = useRef(soundOn);
+  soundOnRef.current = soundOn;
   const [hover, setHover] = useState<{ key: string; x: number; y: number } | null>(null);
   const mediaReduced = usePrefersReducedMotion();
   const calm = reducedMotion === true || mediaReduced;
 
   const input = useMemo<SkyInput>(
-    () => ({ runId: run?.id, plan: run?.plan, tasks: run?.tasks, nodes, recent }),
+    () => ({
+      runId: run?.id,
+      plan: run?.plan,
+      tasks: run?.tasks,
+      nodes,
+      recent,
+      status: run?.status,
+    }),
     [run, nodes, recent],
   );
   const inputRef = useRef(input);
   inputRef.current = input;
   optsRef.current = { hoverKey: hover?.key, selectedKey: selectedTask };
   calmRef.current = calm;
+  pausedRef.current = paused;
   const summary = useMemo(() => describeSky(run, nodes), [run, nodes]);
 
   // ── mount: renderer + sim + the single rAF loop ───────────────────────────────────────────────
@@ -66,14 +100,29 @@ export function SkyView(props: SkyViewProps) {
     sim.setReducedMotion(calmRef.current);
     dirtyRef.current = true;
 
-    let raf = 0;
+    const drawOnce = () => {
+      const currentSim = simRef.current;
+      const currentRenderer = rendererRef.current;
+      if (!currentSim || !currentRenderer) return;
+      currentRenderer.draw(currentSim, optsRef.current);
+      dirtyRef.current = false;
+    };
+    drawOnceRef.current = drawOnce;
+
     let last = performance.now();
     let frames = 0;
     let fpsAt = last;
+    let humAt = 0;
     const dev = import.meta.env.DEV;
 
     const loop = (now: number) => {
-      raf = requestAnimationFrame(loop);
+      if (pausedRef.current) {
+        // Stop scheduling entirely: a paused Sky costs nothing (and `rafRef` marks it stopped).
+        rafRef.current = 0;
+        last = now;
+        return;
+      }
+      rafRef.current = requestAnimationFrame(loop);
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       if (typeof document !== 'undefined' && document.hidden) return;
@@ -85,17 +134,33 @@ export function SkyView(props: SkyViewProps) {
       currentRenderer.draw(currentSim, optsRef.current);
       dirtyRef.current = false;
 
+      // Sound cues are drained every frame even when muted, so nothing piles up.
+      const cues = currentSim.drainAudioCues();
+      const audio = audioRef.current;
+      if (audio?.enabled) {
+        if (cues.landings > 0) audio.cue('landing', cues.landings);
+        if (cues.migrations > 0) audio.cue('migration');
+        if (cues.joins > 0) audio.cue('join');
+      }
+      if (now - humAt > 250) {
+        audio?.setHum(currentSim.workingFraction());
+        humAt = now;
+      }
+
       frames += 1;
-      if (dev && now - fpsAt >= 5000) {
+      if (now - fpsAt >= 1000) {
         const fps = Math.round((frames * 1000) / (now - fpsAt));
         wrap.dataset.fps = String(fps);
-        // Dev-only estimate; never runs in a production build.
-        console.debug(`[sky] ~${fps} fps · ${currentSim.flocks.length} flocks`);
+        fpsRef.current?.(fps);
+        // Dev-only estimate; never logs in a production build.
+        if (dev) console.debug(`[sky] ~${fps} fps · ${currentSim.flocks.length} flocks`);
         frames = 0;
         fpsAt = now;
       }
     };
-    raf = requestAnimationFrame(loop);
+    loopRef.current = loop;
+    if (!pausedRef.current) rafRef.current = requestAnimationFrame(loop);
+    else drawOnce();
 
     const handleResize = () => {
       const next = measure();
@@ -106,13 +171,17 @@ export function SkyView(props: SkyViewProps) {
       );
       sim.resize(next.width, next.height);
       dirtyRef.current = true;
+      if (pausedRef.current) drawOnce();
     };
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
     observer?.observe(wrap);
     window.addEventListener('resize', handleResize);
 
     return () => {
-      cancelAnimationFrame(raf);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      loopRef.current = null;
+      drawOnceRef.current = null;
       observer?.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
@@ -121,6 +190,20 @@ export function SkyView(props: SkyViewProps) {
     };
   }, []);
 
+  // ── paused (Epic 40's optional prop): stop the loop, keep the last frame ───────────────────────
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (paused) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = 0;
+      drawOnceRef.current?.();
+      return;
+    }
+    if (loopRef.current && rafRef.current === 0) {
+      rafRef.current = requestAnimationFrame(loopRef.current);
+    }
+  }, [paused]);
+
   // ── props → sim ───────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     const sim = simRef.current;
@@ -128,6 +211,7 @@ export function SkyView(props: SkyViewProps) {
     sim.setInput(input);
     sim.setReducedMotion(calm);
     dirtyRef.current = true;
+    if (pausedRef.current) drawOnceRef.current?.();
   }, [input, calm]);
 
   // Hover / selection change the overlay, which the calm (no-loop) renderer only redraws on demand.
@@ -138,6 +222,43 @@ export function SkyView(props: SkyViewProps) {
     overlayStampRef.current = overlayStamp;
     dirtyRef.current = true;
   }
+
+  // ── sound ─────────────────────────────────────────────────────────────────────────────────────
+  const toggleSound = useCallback(() => {
+    const next = !soundOnRef.current;
+    writeSoundEnabled(next);
+    if (!next) {
+      audioRef.current?.setEnabled(false);
+      setSoundOn(false);
+      return;
+    }
+    const audio = audioRef.current ?? makeAudioRef.current?.() ?? createSkyAudio();
+    audioRef.current = audio;
+    if (!audio.setEnabled(true)) {
+      // WebAudio is unavailable (or blocked): keep the toggle honest and silent.
+      setSoundOn(false);
+      return;
+    }
+    audio.resume();
+    setSoundOn(true);
+  }, []);
+
+  // A persisted "on" preference needs a gesture before the browser lets audio start.
+  useEffect(() => {
+    if (!soundOn) return;
+    const audio = audioRef.current ?? makeAudioRef.current?.() ?? createSkyAudio();
+    audioRef.current = audio;
+    if (!audio.enabled && !audio.setEnabled(true)) return;
+    const resume = () => audio.resume();
+    window.addEventListener('pointerdown', resume);
+    window.addEventListener('keydown', resume);
+    return () => {
+      window.removeEventListener('pointerdown', resume);
+      window.removeEventListener('keydown', resume);
+    };
+  }, [soundOn]);
+
+  useEffect(() => () => audioRef.current?.dispose(), []);
 
   // ── interaction ───────────────────────────────────────────────────────────────────────────────
   const toSky = useCallback((event: PointerEvent<HTMLCanvasElement>) => {
@@ -228,6 +349,17 @@ export function SkyView(props: SkyViewProps) {
         onKeyDown={handleKeyDown}
         style={{ ...CANVAS_STYLE, cursor: hover ? 'pointer' : 'default' }}
       />
+      <button
+        type="button"
+        onClick={toggleSound}
+        aria-pressed={soundOn}
+        aria-label={soundOn ? 'Mute the sky' : 'Play sky sounds'}
+        title={soundOn ? 'Soundscape on (chirps on landing, whoosh on migration)' : 'Soundscape off'}
+        style={{ ...SOUND_BUTTON, opacity: soundOn ? 1 : 0.72 }}
+      >
+        <span aria-hidden="true" style={soundOn ? SOUND_DOT_ON : SOUND_DOT_OFF} />
+        <span style={SOUND_LABEL}>{soundOn ? 'sound on' : 'sound off'}</span>
+      </button>
       {hover && hoveredTask ? (
         <div style={{ ...TOOLTIP_STYLE, left: Math.min(hover.x + 14, 260), top: Math.max(8, hover.y - 54) }}>
           <div style={TOOLTIP_TITLE}>{hoveredSpec?.title ?? hover.key}</div>
@@ -282,6 +414,41 @@ const CANVAS_STYLE: CSSProperties = {
   width: '100%',
   height: '100%',
   outline: 'none',
+};
+
+const SOUND_BUTTON: CSSProperties = {
+  position: 'absolute',
+  top: 10,
+  right: 10,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '4px 9px',
+  borderRadius: 999,
+  border: '1px solid rgba(160, 196, 255, 0.28)',
+  background: 'rgba(6, 12, 24, 0.78)',
+  color: '#dbe7ff',
+  font: '600 11px ui-monospace, SFMono-Regular, Menlo, monospace',
+  cursor: 'pointer',
+  zIndex: 2,
+};
+
+const SOUND_LABEL: CSSProperties = { letterSpacing: 0.3 };
+
+const SOUND_DOT_ON: CSSProperties = {
+  width: 7,
+  height: 7,
+  borderRadius: 999,
+  background: '#7cf5d0',
+  boxShadow: '0 0 8px rgba(124, 245, 208, 0.75)',
+};
+
+const SOUND_DOT_OFF: CSSProperties = {
+  width: 7,
+  height: 7,
+  borderRadius: 999,
+  border: '1px solid #8fa2b8',
+  background: 'transparent',
 };
 
 const TOOLTIP_STYLE: CSSProperties = {
