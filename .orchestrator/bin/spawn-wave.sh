@@ -10,9 +10,10 @@
 #   --machine  mbp|air: only launch epics assigned to this laptop in .orchestrator/epics.tsv
 #   --mode     terminal (default on macOS): one Terminal/iTerm window per agent, tiled on screen
 #              tmux: one tmux window per agent · bg: headless background processes, logs in ../starling-wt/_logs/
-#   --ui       run (default): `opencode run` streaming output in the window, also tee'd to ../starling-wt/_logs/
-#              tui: EXPERIMENTAL full opencode screen (newer opencode TUIs have no --model flag, so the model is
-#              passed via OPENCODE_CONFIG_CONTENT with a private --standalone server)
+#   --ui       tui (default): a real interactive opencode session per window. The model comes from the
+#              repo's opencode.json "model" key (newer opencode TUIs have no --model flag). Sessions are
+#              normal opencode sessions, so they also show up in `opencode`'s session list.
+#              run: headless `opencode run` streaming output, also tee'd to ../starling-wt/_logs/ (always used for bg)
 #   --resume   instead of NN-slug.md, run the newest NN-slug.fixK.md for each selected epic (worktree must exist)
 #   --dry-run  print what would happen
 #
@@ -45,7 +46,7 @@ if [ -z "$MODE" ]; then
   if [ "$(uname)" = Darwin ] && command -v osascript >/dev/null 2>&1; then MODE=terminal
   elif command -v tmux >/dev/null 2>&1; then MODE=tmux; else MODE=bg; fi
 fi
-[ -z "$UI" ] && UI=run
+[ -z "$UI" ] && UI=tui
 [ "$MODE" = bg ] && UI=run
 
 command -v opencode >/dev/null || { echo "opencode not found on PATH"; exit 1; }
@@ -76,7 +77,7 @@ launch() { # $1=name  $2=worktree  $3=prompt path (relative to repo)  $4=index  
   local name="$1" wt="$2" prompt="$3" idx="${4:-0}" total="${5:-1}"
   local script="$LOG_DIR/run-${name}.sh" cmd
   if [ "$UI" = tui ]; then
-    cmd="OPENCODE_CONFIG_CONTENT='{\"model\":\"${MODEL}\"}' opencode --standalone --auto --prompt \"\$MSG\" ."
+    cmd="OPENCODE_CONFIG_CONTENT='{\"model\":\"${MODEL}\"}' opencode --auto --prompt \"\$MSG\" ."
   else
     # Only flags proven by bootstrap's smoke test: run --model --auto
     cmd="opencode run --model \"${MODEL}\" --auto \"\$MSG\" 2>&1 | tee -a \"$LOG_DIR/${name}.log\""
