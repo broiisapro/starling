@@ -47,6 +47,8 @@ export interface CreatePlannerOptions {
   temperature?: number;
   /** Repo-map renderer embedded in the prompt. Default `repomap` (see `docs/epic-48-planner-quality.md`). */
   mapRenderer?: MapRenderer;
+  /** Approximate token budget for the repo-map block. Default 3000. */
+  mapTokens?: number;
 }
 
 function normalizeKey(raw: string): string {
@@ -182,6 +184,7 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       minTasks,
       maxTasks,
       ...(options.mapRenderer === undefined ? {} : { mapRenderer: options.mapRenderer }),
+      ...(options.mapTokens === undefined ? {} : { mapTokens: options.mapTokens }),
     });
     const validateOptions = { map, minTasks, maxTasks };
 

@@ -19,19 +19,19 @@ Return exactly one JSON object. No prose, no markdown fences, no comments.
 1. Make one task for every capability the goal names, and no others. A capability is one user-visible behaviour, surface or bug fix — not one file, one layer or one commit. The task count is not a target: a goal with one capability is a one-task plan.
 2. Never split a capability by layer. A store change, a route and a component for the same capability are ONE task: its files move together, and splitting them only invents a fake dependency. Split only when the work for one task would take a competent agent more than 25 minutes.
 3. Never create a task for wiring, integration, scaffolding, setup, refactoring, renaming, documentation, changelogs or standalone tests. Tests belong to the capability they verify. Wiring belongs to the capability that needs it and goes in that task's lane.
-4. A distinct surface the goal names (a dialog, overlay, page, panel, route, CLI command) gets its own task even when it reuses another capability. A small adjacent fix in the same file is bundled into one task.
-5. If two capabilities would have to write the same file, prefer merging them into one task. Otherwise give the file to the earlier task and add dependsOn so they are serialised. Never keep both as concurrent writers.
+4. A distinct surface the goal names (a dialog, overlay, palette, sheet, page, panel, route, CLI command) gets its own task even when it reuses another capability — a help overlay is its own task even when the goal mentions it inside a list of keyboard shortcuts. A small adjacent fix in the same file is bundled into one task.
+5. If two capabilities would have to write the same *feature* file, prefer merging them into one task. But never merge two capabilities because both would touch a shared shell or style file: keep them as separate tasks and keep that shared file out of both lanes. Never keep two concurrent tasks writing the same file.
 6. Keep the plan at or under the task limit in the request; "between min and max" is a ceiling, not a suggestion to pad.
 
 ## Lanes
 7. "lane.owns" lists the globs a task may WRITE; "lane.reads" lists the globs it may READ. Paths are relative to the repo root; "**" matches everything below a directory; a glob naming a directory owns everything inside it. Use globs, never prose.
-8. Put a new capability in its own folder: prefer "src/features/<capability>/**", or the feature/module convention the repository map already shows. When the map already contains a folder for this capability, extend that folder instead of inventing a second one. Name the folder after the capability in kebab-case.
-9. Shared files are read-only by default: the app entry points that mount everything (main.ts, app.ts, server.ts, index.ts at the root of an app), the shared renderer or shell, global styles, the central data store and domain model, manifests, lockfiles and build config. Do not own them just to wire a feature in; feature folders are the integration point. Exception: the goal explicitly names the file, or asks you to fix that module's behaviour — then exactly one task owns it.
-10. Do not widen a shared module's API for a single capability. Implement the behaviour at the edge (route, middleware, feature module) using the shared module as it is.
+8. Put a new capability in its own folder: prefer "src/features/<capability>/**", or the feature/module convention the repository map already shows. When the map already contains a folder for this capability, extend that folder instead of inventing a second one. Name the folder after the capability in kebab-case. Every new capability gets its own folder, even a small one; never fold two capabilities into one folder.
+9. Shared files are read-only by default: the app entry points that mount everything (main.ts, app.ts, server.ts, index.ts at the root of an app), the document shell (index.html), the shared renderer or shell, global styles (styles.css and friends), the central store/data/persistence module and the domain model, manifests, lockfiles and build config. Do not own them just to wire a feature in; feature folders are the integration point. A feature that needs DOM mounts its own element from its own module, and its styles live in a styles module inside its own folder; a row decoration is exported from the feature folder, not written into the shared renderer. Exception: the goal explicitly names the file, or asks you to fix that module's behaviour — then exactly one task owns it.
+10. Do not widen a shared module's API for a single capability. If the map shows a store/, data/ or persistence module, treat it as read-only even when the feature is about the data it holds: filter, derive or adapt in the route or feature module. Implement the behaviour at the edge using the shared module as it is.
 11. The central concurrency rule: any two tasks that can run concurrently MUST have disjoint owns globs. Two tasks are concurrent unless one is an ancestor of the other through dependsOn (transitively). Reads are free: many tasks may read the same file.
 
 ## Dependencies
-12. Add dependsOn only when the later task consumes something the earlier task creates (an exported helper, a keybinding table, a component) or its behaviour must land after the other (a route behind a new guard). A producer must come before its consumers.
+12. Add dependsOn only when the later task cannot be written or verified without an export the earlier task creates (a helper, a keybinding table, a component) or when its behaviour must land after the other (a route behind a new guard). Never re-implement logic another task owns (a date badge must call the fixed date helper, not a second copy) — import it and add the edge. A consumer that merely triggers another feature at run time — a shortcut that focuses the search box, a button that calls an existing action — does not need an edge; both tasks can be built in parallel. A producer must come before its consumers.
 13. Never add an edge for "wiring", "documentation", "consistency", or because two tasks touch the same area, and never invent a task to hold edges. If two tasks must edit the same file, merge them instead.
 
 ## Fields
@@ -71,6 +71,8 @@ export interface PlanPrompt {
 export interface PlanPromptOptions {
   minTasks?: number;
   maxTasks?: number;
+  /** Approximate token budget for the repo-map block when the `repomap` renderer is used. */
+  mapTokens?: number;
   /**
    * Which repo-map renderer the prompt embeds.
    *
@@ -87,10 +89,15 @@ export type MapRenderer = 'repomap' | 'verbose';
 export const DEFAULT_MAP_RENDERER: MapRenderer = 'repomap';
 
 /** Render the map block the planner prompt embeds. */
-export function renderMapFor(map: RepoMap, renderer: MapRenderer = DEFAULT_MAP_RENDERER): string {
+export function renderMapFor(
+  map: RepoMap,
+  renderer: MapRenderer = DEFAULT_MAP_RENDERER,
+  mapTokens = 3000,
+): string {
   if (renderer === 'repomap') {
     // ~3k tokens is the whole budget for the map; the goal and the doctrine need room too.
-    return renderRepomap(map, { maxTokens: 3000 });
+    const budget = Number.isFinite(mapTokens) ? Math.max(200, Math.floor(mapTokens)) : 3000;
+    return renderRepomap(map, { maxTokens: budget });
   }
   return renderVerboseRepoMap(map);
 }
@@ -119,7 +126,7 @@ Task count: between ${minTasks} and ${maxTasks} tasks. Count the capabilities an
 Reminder: every task that can run concurrently must own disjoint paths; if two capabilities must edit the same file, merge them or serialise them with dependsOn.
 
 # Repository map
-${renderMapFor(map, options.mapRenderer ?? DEFAULT_MAP_RENDERER)}`;
+${renderMapFor(map, options.mapRenderer ?? DEFAULT_MAP_RENDERER, options.mapTokens)}`;
 
   return { system: PLANNER_SYSTEM_PROMPT, user };
 }
