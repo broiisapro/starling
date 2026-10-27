@@ -1,0 +1,64 @@
+name: Web build
+
+# Proves `apps/web` still produces a deployable dashboard and keeps the bundle around for the
+# integrator to eyeball. The unit tests for the web app run in `ci.yml`; this job is about the
+# Vite/Tailwind production build only.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Build the dashboard on demand without touching a PR.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.4.4"
+
+jobs:
+  build:
+    name: build apps/web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
+
+      - name: Cache Bun install
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        working-directory: apps/web
+        run: bun run build
+
+      - name: Upload dist
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: apps/web/dist
+          if-no-files-found: error
+          retention-days: 7
