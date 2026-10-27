@@ -1,0 +1,6 @@
+.item-count {
+  color: var(--sky-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
