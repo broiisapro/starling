@@ -10,8 +10,9 @@
 #   --machine  mbp|air: only launch epics assigned to this laptop in .orchestrator/epics.tsv
 #   --mode     terminal (default on macOS): one Terminal/iTerm window per agent, tiled on screen
 #              tmux: one tmux window per agent · bg: headless background processes, logs in ../starling-wt/_logs/
-#   --ui       tui (default for terminal/tmux): the normal opencode screen, so you can watch AND type to the agent
-#              run: plain streaming output (always used for bg), also tee'd to ../starling-wt/_logs/
+#   --ui       run (default): `opencode run` streaming output in the window, also tee'd to ../starling-wt/_logs/
+#              tui: EXPERIMENTAL full opencode screen (newer opencode TUIs have no --model flag, so the model is
+#              passed via OPENCODE_CONFIG_CONTENT with a private --standalone server)
 #   --resume   instead of NN-slug.md, run the newest NN-slug.fixK.md for each selected epic (worktree must exist)
 #   --dry-run  print what would happen
 #
@@ -44,7 +45,7 @@ if [ -z "$MODE" ]; then
   if [ "$(uname)" = Darwin ] && command -v osascript >/dev/null 2>&1; then MODE=terminal
   elif command -v tmux >/dev/null 2>&1; then MODE=tmux; else MODE=bg; fi
 fi
-[ -z "$UI" ] && UI=tui
+[ -z "$UI" ] && UI=run
 [ "$MODE" = bg ] && UI=run
 
 command -v opencode >/dev/null || { echo "opencode not found on PATH"; exit 1; }
@@ -75,9 +76,10 @@ launch() { # $1=name  $2=worktree  $3=prompt path (relative to repo)  $4=index  
   local name="$1" wt="$2" prompt="$3" idx="${4:-0}" total="${5:-1}"
   local script="$LOG_DIR/run-${name}.sh" cmd
   if [ "$UI" = tui ]; then
-    cmd="opencode --model \"${MODEL}\" --auto --prompt \"\$MSG\""
+    cmd="OPENCODE_CONFIG_CONTENT='{\"model\":\"${MODEL}\"}' opencode --standalone --auto --prompt \"\$MSG\" ."
   else
-    cmd="opencode run --model \"${MODEL}\" --auto --title \"epic-${name}\" \"\$MSG\" 2>&1 | tee -a \"$LOG_DIR/${name}.log\""
+    # Only flags proven by bootstrap's smoke test: run --model --auto
+    cmd="opencode run --model \"${MODEL}\" --auto \"\$MSG\" 2>&1 | tee -a \"$LOG_DIR/${name}.log\""
   fi
   # A tiny per-epic launcher script avoids nested-quote hell and pins PATH (iTerm/tmux may not load your shell profile).
   cat > "$script" <<EOF
@@ -161,9 +163,8 @@ for f in "$REPO_ROOT/$DIR"/[0-9][0-9]-*.md; do
     prompt="$DIR/$(basename "$fix")"
   else
     if [ -d "$wt" ]; then
-      echo "skip ${base}: worktree exists (use --resume with a fix prompt)"; continue
-    fi
-    if git -C "$REPO_ROOT" show-ref --quiet "refs/heads/${branch}"; then
+      echo "♻️  ${base}: reusing existing worktree (close its old window first if that agent is still running)"
+    elif git -C "$REPO_ROOT" show-ref --quiet "refs/heads/${branch}"; then
       run "git -C '$REPO_ROOT' worktree add '$wt' '${branch}'"
     else
       run "git -C '$REPO_ROOT' worktree add -b '${branch}' '$wt' origin/main"

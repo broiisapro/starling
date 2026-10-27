@@ -1,6 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["AGENTS.md", ".orchestrator/ARCHITECTURE.md"],
+  "model": "opencode-go/deepseek-v4.1-flash",
+  "instructions": [
+    "AGENTS.md",
+    ".orchestrator/ARCHITECTURE.md"
+  ],
   "permission": {
     "edit": "allow",
     "bash": "allow",
