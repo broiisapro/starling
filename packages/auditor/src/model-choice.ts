@@ -187,12 +187,29 @@ export async function probeOllamaModel(
   }
 }
 
-function localChoice(base: StarlingConfig, model: string): AuditorModelChoice {
-  const config = applyProfile(base, 'local');
+/** Ollama's documented default; used only when the loaded config has no `ollama` provider. */
+const OLLAMA_DEFAULT_BASE_URL = 'http://127.0.0.1:11434/v1';
+
+/** A config that can reach Ollama, whatever the profile left in `providers`. */
+function withOllamaProvider(base: StarlingConfig): StarlingConfig {
+  if (base.providers.ollama !== undefined) return base;
+  return { ...base, providers: { ...base.providers, ollama: { baseUrl: OLLAMA_DEFAULT_BASE_URL } } };
+}
+
+/**
+ * Route the auditor to a local model.
+ *
+ * `profile` separates the two paths that end up here:
+ * - `local` applies the fully-open profile first, so every role is on Ollama;
+ * - `mixed` keeps the rest of the config (workers on DeepSeek) and changes **only** the auditor.
+ */
+function localChoice(base: StarlingConfig, model: string, profile: 'local' | 'mixed'): AuditorModelChoice {
+  const routed =
+    profile === 'local' ? withOllamaProvider(applyProfile(base, 'local')) : withOllamaProvider(base);
   return {
-    profile: 'local',
+    profile,
     model: { provider: 'ollama', model },
-    config: { ...config, models: { ...config.models, auditor: { provider: 'ollama', model } } },
+    config: { ...routed, models: { ...routed.models, auditor: { provider: 'ollama', model } } },
     local: true,
   };
 }
@@ -219,11 +236,13 @@ export async function chooseAuditorModel(opts: AuditorModelOptions = {}): Promis
     case 'opencode':
       return opencodeChoice(base);
     case 'local':
-      return localChoice(base, localAuditorModel({ ...opts, env }));
+      return localChoice(base, localAuditorModel({ ...opts, env }), 'local');
     case 'mixed': {
       const model = localAuditorModel({ ...opts, env });
       const probe = opts.probe ?? ((ref: ModelRef, config: StarlingConfig) => probeOllamaModel(ref, config));
-      if (await probe({ provider: 'ollama', model }, base)) return localChoice(base, model);
+      if (await probe({ provider: 'ollama', model }, withOllamaProvider(base))) {
+        return localChoice(base, model, 'mixed');
+      }
       return {
         ...opencodeChoice(base),
         warning:

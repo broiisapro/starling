@@ -1,8 +1,9 @@
 /**
  * `@starling/auditor` — Starling's quality gate.
  *
- * Deterministic checks (lane, non-empty, tests, optional lint) plus a reviewer-model verdict against
- * the task's definition of done, merged into one `AuditVerdict` with actionable fix instructions.
+ * Deterministic checks (lane, non-empty, tests, missing-tests, optional lint) plus a reviewer-model
+ * verdict against the task's definition of done, merged into one `AuditVerdict` with actionable fix
+ * instructions. `model-choice.ts` maps a routing profile to the model that reviews (Epic 44).
  */
 export const PACKAGE = '@starling/auditor' as const;
 
@@ -14,11 +15,13 @@ export {
   runShellCommand,
   tailText,
 } from './commands';
-export type { DiffBlock, DiffSignals, PrioritisedDiff } from './diff';
+export type { DiffBlock, DiffSignals, MissingTestsSignal, PrioritisedDiff } from './diff';
 export {
   diffSignals,
+  dodTestRequirements,
   isBehaviourPath,
   isTestPath,
+  missingTestsSignal,
   prioritiseDiff,
   signalsFor,
   splitDiff,
@@ -26,9 +29,30 @@ export {
 } from './diff';
 export type { LaneCheckResult } from './lane';
 export { checkLane, isBookkeepingPath, STARLING_BOOKKEEPING_GLOBS } from './lane';
+export type {
+  AuditorLlmMode,
+  AuditorModelChoice,
+  AuditorModelOptions,
+  AuditorProfile,
+  EnvSource,
+} from './model-choice';
+export {
+  AUDITOR_PROFILES,
+  chooseAuditorModel,
+  createLlmFor,
+  DEFAULT_AUDITOR_PROFILE,
+  defaultLlmMode,
+  localAuditorModel,
+  OPENCODE_AUDITOR_MODEL,
+  parseAuditorProfile,
+  probeOllamaModel,
+  RECOMMENDATION_PATH,
+  RECOMMENDED_LOCAL_AUDITOR_MODEL,
+} from './model-choice';
 export type { AuditPromptArgs } from './prompt';
 export { AUDITOR_SYSTEM_PROMPT, buildAuditPrompt } from './prompt';
 export type {
+  AuditorLlmOption,
   AuditorLlmVerdict,
   CreateAuditorOptions,
   DodVerdict,
@@ -43,4 +67,9 @@ export {
   DodVerdictSchema,
 } from './types';
 export type { FixInstructionInput, SummaryInput } from './verdict';
-export { buildFixInstructions, buildSummary, makeCheck } from './verdict';
+export {
+  buildFixInstructions,
+  buildSummary,
+  makeCheck,
+  missingTestsDetail,
+} from './verdict';
