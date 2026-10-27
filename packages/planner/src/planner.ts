@@ -183,7 +183,7 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       issues = validatePlan(planValue, validateOptions);
     }
 
-    const repaired = repairPlan(planValue, validateOptions);
+    const repaired = repairPlan(planValue);
     if (repaired.plan.tasks.length === 0) {
       throw new StarlingError('PLAN_INVALID', 'planner produced no executable tasks', {
         details: { goalId: goal.id, goal: goal.text, issues },

@@ -13,15 +13,8 @@
  * instead of silently losing work. After this pass a plan has no error-level issues, which is the
  * guarantee `plan()` promises (an empty plan is rejected by the planner instead).
  */
-import { globsOverlap, type Plan, type PlanIssue, type RepoMap, type TaskSpec } from '@starling/core';
+import { globsOverlap, type Plan, type PlanIssue, type TaskSpec } from '@starling/core';
 import { buildDepGraph, canRunConcurrently, findCycles, formatCycle } from './graph';
-
-export interface RepairPlanOptions {
-  /** Accepted for symmetry with `validatePlan`; repair itself needs no repo map. */
-  map?: RepoMap;
-  minTasks?: number;
-  maxTasks?: number;
-}
 
 export interface RepairOutcome {
   plan: Plan;
@@ -113,12 +106,12 @@ function firstOverlappingConcurrentPair(
       candidates.push({ a: first, b: second, hits });
     }
   }
-  candidates.sort((x, y) => (x.a.key < y.a.key ? -1 : x.a.key > y.a.key ? 1 : x.b.key < y.b.key ? -1 : 1));
+  candidates.sort((x, y) => x.a.key.localeCompare(y.a.key) || x.b.key.localeCompare(y.b.key));
   return candidates[0];
 }
 
 /** Apply the deterministic fixes. Pure: the input plan and its tasks are never mutated. */
-export function repairPlan(plan: Plan, _options: RepairPlanOptions = {}): RepairOutcome {
+export function repairPlan(plan: Plan): RepairOutcome {
   const notices: PlanIssue[] = [];
   let tasks = plan.tasks.map(cloneTask);
 

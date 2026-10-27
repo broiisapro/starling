@@ -9,11 +9,12 @@
  */
 import { describe, expect, test } from 'bun:test';
 import type { PlanIssue, TaskSpec } from '@starling/core';
-import { FakeClock } from '@starling/core';
+import { FakeClock, globsOverlap } from '@starling/core';
 import { MockLLM, makeGoal } from '@starling/core/testing';
 import type { PlanDraft } from './draft';
+import { buildDepGraph, canRunConcurrently } from './graph';
 import { createPlanner } from './planner';
-import { loadRepoMapFixture, task } from './test-fixtures';
+import { loadRepoMapFixture, planOf, task } from './test-fixtures';
 import { validatePlan } from './validate';
 
 const CASES = 200;
@@ -125,5 +126,45 @@ describe('deterministic-repair guarantee', () => {
     const { plan } = await planner.plan(makeGoal(), map);
 
     expect(errorsIn(validatePlan(plan, { map, minTasks: 1 }))).toEqual([]);
+  });
+});
+
+describe('validator property: lane-overlap is exactly concurrent overlap', () => {
+  test('across 50 generated DAGs the reported pairs match an independent check', () => {
+    const random = mulberry32(4_242);
+    const pick = <T>(values: T[]): T => values[Math.floor(random() * values.length)] as T;
+
+    for (let caseIndex = 0; caseIndex < 50; caseIndex += 1) {
+      const count = 2 + Math.floor(random() * 5);
+      const keys = Array.from({ length: count }, (_, index) => `p${index}`);
+      // Dependencies only ever point at an earlier task, so the generated DAG is acyclic by design.
+      const tasks: TaskSpec[] = keys.map((key, index) =>
+        task(key, {
+          lane: { owns: [pick(DIRS), ...(random() < 0.4 ? [pick(DIRS)] : [])], reads: [] },
+          dependsOn: index > 0 && random() < 0.4 ? [keys[Math.floor(random() * index)] as string] : [],
+          definitionOfDone: ['bun test passes'],
+          estimateMin: 10,
+        }),
+      );
+
+      const graph = buildDepGraph(tasks);
+      const expected: string[] = [];
+      for (let i = 0; i < tasks.length; i += 1) {
+        for (let j = i + 1; j < tasks.length; j += 1) {
+          const a = tasks[i] as TaskSpec;
+          const b = tasks[j] as TaskSpec;
+          if (!canRunConcurrently(graph, a.key, b.key)) continue;
+          if (globsOverlap(a.lane.owns, b.lane.owns).length === 0) continue;
+          expected.push([a.key, b.key].sort().join('|'));
+        }
+      }
+
+      const actual = validatePlan(planOf(tasks), { minTasks: 1 })
+        .filter((issue) => issue.code === 'lane-overlap')
+        .map((issue) => [...issue.taskKeys].sort().join('|'))
+        .sort();
+
+      expect({ caseIndex, actual }).toEqual({ caseIndex, actual: expected.sort() });
+    }
   });
 });

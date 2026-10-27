@@ -24,7 +24,7 @@ export {
   type PlanPromptOptions,
 } from './prompt';
 export { type RenderRepoMapOptions, renderRepoMap } from './render-map';
-export { type RepairOutcome, type RepairPlanOptions, repairPlan } from './repair';
+export { type RepairOutcome, repairPlan } from './repair';
 export {
   DEFAULT_MAX_TASKS,
   DEFAULT_MIN_TASKS,
