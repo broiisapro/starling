@@ -24,7 +24,7 @@ export const SAVED_MODEL = PEAK_MODEL;
 export interface PeakNote {
   peakUsd: number;
   offPeakUsd: number;
-  /** Human line for the meter, e.g. "peak rates · off-peak ≈ $0.02". */
+  /** Short line for the meter, e.g. "off-peak $0.02". */
   text: string;
   /** The long explanation for the tooltip. */
   detail: string;
