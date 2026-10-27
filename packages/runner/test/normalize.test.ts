@@ -265,3 +265,110 @@ describe('EventNormalizer', () => {
     expect(captured).toEqual([]);
   });
 });
+
+/**
+ * The live 2.1.2 vocabulary (captured from a real `opencode serve`): a turn streams
+ * `session.text.*`, `session.step.*`, `session.tool.*` and `session.usage.updated` instead of the
+ * `message.part.*` family the recorded fixtures use.
+ */
+describe('EventNormalizer (opencode 2.1.2 streaming events)', () => {
+  test('session.text.delta produces debounced text, like message.part.delta', () => {
+    const { normalizer, scheduler, captured } = setup(500);
+    normalizer.register('ses_1');
+    normalizer.markPromptSent('ses_1');
+    normalizer.handle(event('session.text.delta', { sessionID: 'ses_1', delta: 'quack' }));
+    expect(captured.map((entry) => entry.kind)).toEqual(['session.started']);
+    scheduler.runAll();
+    expect(captured.at(-1)).toMatchObject({ kind: 'text', data: { text: 'quack' } });
+  });
+
+  test('session.text.ended alone still lands the text after a reconnect', () => {
+    const { normalizer, captured } = setup();
+    normalizer.register('ses_1');
+    normalizer.markPromptSent('ses_1');
+    normalizer.handle(event('session.text.ended', { sessionID: 'ses_1', text: 'recovered' }));
+    expect(captured.at(-1)).toMatchObject({ kind: 'text', data: { text: 'recovered' } });
+  });
+
+  test('session.usage.updated carries tokens, cost and the step model', () => {
+    const { normalizer, captured } = setup();
+    normalizer.register('ses_1');
+    normalizer.handle(
+      event('session.step.started', {
+        sessionID: 'ses_1',
+        model: { id: 'deepseek-v4.1-flash', providerID: 'opencode-go', variant: 'default' },
+      }),
+    );
+    expect(captured.at(-1)).toMatchObject({
+      kind: 'session.started',
+      data: { model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' } },
+    });
+
+    normalizer.handle(
+      event('session.usage.updated', {
+        sessionID: 'ses_1',
+        cost: 0.001,
+        tokens: { input: 6742, output: 4, reasoning: 0, cache: { read: 1408, write: 0 } },
+      }),
+    );
+    expect(captured.at(-1)).toMatchObject({
+      kind: 'usage',
+      data: {
+        input: 6742,
+        output: 4,
+        cached: 1408,
+        costUsd: 0.001,
+        model: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      },
+    });
+  });
+
+  test('a step ending does not bill the turn twice', () => {
+    const { normalizer, captured } = setup();
+    normalizer.register('ses_1');
+    const tokens = { input: 10, output: 2, cache: { read: 0, write: 0 } };
+    normalizer.handle(event('session.usage.updated', { sessionID: 'ses_1', tokens, cost: 0 }));
+    normalizer.handle(event('session.step.ended', { sessionID: 'ses_1', tokens, cost: 0 }));
+    expect(captured.filter((entry) => entry.kind === 'usage')).toHaveLength(1);
+  });
+
+  test('session.tool.* maps to one tool.call and one tool.result', () => {
+    const { normalizer, captured } = setup();
+    normalizer.register('ses_1');
+    normalizer.handle(
+      event('session.tool.input.started', { sessionID: 'ses_1', id: 'call_1', name: 'shell' }),
+    );
+    normalizer.handle(
+      event('session.tool.called', {
+        sessionID: 'ses_1',
+        id: 'call_1',
+        name: 'shell',
+        input: { command: 'ls' },
+      }),
+    );
+    normalizer.handle(
+      event('session.tool.success', {
+        sessionID: 'ses_1',
+        id: 'call_1',
+        name: 'shell',
+        content: [{ type: 'text', text: 'a.ts\nb.ts' }],
+      }),
+    );
+    expect(captured.filter((entry) => entry.kind === 'tool.call')).toHaveLength(1);
+    expect(captured.filter((entry) => entry.kind === 'tool.result')).toEqual([
+      {
+        sessionId: 'ses_1',
+        kind: 'tool.result',
+        data: { tool: 'shell', ok: true, summary: 'a.ts\nb.ts', callId: 'call_1' },
+      },
+    ]);
+  });
+
+  test('reasoning and step.streamed are not part of the vocabulary', () => {
+    const { normalizer, captured } = setup();
+    normalizer.register('ses_1');
+    normalizer.handle(event('session.reasoning.delta', { sessionID: 'ses_1', delta: 'thinking' }));
+    normalizer.handle(event('session.step.streamed', { sessionID: 'ses_1' }));
+    expect(captured.map((entry) => entry.kind)).toEqual(['session.started']);
+  });
+});
