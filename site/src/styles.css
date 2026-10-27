@@ -1235,18 +1235,20 @@ canvas {
 }
 
 .stat-note {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+  position: relative;
   margin-top: 20px;
+  padding-left: 16px;
   font-family: var(--font-mono);
   font-size: 0.66rem;
   line-height: 1.6;
   color: var(--ink-4);
 }
 
-.stat-pulse {
-  flex: none;
+.stat-note::before {
+  content: "";
+  position: absolute;
+  top: 0.6em;
+  left: 0;
   width: 6px;
   height: 6px;
   border-radius: 50%;
@@ -1257,12 +1259,13 @@ canvas {
 /* ── quickstart ──────────────────────────────────────────────────────────────────────────── */
 .quick-grid {
   display: grid;
-  grid-template-columns: 1.12fr 0.88fr;
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
   gap: 22px;
   align-items: start;
 }
 
 .terminal {
+  min-width: 0;
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
   background: rgb(4 6 15 / 78%);
@@ -1335,6 +1338,7 @@ canvas {
 
 .term-line code {
   display: block;
+  min-width: 0;
   overflow-x: auto;
   padding: 2px 0;
   font-size: 0.78rem;
@@ -1587,7 +1591,7 @@ canvas {
   .split,
   .flock-grid,
   .quick-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .split {
@@ -1614,6 +1618,10 @@ canvas {
 @media (max-width: 900px) {
   .nav-links {
     display: none;
+  }
+
+  .nav-links + .gh-link {
+    margin-left: auto;
   }
 
   .steps {
