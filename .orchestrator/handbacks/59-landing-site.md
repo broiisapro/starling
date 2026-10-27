@@ -72,9 +72,15 @@
   `tsc --noEmit` loop completed with no output (clean).
 - `playwright screenshot --viewport-size="1440,900"` → `site/screens/hero.png`, **125 KB**
   (limit 300 KB), quantised with pngquant 70–90.
-- Responsive spot checks with Chromium at 1440×900, 768×1024 and 390×844; fixed the one horizontal
-  overflow found (quickstart terminal tracks now `minmax(0, 1fr)`, code wraps) and the phone stat
-  note layout. No horizontal scroll at 390 px.
+- Responsive spot checks with Chromium at 1440×900, 768×1024, 390×844 and 320×700; fixed the one
+  horizontal overflow found (quickstart terminal tracks now `minmax(0, 1fr)`, code wraps) and the
+  phone stat note layout. `document.documentElement.scrollWidth === innerWidth` at 390 and 320 px.
+- Headless Chromium with `reduced_motion='reduce'`: reveal sections computed opacity `1`, six tiles
+  hydrated (`28, 28, 1,785, 35, 2, 37`), `data/stats.json` fetched successfully (tests = 1785), and
+  **no console errors**. In normal motion the canvas pixels change between frames (the loop is live).
+- Copy button check: clicking the hero strip wrote
+  `starling run "add dark mode, search and CSV export" --repo ./my-app` to the clipboard and set the
+  live region to `Copied to clipboard.`
 - Biome a11y checks on the HTML/CSS are clean (semantic legend list, labelled copy buttons,
   `aria-hidden` decorative SVGs, skip link, landmarks).
 - **Re-verified after the resume:** `bun install` → `Checked 162 installs across 221 packages (no
