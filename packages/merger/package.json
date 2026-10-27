@@ -10,6 +10,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "@starling/core": "workspace:*"
+    "@starling/core": "workspace:*",
+    "@starling/workspace": "workspace:*"
   }
 }

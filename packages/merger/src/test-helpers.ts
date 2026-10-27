@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type ExecResult, exec, type TaskRun } from '@starling/core';
 import { makeTaskRun } from '@starling/core/testing';
+import { createWorkspace, type WorkspaceWithBundles } from '@starling/workspace';
 
 /**
  * Hermetic git environment: no user/system config, no credential or signing prompts.
@@ -56,6 +57,11 @@ export async function writeFiles(repo: string, files: Record<string, string>): P
 export interface TestRepo {
   repo: string;
   worktreeRoot: string;
+}
+
+/** The real `Workspace` implementation (git worktrees), rooted in a test temp dir. */
+export function createWorkspaceFor(worktreeRoot: string): WorkspaceWithBundles {
+  return createWorkspace({ worktreeRoot });
 }
 
 /** A fresh git repo with one commit on `main`, plus a temp worktree root. */
