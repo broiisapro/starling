@@ -65,7 +65,7 @@
 - `bun run test` (root):
   - packages: `1385 pass / 4 skip / 0 fail`, `23 snapshots, 6336 expect() calls`, `Ran 1389 tests across 166 files. [33.40s]`
   - web: `441 pass / 0 fail`, `3572 expect() calls`, `Ran 441 tests across 41 files. [3.79s]`
-  - One earlier run had a single unrelated flake in `apps/web/src/features/sky/sim.test.ts` (the 360-birds perf budget, 477 ms vs 250 ms while ~20 agents were compiling); re-running the file alone passed (`21 pass / 0 fail`, 212 ms) and the final full run above was green.
+  - One earlier run had a single unrelated flake in `apps/web/src/features/sky/sim.test.ts` (the 360-birds perf budget, 477 ms vs 250 ms while ~20 agents were compiling); re-running the file alone passed (`21 pass / 0 fail`, 212 ms) and the final full run above was green. After the pre-push rebase a second unrelated flake appeared once in `packages/flock/src/remote-node.test.ts` (reconnect timing); it passed alone (`8 pass / 0 fail`, 346 ms) and the immediately following full run was green as pasted above.
 - `bun run check`: `Checked 717 files in 636ms. No fixes applied.` then the per-workspace `tsc --noEmit` loop exited 0.
 - `cd apps/server && bun test src`: `104 pass / 0 fail`, 248 expects, 10 files.
 - `cd apps/web && bun test`: `441 pass / 0 fail`, 41 files.
