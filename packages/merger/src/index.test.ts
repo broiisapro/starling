@@ -1,16 +1,25 @@
 import { describe, expect, test } from 'bun:test';
-import { PACKAGE as CORE_PACKAGE, newId } from '@starling/core';
-import { makeGoal } from '@starling/core/testing';
-import { PACKAGE } from './index.ts';
+import {
+  createMergeQueue,
+  createMerger,
+  mergeTask,
+  PACKAGE,
+  parseMergeTree,
+  runPreflight,
+  sanitizeBranchName,
+} from './index.ts';
 
-describe('@starling/merger skeleton', () => {
-  test('exports its package name', () => {
+describe('@starling/merger exports', () => {
+  test('exports its package name and the production factory', () => {
     expect(PACKAGE).toBe('@starling/merger');
+    expect(typeof createMerger).toBe('function');
   });
 
-  test('imports @starling/core and @starling/core/testing', () => {
-    expect(CORE_PACKAGE).toBe('@starling/core');
-    expect(newId()).toHaveLength(26);
-    expect(makeGoal().text.length).toBeGreaterThan(0);
+  test('exports the building blocks the engine and tests compose', () => {
+    expect(typeof createMergeQueue).toBe('function');
+    expect(typeof mergeTask).toBe('function');
+    expect(typeof runPreflight).toBe('function');
+    expect(typeof parseMergeTree).toBe('function');
+    expect(sanitizeBranchName('starling/abc/integration')).toBe('starling-abc-integration');
   });
 });
