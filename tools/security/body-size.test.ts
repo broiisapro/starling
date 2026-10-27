@@ -90,7 +90,7 @@ describe('perch body limits', () => {
     });
   }
 
-  test.failing('rejects a 1 MiB prompt before starting a session', async () => {
+  test('rejects a 1 MiB prompt before starting a session', async () => {
     const response = await fetch(`${perchUrl}/perch/tasks`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-flock-token': PROBE_CODE },
@@ -99,7 +99,7 @@ describe('perch body limits', () => {
     expect(response.status).toBe(413);
   });
 
-  test.failing('rejects a 1 MiB fixer prompt', async () => {
+  test('rejects a 1 MiB fixer prompt', async () => {
     const response = await fetch(`${perchUrl}/perch/tasks/probe-run/probe-task/prompt`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-flock-token': PROBE_CODE },

@@ -73,13 +73,13 @@ describe('perch task boundary', () => {
     expect(node.startedTasks.filter((task) => task.runId === 'retry-run')).toHaveLength(1);
   });
 
-  test.failing('rejects a hostile branch and fromRef with a 400', async () => {
+  test('rejects a hostile branch and fromRef with a 400', async () => {
     const response = await startTask(HOSTILE);
     // 200 today: the values reach `LocalNode.startTask` verbatim, which is where git says no.
     expect(response.status).toBe(400);
   });
 
-  test.failing('does not forward a hostile branch/fromRef to the node', async () => {
+  test('does not forward a hostile branch/fromRef to the node', async () => {
     const before = node.startedTasks.length;
     await startTask({ ...HOSTILE, taskKey: 'probe-forwarded' });
     const forwarded = node.startedTasks.slice(before);

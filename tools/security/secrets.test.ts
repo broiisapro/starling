@@ -147,7 +147,7 @@ describe('secret leakage', () => {
     expect(body.command).toContain('starling perch');
   });
 
-  test.failing('does not publish the join code in the mDNS TXT record by default', () => {
+  test('does not publish the join code in the mDNS TXT record by default', () => {
     expect(advertised.length).toBe(1);
     const txt = advertised[0]?.txt ?? {};
     expect(JSON.stringify(txt)).not.toContain(PROBE_CODE);
