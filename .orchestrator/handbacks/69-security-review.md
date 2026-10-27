@@ -88,3 +88,5 @@
 - **SEC-01's fix is cross-cutting.** Token-on-every-route needs the web shell and CLI to carry `x-flock-token`; the cheaper demo-day mitigation is binding loopback by default. The integrator should pick one before demo day; both are one commit and both are listed in the finding.
 - **`test.failing` collides with parallel fixes.** Epic 42 owns `packages/flock` + `packages/perch` and Epic 44 owns `packages/auditor` this wave. If a `test.failing` probe turns red at rebase/re-merge, the owner fixed the finding: delete `.failing`, keep the assertion, and mark the row fixed. Do not "fix" the probe back.
 - **SEC-07 (mDNS) is a product tradeoff, not just a bug.** Zero-config discovery is a headline feature; the code in TXT is how it authenticates. `--mdns-code` default-off keeps both, at the cost of typing the code once. Flagged for Epic 42/31 rather than decided here.
+
+Closes #84
