@@ -1,0 +1,18 @@
+{
+  "key": "removed-export-regression",
+  "title": "Add formatRelative to src/ui/format.ts",
+  "goal": "Show how long ago a task was created, in words, without breaking the existing date helpers.",
+  "definitionOfDone": [
+    "src/ui/format.ts exports formatRelative",
+    "formatRelative renders 'just now' under a minute and 'N minutes ago' after that",
+    "formatDate and formatTime keep their behaviour and remain exported",
+    "tests cover the two relative buckets"
+  ],
+  "diff": "diff --git a/src/ui/format.ts b/src/ui/format.ts\nindex 2223333..4445555 100644\n--- a/src/ui/format.ts\n+++ b/src/ui/format.ts\n@@ -1,9 +1,12 @@\n export function formatDate(d: Date): string {\n   return d.toISOString().slice(0, 10);\n }\n \n-export function formatTime(d: Date): string {\n-  return d.toISOString().slice(11, 16);\n-}\n+export function formatRelative(then: Date, now: Date = new Date()): string {\n+  const minutes = Math.floor((now.getTime() - then.getTime()) / 60000);\n+  if (minutes < 1) return 'just now';\n+  return minutes + ' minutes ago';\n+}\ndiff --git a/src/ui/format.test.ts b/src/ui/format.test.ts\nnew file mode 100644\nindex 0000000..6667777\n--- /dev/null\n+++ b/src/ui/format.test.ts\n@@ -0,0 +1,12 @@\n+import { expect, test } from 'bun:test';\n+import { formatRelative } from './format';\n+\n+test('says just now under a minute', () => {\n+  expect(formatRelative(new Date(Date.now() - 30_000))).toBe('just now');\n+});\n+\n+test('counts whole minutes after that', () => {\n+  expect(formatRelative(new Date(Date.now() - 5 * 60_000))).toBe('5 minutes ago');\n+});\ndiff --git a/src/ui/render.ts b/src/ui/render.ts\nindex 8889999..0001111 100644\n--- a/src/ui/render.ts\n+++ b/src/ui/render.ts\n@@ -14,7 +14,7 @@ import { formatDate, formatTime } from './format';\n+import { formatDate, formatRelative } from './format';\n \n-  const created = el('time', { text: formatTime(todo.createdAt) });\n+  const created = el('time', { text: formatRelative(todo.createdAt) });",
+  "testOutput": "$ bun test\nsrc/ui/format.test.ts:\n✓ says just now under a minute\n✓ counts whole minutes after that\n\nsrc/ui/render.test.ts:\n✗ render > shows the creation time\n  error: Export named 'formatTime' not found in module './format'\n  at render.ts:14\n\n 2 pass\n 1 fail\nRan 3 tests across 8 files. [120.00ms]",
+  "expect": {
+    "pass": false,
+    "mustMention": ["formattime"]
+  },
+  "why": "A regression hidden inside a feature commit: formatTime was silently deleted, which breaks an existing consumer."
+}

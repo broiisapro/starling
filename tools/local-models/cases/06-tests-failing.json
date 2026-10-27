@@ -1,0 +1,17 @@
+{
+  "key": "tests-failing",
+  "title": "Due-date sorting for the task list",
+  "goal": "Sort tasks by due date, soonest first, with undated tasks last.",
+  "definitionOfDone": [
+    "tasks are sorted by due date ascending",
+    "tasks without a due date sort last",
+    "a unit test covers both rules"
+  ],
+  "diff": "diff --git a/src/lib/sort.ts b/src/lib/sort.ts\nnew file mode 100644\nindex 0000000..555aaaa\n--- /dev/null\n+++ b/src/lib/sort.ts\n@@ -0,0 +1,12 @@\n+import type { Todo } from './todos';\n+\n+export function sortByDue(todos: Todo[]): Todo[] {\n+  return [...todos].sort((a, b) => {\n+    if (!a.due) return 1;\n+    if (!b.due) return -1;\n+    return a.due < b.due ? -1 : a.due > b.due ? 1 : 0;\n+  });\n+}\ndiff --git a/src/lib/sort.test.ts b/src/lib/sort.test.ts\nnew file mode 100644\nindex 0000000..666bbbb\n--- /dev/null\n+++ b/src/lib/sort.test.ts\n@@ -0,0 +1,14 @@\n+import { expect, test } from 'bun:test';\n+import { sortByDue } from './sort';\n+\n+test('sorts by due date and puts undated last', () => {\n+  const todos = [\n+    { id: 1, title: 'a', due: '2026-11-02' },\n+    { id: 2, title: 'b' },\n+    { id: 3, title: 'c', due: '2026-10-28' },\n+  ];\n+  expect(sortByDue(todos).map((t) => t.id)).toEqual([3, 1, 2]);\n+});\ndiff --git a/src/main.ts b/src/main.ts\nindex 777cccc..888dddd 100644\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -20,3 +20,4 @@ function paint(): void {\n+  render(sortByDue(store.list()));\n }",
+  "testOutput": "$ bun test\nsrc/lib/sort.test.ts:\n✗ sorts by due date and puts undated last\n  Expected: [3, 1, 2]\n  Received: [3, 2, 1]\n\n 21 pass\n 1 fail\nRan 22 tests across 7 files. [131.00ms]",
+  "expect": {
+    "pass": false,
+    "mustMention": ["fail"]
+  },
+  "why": "A real feature with a real test that fails. The auditor has to read the test tail instead of the diff alone."
+}

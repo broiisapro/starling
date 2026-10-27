@@ -37,10 +37,7 @@
           "description": "exact, actionable steps for the coding agent; omit when pass is true"
         }
       },
-      "required": [
-        "pass",
-        "summary"
-      ],
+      "required": ["pass", "summary"],
       "additionalProperties": false
     },
     "system": "You are Starling's auditor. You judge one coding agent's diff against a definition of done. Be strict and literal: if a definition-of-done item is not visible in the diff, it is not done. Reply with a single JSON object and nothing else.",

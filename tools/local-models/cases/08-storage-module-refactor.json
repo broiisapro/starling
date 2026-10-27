@@ -1,0 +1,18 @@
+{
+  "key": "storage-module-refactor",
+  "title": "Extract localStorage access into src/lib/storage.ts",
+  "goal": "Every localStorage read and write should go through one module so a future sync feature can swap the backend.",
+  "definitionOfDone": [
+    "src/lib/storage.ts exports load, save and clear",
+    "every direct localStorage call in src/ goes through storage.ts",
+    "malformed JSON in storage is handled without throwing",
+    "tests cover load, save and the malformed-JSON path"
+  ],
+  "diff": "diff --git a/src/lib/storage.ts b/src/lib/storage.ts\nnew file mode 100644\nindex 0000000..ddd4444\n--- /dev/null\n+++ b/src/lib/storage.ts\n@@ -0,0 +1,26 @@\n+import type { Todo } from './todos';\n+\n+const KEY = 'sky-todo:v1';\n+\n+export function load(): Todo[] {\n+  try {\n+    const raw = localStorage.getItem(KEY);\n+    if (!raw) return [];\n+    const parsed: unknown = JSON.parse(raw);\n+    return Array.isArray(parsed) ? (parsed as Todo[]) : [];\n+  } catch {\n+    return [];\n+  }\n+}\n+\n+export function save(todos: Todo[]): void {\n+  localStorage.setItem(KEY, JSON.stringify(todos));\n+}\n+\n+export function clear(): void {\n+  localStorage.removeItem(KEY);\n+}\ndiff --git a/src/lib/storage.test.ts b/src/lib/storage.test.ts\nnew file mode 100644\nindex 0000000..eee5555\n--- /dev/null\n+++ b/src/lib/storage.test.ts\n@@ -0,0 +1,22 @@\n+import { beforeEach, expect, test } from 'bun:test';\n+import { clear, load, save } from './storage';\n+\n+beforeEach(() => clear());\n+\n+test('saves and loads the same list', () => {\n+  save([{ id: 1, title: 'a', done: false }]);\n+  expect(load()).toEqual([{ id: 1, title: 'a', done: false }]);\n+});\n+\n+test('returns an empty list when nothing is stored', () => {\n+  expect(load()).toEqual([]);\n+});\n+\n+test('survives malformed JSON', () => {\n+  localStorage.setItem('sky-todo:v1', '{not json');\n+  expect(load()).toEqual([]);\n+});\n+\n+test('survives a non-array payload', () => {\n+  localStorage.setItem('sky-todo:v1', '{\"a\":1}');\n+  expect(load()).toEqual([]);\n+});\ndiff --git a/src/main.ts b/src/main.ts\nindex 1231231..4564564 100644\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -1,12 +1,10 @@\n-const todos = JSON.parse(localStorage.getItem('sky-todo:v1') ?? '[]');\n+import { load, save } from './lib/storage';\n \n-// ...\n+const todos = load();\n \n function persist(next: Todo[]): void {\n-  localStorage.setItem('sky-todo:v1', JSON.stringify(next));\n+  save(next);\n }\ndiff --git a/src/ui/render.ts b/src/ui/render.ts\nindex 7897897..9879879 100644\n--- a/src/ui/render.ts\n+++ b/src/ui/render.ts\n@@ -60,7 +60,7 @@ export function renderSettings(root: HTMLElement): void {\n   const reset = el('button', { text: 'Reset' });\n   reset.addEventListener('click', () => {\n-    localStorage.removeItem('sky-todo:v1');\n+    clearFromStorage();\n     location.reload();\n   });",
+  "testOutput": "$ bun test\nsrc/lib/storage.test.ts:\n✓ saves and loads the same list\n✓ returns an empty list when nothing is stored\n✓ survives malformed JSON\n✓ survives a non-array payload\n\n 24 pass\n 0 fail\nRan 24 tests across 8 files. [148.00ms]",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "A good but LARGE change across four files. Tests the judge against a long diff it cannot skim."
+}

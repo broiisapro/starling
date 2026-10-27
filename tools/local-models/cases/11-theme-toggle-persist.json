@@ -1,0 +1,18 @@
+{
+  "key": "theme-toggle-persist",
+  "title": "Theme toggle that survives a reload",
+  "goal": "Let a user switch between light and dark, and remember the choice.",
+  "definitionOfDone": [
+    "a toolbar button toggles between light and dark",
+    "the choice is stored and restored on reload",
+    "a test covers restore with no stored value",
+    "the default is light"
+  ],
+  "diff": "diff --git a/src/features/theme/index.ts b/src/features/theme/index.ts\nnew file mode 100644\nindex 0000000..eee7777\n--- /dev/null\n+++ b/src/features/theme/index.ts\n@@ -0,0 +1,27 @@\n+const KEY = 'sky-todo:theme';\n+\n+export type Theme = 'light' | 'dark';\n+\n+export function readTheme(store: Pick<Storage, 'getItem'>): Theme {\n+  return store.getItem(KEY) === 'dark' ? 'dark' : 'light';\n+}\n+\n+export function applyTheme(theme: Theme): void {\n+  document.documentElement.dataset.theme = theme;\n+}\n+\n+export function toggleTheme(current: Theme): Theme {\n+  return current === 'light' ? 'dark' : 'light';\n+}\n+\n+export const themeFeature = {\n+  id: 'theme',\n+  mount(root: HTMLElement): void {\n+    let theme = readTheme(localStorage);\n+    applyTheme(theme);\n+    const button = document.createElement('button');\n+    button.textContent = 'Theme';\n+    button.addEventListener('click', () => {\n+      theme = toggleTheme(theme);\n+      localStorage.setItem(KEY, theme);\n+      applyTheme(theme);\n+    });\n+    root.append(button);\n+  },\n+};\ndiff --git a/src/features/theme/index.test.ts b/src/features/theme/index.test.ts\nnew file mode 100644\nindex 0000000..fff8888\n--- /dev/null\n+++ b/src/features/theme/index.test.ts\n@@ -0,0 +1,16 @@\n+import { expect, test } from 'bun:test';\n+import { readTheme, toggleTheme } from './index';\n+\n+test('defaults to light when nothing is stored', () => {\n+  expect(readTheme({ getItem: () => null })).toBe('light');\n+});\n+\n+test('restores dark from storage', () => {\n+  expect(readTheme({ getItem: () => 'dark' })).toBe('dark');\n+});\n+\n+test('toggles in both directions', () => {\n+  expect(toggleTheme('light')).toBe('dark');\n+  expect(toggleTheme('dark')).toBe('light');\n+});\ndiff --git a/src/features/registry.ts b/src/features/registry.ts\nindex 9990000..1112222 100644\n--- a/src/features/registry.ts\n+++ b/src/features/registry.ts\n@@ -8,3 +8,4 @@ const features: Feature[] = [];\n+features.push(themeFeature);",
+  "testOutput": "$ bun test\n 27 pass\n 0 fail\nRan 27 tests across 10 files. [160.00ms]",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "A polished pass across three files with real persistence (unlike the stub trap in the fail set)."
+}

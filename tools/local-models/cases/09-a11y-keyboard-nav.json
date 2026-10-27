@@ -1,0 +1,18 @@
+{
+  "key": "a11y-keyboard-nav",
+  "title": "Arrow-key navigation between tasks",
+  "goal": "A keyboard user should move between tasks with the arrow keys instead of tabbing through every control.",
+  "definitionOfDone": [
+    "ArrowDown and ArrowUp move focus to the next and previous task row",
+    "Home and End jump to the first and last row",
+    "a unit test covers the index maths",
+    "no visual change to the rows"
+  ],
+  "diff": "diff --git a/src/ui/keyboard.ts b/src/ui/keyboard.ts\nnew file mode 100644\nindex 0000000..111aaaa\n--- /dev/null\n+++ b/src/ui/keyboard.ts\n@@ -0,0 +1,24 @@\n+export function nextIndex(current: number, count: number, key: string): number {\n+  if (count === 0) return -1;\n+  if (key === 'Home') return 0;\n+  if (key === 'End') return count - 1;\n+  if (key === 'ArrowDown') return Math.min(current + 1, count - 1);\n+  if (key === 'ArrowUp') return Math.max(current - 1, 0);\n+  return current;\n+}\n+\n+export function wireKeyboard(list: HTMLElement): void {\n+  list.addEventListener('keydown', (event) => {\n+    const rows = [...list.querySelectorAll<HTMLElement>('.row')];\n+    const current = rows.indexOf(document.activeElement as HTMLElement);\n+    const next = nextIndex(current, rows.length, event.key);\n+    if (next >= 0 && next !== current) {\n+      event.preventDefault();\n+      rows[next]?.focus();\n+    }\n+  });\n+}\ndiff --git a/src/ui/keyboard.test.ts b/src/ui/keyboard.test.ts\nnew file mode 100644\nindex 0000000..222bbbb\n--- /dev/null\n+++ b/src/ui/keyboard.test.ts\n@@ -0,0 +1,18 @@\n+import { expect, test } from 'bun:test';\n+import { nextIndex } from './keyboard';\n+\n+test('moves down and clamps at the last row', () => {\n+  expect(nextIndex(0, 3, 'ArrowDown')).toBe(1);\n+  expect(nextIndex(2, 3, 'ArrowDown')).toBe(2);\n+});\n+\n+test('moves up and clamps at the first row', () => {\n+  expect(nextIndex(1, 3, 'ArrowUp')).toBe(0);\n+  expect(nextIndex(0, 3, 'ArrowUp')).toBe(0);\n+});\n+\n+test('Home and End jump to the edges', () => {\n+  expect(nextIndex(1, 3, 'Home')).toBe(0);\n+  expect(nextIndex(1, 3, 'End')).toBe(2);\n+});\ndiff --git a/src/main.ts b/src/main.ts\nindex 333cccc..444dddd 100644\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -30,3 +30,4 @@ mount(app);\n+wireKeyboard(document.querySelector('.list') as HTMLElement);",
+  "testOutput": "$ bun test\nsrc/ui/keyboard.test.ts:\n✓ moves down and clamps at the last row\n✓ moves up and clamps at the first row\n✓ Home and End jump to the edges\n\n 25 pass\n 0 fail\nRan 25 tests across 9 files. [151.00ms]",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "A well-scoped accessible feature with tests. Should pass, and a strict model must not invent a problem."
+}

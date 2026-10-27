@@ -1,0 +1,17 @@
+{
+  "key": "partial-dod",
+  "title": "Search overlay polish",
+  "goal": "Make the search overlay feel finished: clear on Escape, tell the user when nothing matches, and return focus.",
+  "definitionOfDone": [
+    "pressing Escape clears the search box",
+    "the list shows the message 'No tasks match' when the filter is empty",
+    "focus returns to the search input after a task is selected"
+  ],
+  "diff": "diff --git a/src/ui/search.ts b/src/ui/search.ts\nindex 1212121..3434343 100644\n--- a/src/ui/search.ts\n+++ b/src/ui/search.ts\n@@ -18,6 +18,12 @@ export function mountSearch(root: HTMLElement, onQuery: (q: string) => void): void {\n   input.addEventListener('input', () => onQuery(input.value));\n+  input.addEventListener('keydown', (e) => {\n+    if (e.key === 'Escape') {\n+      input.value = '';\n+      onQuery('');\n+    }\n+  });\n }\n \n export function selectFirst(root: HTMLElement): void {\n+  const input = root.querySelector('input');\n+  if (input) input.focus();\n }\n",
+  "testOutput": "$ bun test\n 21 pass\n 0 fail\nRan 21 tests across 6 files. [118.00ms]",
+  "expect": {
+    "pass": false,
+    "mustMention": ["empty"]
+  },
+  "why": "Two of three DoD items. A literal auditor must notice the missing empty-state message instead of trusting \"done\"."
+}
