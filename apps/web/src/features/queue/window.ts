@@ -26,8 +26,8 @@ export interface ColumnWindow {
   virtualized: boolean;
 }
 
-/** Card height (two text lines + padding) plus the 6 px gap between cards. */
-export const QUEUE_ROW_HEIGHT = 74;
+/** One-line card (20 px line + padding + border) plus the 4 px gap between cards. */
+export const QUEUE_ROW_HEIGHT = 34;
 export const QUEUE_VIRTUALIZE_AFTER = 30;
 
 export function columnWindow(input: ColumnWindowInput): ColumnWindow {

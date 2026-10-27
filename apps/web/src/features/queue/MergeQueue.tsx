@@ -80,27 +80,27 @@ export function MergeQueue({ plan, tasks, merges, selectedTask, onSelectTask }: 
       data-starling-motion=""
       data-starling-queue=""
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
-      className="flex h-full min-h-0 flex-col rounded-xl border border-white/10 bg-slate-950/60 text-slate-200 shadow-[0_1px_0_0_rgba(255,255,255,0.04)_inset]"
+      className="flex h-full min-h-0 flex-col text-slate-200"
     >
       <style>{QUEUE_STYLES}</style>
 
-      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 pt-2">
-        <h2
-          id="starling-queue-title"
-          className="text-[12px] font-semibold uppercase tracking-[0.18em] text-slate-300"
-        >
-          Merge queue
-        </h2>
-        <p className="text-[12px] tabular-nums text-slate-400">
+      {/*
+        One 16 px line, not a title block: the shell's "Landing strip" Panel already titles this
+        board, and at a fixed 12 rem strip every row of chrome costs a visible card. The wire count
+        stays here because "7 of 7" is the run's headline.
+      */}
+      <p className="flex shrink-0 items-baseline justify-between gap-x-3 px-2 pb-1 text-[12px] leading-4 tabular-nums text-slate-400">
+        <span className="font-semibold uppercase tracking-[0.18em] text-slate-300">Merge queue</span>
+        <span>
           <span data-testid="queue-landed">
             {board.landed} of {board.total}
           </span>{' '}
           on the wire
           {board.grounded > 0 ? <span className="text-rose-300"> · {board.grounded} grounded</span> : null}
-        </p>
-      </header>
+        </span>
+      </p>
 
-      <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto overflow-y-hidden px-3 pb-3 pt-2">
+      <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto overflow-y-hidden px-2 pb-2">
         {QUEUE_COLUMNS.map((id) => (
           <QueueColumn
             key={id}
@@ -184,9 +184,8 @@ function QueueColumn({ id, cards, fromColumns, now, selectedTask, onSelect }: Qu
       aria-labelledby={headingId}
       data-column-section={id}
       data-virtualized={range.virtualized ? 'true' : 'false'}
-      className="flex min-h-0 min-w-[9.5rem] flex-1 shrink-0 flex-col gap-1.5"
+      className="flex min-h-0 min-w-[7rem] flex-1 shrink-0 flex-col gap-1"
     >
-      <div aria-hidden="true" className={`h-0.5 rounded-full opacity-60 ${meta.dot}`} />
       <div className="flex items-baseline justify-between gap-1">
         <h3
           id={headingId}
@@ -195,7 +194,14 @@ function QueueColumn({ id, cards, fromColumns, now, selectedTask, onSelect }: Qu
         >
           {meta.title}
         </h3>
-        <span className="text-[12px] tabular-nums text-slate-400">{cards.length}</span>
+        <span className="flex items-center gap-1 text-[12px] tabular-nums text-slate-400">
+          {cards.length > 3 ? (
+            <span title={`${cards.length} cards — scroll this column`} aria-hidden="true">
+              ↕
+            </span>
+          ) : null}
+          {cards.length}
+        </span>
       </div>
 
       {cards.length === 0 ? (
@@ -207,7 +213,7 @@ function QueueColumn({ id, cards, fromColumns, now, selectedTask, onSelect }: Qu
           ref={listRef}
           onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
           data-column-scroll={id}
-          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain pr-0.5"
+          className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pr-0.5"
         >
           {range.topPad > 0 ? <li aria-hidden="true" style={{ height: range.topPad }} /> : null}
           {visible.map((card) => (

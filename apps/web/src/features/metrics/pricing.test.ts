@@ -34,11 +34,11 @@ test('offPeakUsd is defensive about junk and clamps negatives', () => {
 
 test('the peak note carries a short line and a full explanation', () => {
   const note = peakNote(0.04);
-  expect(note?.text).toBe('peak rates · off-peak ≈ $0.02');
+  expect(note?.text).toBe('off-peak $0.02');
   expect(note?.detail).toContain('budget guardrail');
   expect(note?.detail).toContain('exactly half');
 
-  expect(peakNote(0)?.text).toBe('peak rates · off-peak ≈ $0.00');
+  expect(peakNote(0)?.text).toBe('off-peak $0.00');
   expect(peakNote(Number.NaN)).toBeUndefined();
 });
 

@@ -42,15 +42,22 @@ export function CostMeter({ metrics, animate = false }: CostMeterProps) {
 
   return (
     <section className="flex flex-col gap-1" aria-label={summary} data-testid="cost-meter">
-      <dl className="flex flex-wrap items-start gap-x-4 gap-y-1.5">
-        <div className="min-w-[5.5rem]">
-          <dt className="text-[12px] uppercase tracking-[0.1em] text-slate-400">API · DeepSeek</dt>
-          <dd className="text-lg leading-6 tabular-nums text-sky-200" data-testid="cost-api">
+      {/* Three equal columns that never wrap: at 1280 the panel is 351 px wide and a wrapped
+          column pushes "You saved" and the counters below the fold. */}
+      <dl className="flex items-start gap-x-3">
+        <div className="min-w-0 flex-1">
+          <dt
+            className="truncate text-[12px] uppercase tracking-[0.08em] text-slate-400"
+            title="DeepSeek API spend"
+          >
+            API · DeepSeek
+          </dt>
+          <dd className="text-base leading-5 tabular-nums text-sky-200" data-testid="cost-api">
             {formatUsd(apiSpend)}
           </dd>
           {note !== undefined ? (
             <p
-              className="max-w-[11rem] text-[12px] leading-4 text-slate-400"
+              className="text-[12px] leading-4 text-slate-400"
               data-testid="cost-offpeak"
               title={note.detail}
             >
@@ -59,14 +66,16 @@ export function CostMeter({ metrics, animate = false }: CostMeterProps) {
           ) : null}
         </div>
 
-        <div className="min-w-[6.5rem]">
-          <dt className="flex flex-wrap items-center gap-1 text-[12px] uppercase tracking-[0.1em] text-slate-400">
-            Local · this laptop
-            <span className="rounded border border-emerald-400/40 bg-emerald-400/10 px-1 py-px text-[12px] uppercase tracking-[0.06em] text-emerald-200">
+        <div className="min-w-0 flex-1">
+          <dt className="flex items-center gap-1 text-[12px] uppercase tracking-[0.08em] text-slate-400">
+            <span className="truncate" title="This laptop's local models — free to run">
+              Local
+            </span>
+            <span className="shrink-0 rounded border border-emerald-400/40 bg-emerald-400/10 px-1 py-px text-[12px] uppercase tracking-[0.06em] text-emerald-200">
               local
             </span>
           </dt>
-          <dd className="text-lg leading-6 tabular-nums text-emerald-200" data-testid="cost-local">
+          <dd className="text-base leading-5 tabular-nums text-emerald-200" data-testid="cost-local">
             {formatUsd(breakdown.localSpendUsd)}
           </dd>
           <p className="text-[12px] leading-4 text-slate-400" data-testid="cost-local-calls">
@@ -75,8 +84,8 @@ export function CostMeter({ metrics, animate = false }: CostMeterProps) {
           </p>
         </div>
 
-        <div className="min-w-[5.5rem]">
-          <dt className="flex items-center gap-1 text-[12px] uppercase tracking-[0.1em] text-slate-400">
+        <div className="min-w-0 flex-1">
+          <dt className="flex items-center gap-1 text-[12px] uppercase tracking-[0.08em] text-slate-400">
             You saved
             <span
               className="inline-flex cursor-help items-center text-slate-400"
@@ -87,7 +96,7 @@ export function CostMeter({ metrics, animate = false }: CostMeterProps) {
             </span>
           </dt>
           <dd
-            className="text-lg leading-6 tabular-nums text-amber-200"
+            className="text-base leading-5 tabular-nums text-amber-200"
             data-testid="cost-saved"
             aria-describedby="cost-saved-note"
           >
@@ -99,12 +108,14 @@ export function CostMeter({ metrics, animate = false }: CostMeterProps) {
         </div>
       </dl>
 
-      <TokenSplitBar split={breakdown.split} api={api} local={local} />
-
-      <p className="text-[12px] leading-4 tabular-nums text-slate-400">
-        {formatTokens(breakdown.totalTokenCount)} tokens ·{' '}
-        <span className="text-emerald-300">{formatTokens(breakdown.localTokenCount)} local</span>
-      </p>
+      {/* The bar and its caption share one line: the strip is 12 rem tall and every row counts. */}
+      <div className="flex items-center gap-2">
+        <TokenSplitBar split={breakdown.split} api={api} local={local} />
+        <p className="min-w-0 flex-1 truncate text-[12px] leading-4 tabular-nums text-slate-400">
+          {formatTokens(breakdown.totalTokenCount)} tokens ·{' '}
+          <span className="text-emerald-300">{formatTokens(breakdown.localTokenCount)} local</span>
+        </p>
+      </div>
     </section>
   );
 }
@@ -130,7 +141,7 @@ function TokenSplitBar({ split, api, local }: TokenSplitBarProps) {
   const hasTokens = split.total > 0;
 
   return (
-    <div className="group relative mt-0.5 w-full max-w-[13rem]" data-testid="token-split">
+    <div className="group relative w-24 shrink-0" data-testid="token-split">
       <svg
         role="img"
         aria-label={hasTokens ? `Token split: ${exact}` : 'Token split: no tokens spent yet'}

@@ -43,7 +43,10 @@ export function peakNote(apiSpendUsd: number): PeakNote | undefined {
   return {
     peakUsd: peak,
     offPeakUsd: offPeak,
-    text: `peak rates · off-peak ≈ ${formatUsd(offPeak)}`,
+    // One short line: the label above already says "API · DeepSeek", and the tooltip carries the
+    // long explanation. At 1280 px the column is ~110 px wide, and a wrapped note would push the
+    // counters below the fold in the fixed-height strip.
+    text: `off-peak ${formatUsd(offPeak)}`,
     detail:
       'The meter bills DeepSeek at its peak tariff so the budget guardrail never under-counts. ' +
       `Off-peak is exactly half of peak, so this run would cost about ${formatUsd(offPeak)} in off-peak hours.`,

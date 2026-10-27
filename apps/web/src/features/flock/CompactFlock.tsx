@@ -1,6 +1,7 @@
 import type { TaskRun } from '@starling/core';
 import { LayoutGrid, Plus, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { cx } from './cx';
 import { formatLatency, isHub, modelLabel, relativeTime } from './format';
 import type { JoinInfo } from './handshake';
@@ -34,6 +35,7 @@ export function CompactFlock({ entries, tasks, join, now, reducedMotion, onSelec
   const { state, copy } = useCopy();
   const command = join?.command ?? '';
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -41,8 +43,73 @@ export function CompactFlock({ entries, tasks, join, now, reducedMotion, onSelec
       if (event.key === 'Escape') setDrawerOpen(false);
     };
     document.addEventListener('keydown', onKeyDown);
+    closeRef.current?.focus();
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [drawerOpen]);
+
+  /**
+   * The roost drawer is portalled to `document.body`: the rail's ancestors include a
+   * `backdrop-filter`, which makes `position: fixed` resolve against the rail instead of the
+   * viewport (first browser pass: a 240 px-wide drawer clipped inside the rail). A portal is the
+   * only reliable way to get a viewport sheet from inside it.
+   */
+  const renderDrawer = () => {
+    if (typeof document === 'undefined') return null;
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex items-end justify-start">
+        <button
+          type="button"
+          aria-label="Close all roosts"
+          tabIndex={-1}
+          onClick={() => setDrawerOpen(false)}
+          className="absolute inset-0 bg-slate-950/70"
+        />
+        <div
+          id="starling-flock-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="All roosts"
+          data-testid="flock-drawer"
+          className="relative m-2 max-h-[78vh] w-[min(56rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-slate-950/98 p-3 shadow-[0_32px_96px_-32px_rgba(0,0,0,0.9)]"
+        >
+          <header className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-sky-300/80">
+                the flock
+              </p>
+              <h3 className="text-sm font-semibold text-slate-50">
+                {entries.length} {entries.length === 1 ? 'roost' : 'roosts'} in this run
+              </h3>
+            </div>
+            <button
+              ref={closeRef}
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              aria-label="Close all roosts"
+              className="rounded-md border border-slate-700 p-1 text-slate-300 hover:border-slate-500 hover:text-slate-100"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </header>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {entries.map(({ node, leaving }) => (
+              <RoostCard
+                key={node.id}
+                node={node}
+                tasks={tasks}
+                now={now}
+                reducedMotion={reducedMotion}
+                leaving={leaving}
+                onSelectTask={onSelectTask}
+              />
+            ))}
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  };
 
   return (
     <section
@@ -161,48 +228,7 @@ export function CompactFlock({ entries, tasks, join, now, reducedMotion, onSelec
         </li>
       </ul>
 
-      {drawerOpen ? (
-        <div
-          id="starling-flock-drawer"
-          role="dialog"
-          aria-label="All roosts"
-          data-testid="flock-drawer"
-          className="fixed inset-x-2 bottom-14 z-50 max-h-[72vh] overflow-y-auto overscroll-contain rounded-2xl border border-white/15 bg-slate-950/98 p-3 shadow-[0_32px_96px_-32px_rgba(0,0,0,0.9)] backdrop-blur"
-        >
-          <header className="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-sky-300/80">
-                the flock
-              </p>
-              <h3 className="text-sm font-semibold text-slate-50">
-                {entries.length} {entries.length === 1 ? 'roost' : 'roosts'} in this run
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(false)}
-              aria-label="Close all roosts"
-              className="rounded-md border border-slate-700 p-1 text-slate-300 hover:border-slate-500 hover:text-slate-100"
-            >
-              <X aria-hidden="true" className="h-4 w-4" />
-            </button>
-          </header>
-
-          <div className="grid gap-2 sm:grid-cols-2">
-            {entries.map(({ node, leaving }) => (
-              <RoostCard
-                key={node.id}
-                node={node}
-                tasks={tasks}
-                now={now}
-                reducedMotion={reducedMotion}
-                leaving={leaving}
-                onSelectTask={onSelectTask}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
+      {drawerOpen ? renderDrawer() : null}
     </section>
   );
 }

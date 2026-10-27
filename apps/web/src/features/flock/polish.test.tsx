@@ -66,14 +66,15 @@ test('compact mode opens a drawer with the full roost cards', async () => {
     />,
   );
 
-  expect(all(view.container, '[data-testid="flock-drawer"]')).toHaveLength(0);
+  expect(all(document, '[data-testid="flock-drawer"]')).toHaveLength(0);
   const toggle = one(view.container, '[data-testid="compact-expand"]');
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(text(toggle)).toContain('All roosts');
 
   await view.click(toggle);
 
-  const drawer = one(view.container, '[data-testid="flock-drawer"]');
+  // The drawer is portalled to `document.body` so the rail's backdrop-filter cannot clip it.
+  const drawer = one(document, '[data-testid="flock-drawer"]');
   expect(drawer.getAttribute('role')).toBe('dialog');
   expect(drawer.getAttribute('aria-label')).toBe('All roosts');
   expect(toggle.getAttribute('aria-expanded')).toBe('true');
@@ -86,8 +87,8 @@ test('compact mode opens a drawer with the full roost cards', async () => {
   await view.click(search);
   expect(selected).toEqual(['search']);
 
-  await view.click(one(drawer, '[aria-label="Close all roosts"]'));
-  expect(all(view.container, '[data-testid="flock-drawer"]')).toHaveLength(0);
+  await view.click(one(drawer, 'button[aria-label="Close all roosts"][type="button"]'));
+  expect(all(document, '[data-testid="flock-drawer"]')).toHaveLength(0);
 });
 
 test('the drawer closes on Escape', async () => {
@@ -96,13 +97,13 @@ test('the drawer closes on Escape', async () => {
   );
 
   await view.click(one(view.container, '[data-testid="compact-expand"]'));
-  expect(all(view.container, '[data-testid="flock-drawer"]')).toHaveLength(1);
+  expect(all(document, '[data-testid="flock-drawer"]')).toHaveLength(1);
 
   const { act } = await import('react');
   await act(async () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
   });
-  expect(all(view.container, '[data-testid="flock-drawer"]')).toHaveLength(0);
+  expect(all(document, '[data-testid="flock-drawer"]')).toHaveLength(0);
 });
 
 test('the compact row still exists while the drawer is open', async () => {
@@ -144,4 +145,28 @@ test('a join card appears as soon as join info is present, whatever the node cou
   );
   expect(one(view.container, '[data-testid="join-card"]').getAttribute('data-join-code')).toBe(JOIN.code);
   expect(one(view.container, '[data-testid="join-code"]').textContent).toBe(JOIN.code);
+});
+
+test('the hardware line wraps between facts, never through "16 GB"', async () => {
+  const view = await render(<FlockPanel nodes={[hubNode()]} tasks={{}} now={NOW} reducedMotion />);
+
+  const hardware = one(view.container, '[data-testid="hardware"]');
+  // Same words, same order — splitting must not lose the separators.
+  expect(text(hardware)).toContain('darwin · arm64 · 12 cores · 32 GB');
+  const atoms = [...hardware.querySelectorAll('span.whitespace-nowrap')];
+  expect(atoms.map((atom) => atom.textContent)).toEqual(['darwin · arm64', '12 cores · 32 GB']);
+});
+
+test('the full panel does not re-title or re-frame the region the shell already frames', async () => {
+  const view = await render(
+    <FlockPanel nodes={[hubNode(), airNode()]} join={JOIN} tasks={{}} now={NOW} reducedMotion />,
+  );
+
+  // The shell's Panel says "Flock"; a second "Roosts in the sky" heading was a third title in the rail.
+  expect(text(view.container)).not.toContain('Roosts in the sky');
+  const panel = one(view.container, '[data-testid="flock-panel"]');
+  expect(panel.className).not.toContain('rounded-2xl');
+  expect(panel.className).not.toContain('border-white/10');
+  // The summary the panel does contribute is still there.
+  expect(text(one(view.container, '[data-testid="flock-summary"]'))).toContain('2 roosts');
 });

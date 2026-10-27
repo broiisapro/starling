@@ -61,7 +61,7 @@ test('the API figure carries an off-peak note with the peak-rate explanation', a
   const view = await mount(<MetricsPanel metrics={finalMetrics} history={samples} />);
   try {
     const note = view.container.querySelector<HTMLElement>('[data-testid="cost-offpeak"]');
-    expect(note?.textContent).toBe('peak rates · off-peak ≈ $0.02');
+    expect(note?.textContent).toBe('off-peak $0.02');
     expect(note?.getAttribute('title')).toContain('exactly half of peak');
     expect(note?.getAttribute('title')).toContain('budget guardrail');
   } finally {
@@ -163,7 +163,13 @@ test('every counter uses tabular numerals so digits never reflow', async () => {
       'cost-saved',
     ]) {
       const element = view.container.querySelector(`[data-testid="${id}"]`);
-      expect(element?.className).toContain('tabular-nums');
+      if (element === null) throw new Error(`no ${id}`);
+      // Two panels were consolidated into one file: the counter may be the element itself or a
+      // wrapping block whose digits live in a child span.
+      const digits = element.className.includes('tabular-nums')
+        ? element
+        : element.querySelector('.tabular-nums');
+      expect(digits).not.toBeNull();
     }
     const calls = view.container.querySelector('[data-testid="cost-local-calls"] span');
     expect(calls?.className).toContain('tabular-nums');

@@ -53,21 +53,23 @@ export function FlockPanel({
       data-compact="false"
       data-node-count={roosts.length}
       aria-label="The flock"
-      className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-slate-100 shadow-[0_24px_80px_-48px_rgba(14,165,233,0.35)] backdrop-blur-sm"
+      className="text-slate-100"
     >
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-[12px] font-semibold uppercase tracking-[0.22em] text-sky-300/80">flock</p>
-          <h2 className="mt-0.5 text-base font-semibold tracking-tight text-slate-50">Roosts in the sky</h2>
-          <p data-testid="flock-summary" className="mt-0.5 text-[12px] tabular-nums text-slate-300">
-            {roosts.length} {roosts.length === 1 ? 'roost' : 'roosts'} · {totals.active}/{totals.max} sessions
-            busy · {totals.free} free
-          </p>
-        </div>
+      {/*
+        No border, background or padding: the shell already frames this region in a `Panel` titled
+        "Flock", so the roost cards had a rounded card inside a rounded card and the rail lost ~40 px
+        of height to double chrome — enough to push the second roost off a 720p screen. The summary
+        line is what the panel actually contributes; its own title would be the third one on screen.
+      */}
+      <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p data-testid="flock-summary" className="min-w-0 text-[12px] tabular-nums text-slate-300">
+          {roosts.length} {roosts.length === 1 ? 'roost' : 'roosts'} · {totals.active}/{totals.max} sessions
+          busy · {totals.free} free
+        </p>
         {join ? (
           <a
             href={`#${anchorId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[12px] font-medium text-slate-100 transition-colors hover:border-sky-300/40 hover:bg-sky-400/10 hover:text-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-[12px] font-medium text-slate-100 transition-colors hover:border-sky-300/40 hover:bg-sky-400/10 hover:text-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
           >
             <Plus aria-hidden="true" className="h-3.5 w-3.5" />
             Add a laptop
@@ -76,12 +78,12 @@ export function FlockPanel({
       </header>
 
       {onlyHub && join ? (
-        <div className="mt-3">
+        <div className="mt-2">
           <EmptyFlock anchorId={anchorId} />
         </div>
       ) : null}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         {entries.map(({ node, leaving }) => (
           <RoostCard
             key={node.id}
@@ -96,7 +98,7 @@ export function FlockPanel({
         <JoinCard join={join} anchorId={anchorId} nodeCount={roosts.length} />
       </div>
 
-      <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2.5 text-[12px] text-slate-400">
+      <footer className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-2 text-[12px] text-slate-400">
         <span>Every roost runs its own opencode; audits and merges always land on the hub.</span>
         <span className="font-mono tabular-nums">
           {totals.free > 0 ? `${totals.free} free slots` : 'flock at capacity'}

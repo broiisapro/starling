@@ -2,7 +2,15 @@ import { describe, expect, test } from 'bun:test';
 import type { StarlingEvent } from '@starling/core';
 import { BASE_TS, makeNodeInfo } from '@starling/core/testing';
 import { deriveNodes, deriveTasks } from './derive-nodes';
-import { formatLatency, freeSessions, relativeTime, sessionTotals, sortRoosts } from './format';
+import {
+  formatHardware,
+  formatHardwareParts,
+  formatLatency,
+  freeSessions,
+  relativeTime,
+  sessionTotals,
+  sortRoosts,
+} from './format';
 import { parseEventLog } from './Playground';
 import { qrMatrix } from './QrCode';
 
@@ -29,6 +37,24 @@ describe('relativeTime', () => {
 
   test('a clock that runs backwards never renders a negative age', () => {
     expect(relativeTime(BASE_TS, BASE_TS - 5_000)).toBe('just now');
+  });
+});
+
+describe('hardware line', () => {
+  const node = makeNodeInfo({ platform: 'darwin', arch: 'arm64', cpuCores: 8, memGb: 16 });
+
+  test('splits into atoms a narrow card can wrap between', () => {
+    expect(formatHardwareParts(node)).toEqual(['darwin · arm64', '8 cores · 16 GB']);
+  });
+
+  test('the atoms join back into the one-line form other callers use', () => {
+    expect(formatHardware(node)).toBe('darwin · arm64 · 8 cores · 16 GB');
+    expect(formatHardwareParts(node).join(' · ')).toBe(formatHardware(node));
+  });
+
+  test('a fractional memory size stays inside its atom', () => {
+    // 32.5 GB once rendered as "32.5" / "GB" across a line break, which read as two facts.
+    expect(formatHardwareParts({ ...node, memGb: 32.5 })[1]).toBe('8 cores · 32.5 GB');
   });
 });
 
