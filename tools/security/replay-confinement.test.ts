@@ -18,12 +18,12 @@
  */
 
 import { afterAll, describe, expect, test } from 'bun:test';
-import { symlink } from 'node:fs/promises';
+import { mkdir, symlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { loadReplayFile, startReplay } from '../../apps/server/src/index.ts';
 import type { StarlingEvent } from '../../packages/core/src/index.ts';
 import { makeNodeInfo, makeRun } from '../../packages/core/src/testing/index.ts';
-import { FIXTURE_PATH, probeTempDir, removeDir, startProbeServer } from './support.ts';
+import { FIXTURE_PATH, type ProbeHarness, probeTempDir, removeDir, startProbeServer } from './support.ts';
 
 /** The repo root: the allow-list is resolved against it, not against whatever cwd the tests inherit. */
 const ROOT = join(import.meta.dir, '../..');
@@ -31,25 +31,40 @@ const ROOT = join(import.meta.dir, '../..');
 const outside = await probeTempDir('replay-outside');
 const recording = join(outside, 'valid-recording.jsonl');
 await Bun.write(recording, await Bun.file(FIXTURE_PATH).text());
-const link = join(outside, 'link-to-recording.jsonl');
-await symlink(recording, link);
+
+// A second root that *does* allow `fixtures/`, with a link inside it pointing out. Only a `realpath`
+// (not a lexical prefix check) refuses this one, so it is the probe that keeps Epic 41's check honest.
+const linkRoot = await probeTempDir('replay-link-root');
+await mkdir(join(linkRoot, 'fixtures'), { recursive: true });
+const insideLink = join(linkRoot, 'fixtures', 'looks-inside.jsonl');
+await symlink(recording, insideLink);
 
 // The same wiring `dev.ts` / the Wave 2 engine uses: load, validate, publish.
-const server = startProbeServer({
-  repoRoot: ROOT,
-  replay: async (path, speed) => {
-    const file = loadReplayFile(path);
-    return { runId: startReplay({ file, store: server.store, bus: server.bus, speed, loop: false }).runId };
-  },
-});
+function replayServer(repoRoot: string): ProbeHarness {
+  const handle = startProbeServer({
+    repoRoot,
+    replay: async (path, speed) => {
+      const file = loadReplayFile(path);
+      return {
+        runId: startReplay({ file, store: handle.store, bus: handle.bus, speed, loop: false }).runId,
+      };
+    },
+  });
+  return handle;
+}
+
+const server = replayServer(ROOT);
+const linkServer = replayServer(linkRoot);
 
 afterAll(async () => {
+  linkServer.stop();
   server.stop();
+  await removeDir(linkRoot);
   await removeDir(outside);
 });
 
-function replay(path: string): Promise<Response> {
-  return fetch(`${server.url}/api/replay`, {
+function replay(path: string, base = server.url): Promise<Response> {
+  return fetch(`${base}/api/replay`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ path, speed: 1000 }),
@@ -71,8 +86,9 @@ describe('replay confinement', () => {
   });
 
   test('refuses a symlink that points outside the run directory', async () => {
-    // The allow-list `realpath`s the target, so a link under `fixtures/` cannot smuggle in `/etc`.
-    const response = await replay(link);
+    // The link lives under an allowed `fixtures/` but resolves outside it: the allow-list must
+    // `realpath` the target, not just compare prefixes (Epic 41's `resolveReplayPath` does).
+    const response = await replay(insideLink, linkServer.url);
     expect(response.status).toBe(403);
   });
 
