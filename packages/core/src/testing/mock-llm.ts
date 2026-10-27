@@ -65,11 +65,7 @@ export class MockLLM implements LLM {
     };
   }
 
-  async completeJson<T>(
-    req: LLMRequest,
-    schema: ZodType<T>,
-    opts?: LLMCallOptions,
-  ): Promise<LLMResponse<T>> {
+  async completeJson<T>(req: LLMRequest, schema: ZodType<T>, opts?: LLMCallOptions): Promise<LLMResponse<T>> {
     const res = await this.complete(req, opts);
     let candidate: unknown = res.parsed;
     if (candidate === undefined) {

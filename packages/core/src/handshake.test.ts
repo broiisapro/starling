@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import type { Run } from './contracts';
+import { createEventBus } from './events';
 import type {
   AgentDrawerProps,
   BundleUrlFor,
@@ -13,11 +15,9 @@ import type {
   StartRunInput,
   WorkerHandback,
 } from './handshake';
-import type { Run } from './contracts';
 import { emptyMetrics } from './metrics';
-import { createEventBus } from './events';
+import { MockRegistry, makeNodeInfo } from './testing';
 import { MemoryStore } from './testing/memory-store';
-import { makeNodeInfo, MockRegistry } from './testing';
 
 /**
  * §8 moved into core at checkpoint C1. These are compile-time locks: each interface is instantiated
@@ -115,7 +115,12 @@ describe('the §8 handshake lives in core', () => {
       verdicts: [],
       onClose: () => undefined,
     };
-    const queue: MergeQueueProps = { plan: run.plan, tasks: run.tasks, merges: [], onSelectTask: () => undefined };
+    const queue: MergeQueueProps = {
+      plan: run.plan,
+      tasks: run.tasks,
+      merges: [],
+      onSelectTask: () => undefined,
+    };
     // C1 amendments: `live` (Epic 26) and `onSelectTask` (Epic 32) are optional, so old callers compile.
     const metrics: MetricsPanelProps = { metrics: run.metrics, history: [], live: true };
     const metricsOld: MetricsPanelProps = { metrics: run.metrics, history: [] };

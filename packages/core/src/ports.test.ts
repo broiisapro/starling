@@ -147,8 +147,20 @@ describe('mDNS ports', () => {
 describe('the port surface still composes', () => {
   test('an LLM can be passed where the engine expects one', async () => {
     const llm: LLM = {
-      complete: async () => ({ text: '', usage: { input: 0, output: 0, cached: 0 }, model: { provider: 'p', model: 'm' }, costUsd: 0, local: true }),
-      completeJson: async () => ({ text: '', usage: { input: 0, output: 0, cached: 0 }, model: { provider: 'p', model: 'm' }, costUsd: 0, local: true }),
+      complete: async () => ({
+        text: '',
+        usage: { input: 0, output: 0, cached: 0 },
+        model: { provider: 'p', model: 'm' },
+        costUsd: 0,
+        local: true,
+      }),
+      completeJson: async () => ({
+        text: '',
+        usage: { input: 0, output: 0, cached: 0 },
+        model: { provider: 'p', model: 'm' },
+        costUsd: 0,
+        local: true,
+      }),
     };
     expect((await llm.complete({ role: 'planner', system: 's', messages: [] })).text).toBe('');
   });
