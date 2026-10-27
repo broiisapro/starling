@@ -1,12 +1,15 @@
 import type { AgentEvent, AuditVerdict, MergeResult, Plan, StarlingEvent, TaskRun } from '@starling/core';
-import { StarlingEventSchema } from '@starling/core';
+import { isStarlingEvent } from '../../lib/events';
 
 /**
  * Turn a recorded run (`*.jsonl`, one `StarlingEvent` per line) back into props for the playgrounds.
  *
- * Wave 1 has no store or replay client in the web app yet, so the playground reads the committed
- * fixture directly. At C1 this module disappears and the shell feeds the same props from the store.
- * Lines that fail the production schema are skipped rather than crashing the page.
+ * Dev-only: the playgrounds read the committed fixture directly. The shell's store is the real
+ * source for the dashboard, so nothing in the wired app imports this module.
+ * Lines that are not plausible `StarlingEvent`s are skipped rather than crashing the page.
+ *
+ * The envelope guard is local (`src/lib/events.ts`) on purpose: a *runtime* import from
+ * `@starling/core` drags its config loader (and `node:fs`) into the browser bundle.
  */
 export interface ReplaySlice {
   runId?: string;
@@ -71,8 +74,7 @@ export function parseRunJsonl(text: string): ReplaySlice {
     } catch {
       continue;
     }
-    const parsed = StarlingEventSchema.safeParse(raw);
-    if (parsed.success) applyEvent(slice, parsed.data);
+    if (isStarlingEvent(raw)) applyEvent(slice, raw);
   }
   return slice;
 }

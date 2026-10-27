@@ -1,17 +1,15 @@
-import type { StarlingEvent } from '@starling/core';
-import { StarlingEventSchema } from '@starling/core';
 import { useMemo, useState } from 'react';
 
 // The recorded launch-day run, inlined by Vite (`?raw`). Same file the shell's demo mode replays.
 import raw from '../../../../../fixtures/runs/sky-todo-launch-day.jsonl?raw';
 
+import { parseEventLines } from '../../lib/events';
 import { MergeQueue } from './MergeQueue';
 import { replayQueue } from './replay';
 
-const EVENTS: StarlingEvent[] = raw
-  .trim()
-  .split('\n')
-  .map((line) => StarlingEventSchema.parse(JSON.parse(line)));
+// Local envelope guard, not core's zod schema: a runtime import from `@starling/core` would pull
+// its config loader (and `node:fs`) into the browser bundle. See `src/lib/events.ts`.
+const EVENTS = parseEventLines(raw).events;
 
 /**
  * Fixture-driven playground for the queue board. Not wired into the dashboard shell (Epic 23 owns
