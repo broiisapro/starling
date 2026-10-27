@@ -120,7 +120,7 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
 
   const info = async (): Promise<NodeInfo> => {
     const activeSessions = activeCount;
-    return {
+    const base: NodeInfo = {
       id,
       name: options.name,
       kind: 'local',
@@ -129,9 +129,19 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
       cpuCores: availableParallelism?.() ?? cpus().length,
       memGb: Math.round(totalmem() / 1024 ** 3),
       maxSessions: options.maxSessions,
+      activeSessions,
       localModels: [],
+      status: activeSessions > 0 ? 'busy' : 'online',
+      lastSeen: clock.now(),
       latencyMs: 0,
+    };
+    // Identity, capacity and liveness always win over an override: the registry keys on `id` and
+    // `node.id` must match, and a stale `activeSessions` would make the scheduler oversubscribe.
+    return {
+      ...base,
       ...options.infoProvider?.(),
+      id,
+      kind: 'local',
       activeSessions,
       status: activeSessions > 0 ? 'busy' : 'online',
       lastSeen: clock.now(),

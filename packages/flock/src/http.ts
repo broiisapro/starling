@@ -52,7 +52,8 @@ function networkError(err: unknown, what: string): StarlingError {
 export async function request(url: string, init: RequestInit, opts: HttpOptions = {}): Promise<Response> {
   const fetchFn = opts.fetch ?? fetch;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS;
-  const headers = { ...(init.headers as Record<string, string> | undefined), ...tokenHeaders(opts.token) };
+  const headers = new Headers(init.headers);
+  if (opts.token !== undefined) headers.set(FLOCK_TOKEN_HEADER, opts.token);
   let res: Response;
   try {
     res = await fetchFn(url, {
