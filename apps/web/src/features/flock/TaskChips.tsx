@@ -12,7 +12,7 @@ export interface TaskChipsProps {
 export function TaskChips({ tasks, onSelectTask, compact = false }: TaskChipsProps) {
   if (tasks.length === 0) {
     return (
-      <span data-testid="task-empty" className="text-[10px] text-slate-500">
+      <span data-testid="task-empty" className="text-[12px] text-slate-400">
         idle
       </span>
     );
@@ -42,10 +42,10 @@ export function TaskChips({ tasks, onSelectTask, compact = false }: TaskChipsPro
               onClick={() => onSelectTask?.(task.taskKey)}
               className={cx(
                 'inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-1.5 py-0.5',
-                'font-mono text-[10px] text-slate-200 transition-colors duration-200',
+                'font-mono text-[12px] text-slate-100 transition-colors duration-200',
                 'hover:border-white/25 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2',
                 'focus-visible:outline-sky-400',
-                compact ? 'text-[9px]' : undefined,
+                compact ? 'text-[12px]' : undefined,
                 interactive ? undefined : 'cursor-default',
               )}
             >

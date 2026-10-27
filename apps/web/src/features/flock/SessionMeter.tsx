@@ -46,19 +46,19 @@ export function SessionMeter({ active, max, status, compact = false }: SessionMe
             />
           );
         })}
-        {overflow > 0 ? <span className="text-[10px] text-slate-500">+{overflow}</span> : null}
+        {overflow > 0 ? <span className="text-[12px] text-slate-400">+{overflow}</span> : null}
       </div>
       <span
         data-testid="session-count"
         className={cx(
           'font-mono tabular-nums',
-          compact ? 'text-[10px] text-slate-400' : 'text-[11px] text-slate-300',
+          compact ? 'text-[12px] text-slate-300' : 'text-[12px] text-slate-200',
         )}
       >
         {active}/{max}
       </span>
       {!compact ? (
-        <span className="text-[10px] text-slate-500">{filled >= max ? 'full' : 'free'}</span>
+        <span className="text-[12px] text-slate-400">{filled >= max ? 'full' : 'free'}</span>
       ) : null}
     </div>
   );

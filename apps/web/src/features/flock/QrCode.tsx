@@ -53,7 +53,7 @@ export function QrCode({ value, size = 112, className, label = 'Join QR code' }:
         data-qr-error={matrix.message}
         className={cx(
           'grid place-items-center rounded-lg border border-dashed border-white/15 bg-white/5 p-3',
-          'text-center text-[10px] leading-tight text-slate-400',
+          'text-center text-[12px] leading-tight text-slate-300',
           className,
         )}
         style={{ width: size, height: size }}

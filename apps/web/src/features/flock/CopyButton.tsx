@@ -26,7 +26,7 @@ export function CopyButton({ value, label, ariaLabel, testId, className }: CopyB
         aria-label={ariaLabel}
         onClick={() => void copy(value)}
         className={cx(
-          'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium',
+          'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium',
           'transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2',
           'focus-visible:outline-sky-400',
           state === 'copied'
