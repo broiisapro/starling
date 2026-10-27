@@ -87,7 +87,7 @@ with `--define process.env.STARLING_VERSION='"<version>"'`.
    ```sh
    gh release create v<version> \
      --title "Starling v<version>" \
-     --notes-file CHANGELOG.md \
+     --notes "Starling v<version>" \
      tools/release/dist/starling-*.tar.gz \
      tools/release/dist/SHA256SUMS \
      tools/release/dist/manifest.json \
