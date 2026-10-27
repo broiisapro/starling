@@ -1,6 +1,8 @@
 ## Epic 56 Handback — Repo map + worker prompts on real-world repos
 
-**Status:** Complete. Branch `epic/56-repomap-prompts` @ 8c0ed4c.
+**Status:** Complete. Branch `epic/56-repomap-prompts` @ 8511771.
+
+Closes #80.
 
 **Delivered:**
 
