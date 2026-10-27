@@ -1,13 +1,19 @@
-import { cpus, hostname, totalmem } from 'node:os';
-import { makeNodeInfo } from '@starling/core/testing';
+import { hostname } from 'node:os';
+import { createBonjourAdvertiser } from '@starling/perch';
 import type { CliContext } from '../context';
-import { failWith, readNumber, readString, requirePositiveInteger } from './options';
+import { composePerch, perchComposeInput, perchComposeOptions } from '../real/perch-compose';
+import { readNumber, readString, requirePositiveInteger } from './options';
+
+/** How often the status line refreshes while the daemon idles. */
+const STATUS_INTERVAL_MS = 2_000;
 
 /**
- * `starling perch` — the flags and the join UX.
+ * `starling perch` — lend this machine to the flock.
  *
- * Wave 1 composes the mock FlockHub: the node really is registered in the in-memory registry and
- * shows up in `starling flock`, but no HTTP server or mDNS advert is started (that is Epic 19).
+ * With no `--hub` the command teaches the join handshake and exits, which is what someone typing
+ * `starling perch` for the first time needs. With `--hub` (and `--code`/`STARLING_HUB_URL`) it is a
+ * real daemon: `composePerch` builds the workspace + opencode runner + `LocalNode`, `startPerch` serves
+ * the Perch API and heartbeats, and this command stays in the foreground until Ctrl-C.
  */
 export async function perchCommand(options: Record<string, unknown>, context: CliContext): Promise<number> {
   const config = context.loadStarlingConfig();
@@ -18,7 +24,7 @@ export async function perchCommand(options: Record<string, unknown>, context: Cl
     readNumber(options, 'maxSessions', config.perch.maxSessions),
     '--max-sessions',
   );
-  const name = readString(options, 'name') ?? (config.perch.name === 'auto' ? hostname() : config.perch.name);
+  const name = readString(options, 'name');
 
   if (hub === undefined) {
     context.write(palette.bold('Perch — lend this machine to the flock'));
@@ -27,47 +33,86 @@ export async function perchCommand(options: Record<string, unknown>, context: Cl
     context.write(`  ${palette.cyan('starling perch --hub http://192.168.1.20:7777 --code ABCD-EFGH')}`);
     context.write();
     context.write(
-      palette.dim('On the hub, `starling flock` prints both. mDNS can find the hub automatically in wave 2.'),
+      palette.dim(
+        'On the hub, `starling flock` prints both and `starling dash` shows them in the Flock panel.',
+      ),
     );
     return 0;
   }
 
-  const composition = context.composition();
-  const flock = composition.flock;
-  if (flock === undefined) failWith('INVALID_ARGUMENT', 'Flocking is disabled in this config');
-
-  const code = readString(options, 'code') ?? flock.joinInfo().code;
-  const info = makeNodeInfo({
-    id: `perch-${port}`,
-    name,
-    kind: 'remote',
-    url: `http://0.0.0.0:${port}`,
-    platform: process.platform,
-    arch: process.arch,
-    cpuCores: cpus().length,
-    memGb: Math.round(totalmem() / 1024 ** 3),
+  const input = perchComposeInput(config, {
+    hub,
+    port,
     maxSessions,
-    activeSessions: 0,
-    localModels: config.perch.lendModels ? ['qwen3.6:35b-a3b'] : [],
-    status: 'online',
-    lastSeen: context.now(),
-    latencyMs: 0,
+    ...(readString(options, 'code') === undefined ? {} : { code: readString(options, 'code') }),
+    ...(name === undefined ? {} : { name }),
   });
 
-  const { nodeId } = await flock.register({ url: info.url ?? `http://0.0.0.0:${port}`, info });
+  const mdns = config.flock.mdns
+    ? createBonjourAdvertiser({
+        onError: (err) => {
+          // A locked-down wifi blocks multicast; the manual --hub/--code path must still work.
+          context.writeErr(
+            palette.dim(`mDNS: ${err instanceof Error ? err.message : String(err)} (staying on --hub)`),
+          );
+        },
+      })
+    : false;
 
-  context.write(`${palette.green('✔')} Joined the flock as ${palette.bold(name)}`);
-  context.write(`  ${palette.dim('node')}      ${nodeId}`);
-  context.write(`  ${palette.dim('hub')}       ${palette.cyan(hub)}`);
-  context.write(
-    `  ${palette.dim('perch')}     ${palette.cyan(`http://0.0.0.0:${port}`)} ${palette.dim('(API lands in wave 2)')}`,
-  );
-  context.write(`  ${palette.dim('sessions')}  ${maxSessions} slots · 0 active`);
-  context.write(
-    `  ${palette.dim('models')}    ${info.localModels.length === 0 ? 'none lent' : info.localModels.join(', ')}`,
-  );
-  context.write(`  ${palette.dim('code')}      ${code}`);
+  const displayName = input.name ?? hostname();
+  context.write(palette.dim(`starting a perch as ${palette.bold(displayName)}…`));
+
+  const perch = await composePerch({
+    ...perchComposeOptions(input),
+    mdns,
+    ...(context.deps.fetchFn === undefined ? {} : { fetch: context.deps.fetchFn }),
+  });
+
+  let stopping = false;
+  const shutdown = async (reason: string): Promise<void> => {
+    if (stopping) return;
+    stopping = true;
+    if (timer !== undefined) clearInterval(timer);
+    context.write();
+    context.write(palette.dim(`${reason} — flying home…`));
+    await perch.stop();
+  };
+
+  context.write(`${palette.green('✔')} ${perch.statusLine()}`);
+  context.write(`  ${palette.dim('node')}     ${perch.node.id}`);
+  context.write(`  ${palette.dim('perch')}    ${palette.cyan(perch.handle.url)}`);
+  context.write(`  ${palette.dim('state')}    ${palette.dim(perch.root)}`);
+  context.write(`  ${palette.dim('hub')}      ${palette.cyan(hub)}`);
+  context.write(`  ${palette.dim('join code')} ${input.code ?? palette.dim('(from the hub)')}`);
   context.write();
-  context.write(palette.dim('The daemon does not stay alive yet — this is the join handshake only.'));
-  return 0;
+  context.write(palette.dim('The flock can now schedule tasks here. Ctrl-C to leave.'));
+
+  let lastLine = perch.statusLine();
+  const timer = setInterval(() => {
+    const line = perch.statusLine();
+    if (line === lastLine) return;
+    lastLine = line;
+    context.write(palette.dim(`  ${line}`));
+  }, STATUS_INTERVAL_MS);
+  timer.unref?.();
+
+  return await new Promise<number>((resolve) => {
+    const onInterrupt = (): void => {
+      void shutdown('SIGINT')
+        .then(() => {
+          context.write(palette.dim('Perch stopped. The flock will notice within a heartbeat.'));
+          resolve(0);
+        })
+        .catch((err: unknown) => {
+          context.writeErr(context.formatError(err));
+          resolve(1);
+        })
+        .finally(() => {
+          process.off('SIGINT', onInterrupt);
+          process.off('SIGTERM', onInterrupt);
+        });
+    };
+    process.once('SIGINT', onInterrupt);
+    process.once('SIGTERM', onInterrupt);
+  });
 }
