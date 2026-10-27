@@ -1,0 +1,17 @@
+{
+  "key": "perf-memoized-filter",
+  "title": "Keep the filter snappy on 5000 tasks",
+  "goal": "Filtering a large list lags the input. Avoid re-filtering when the query and the list are unchanged.",
+  "definitionOfDone": [
+    "the filter result is cached by query, tag and list identity",
+    "a test shows the second identical call does not re-scan the list",
+    "the public filter signature does not change"
+  ],
+  "diff": "diff --git a/src/ui/filters.ts b/src/ui/filters.ts\nindex 555eeee..666ffff 100644\n--- a/src/ui/filters.ts\n+++ b/src/ui/filters.ts\n@@ -1,8 +1,26 @@\n import type { Todo } from '../lib/todos';\n \n+type Cache = { query: string; tag: string | null; list: Todo[]; result: Todo[] };\n+let cache: Cache | null = null;\n+\n export function filterTodos(todos: Todo[], query: string, tag: string | null = null): Todo[] {\n+  if (cache && cache.query === query && cache.tag === tag && cache.list === todos) {\n+    return cache.result;\n+  }\n+  const result = scan(todos, query, tag);\n+  cache = { query, tag, list: todos, result };\n+  return result;\n+}\n+\n+function scan(todos: Todo[], query: string, tag: string | null): Todo[] {\n   const q = query.trim().toLowerCase();\n   return todos.filter((t) => {\n     if (tag && !t.tags?.includes(tag)) return false;\n     return q === '' || t.title.toLowerCase().includes(q);\n   });\n }\ndiff --git a/src/ui/filters.test.ts b/src/ui/filters.test.ts\nindex 777aaaa..888bbbb 100644\n--- a/src/ui/filters.test.ts\n+++ b/src/ui/filters.test.ts\n@@ -20,3 +20,14 @@ describe('filters', () => {\n+  test('a repeated call reuses the cached result', () => {\n+    let scans = 0;\n+    const list = Array.from({ length: 5000 }, (_, i) => {\n+      scans += 1;\n+      return { id: i, title: 'task ' + i };\n+    });\n+    const first = filterTodos(list, 'task 1');\n+    const second = filterTodos(list, 'task 1');\n+    expect(second).toBe(first);\n+    expect(scans).toBe(5000);\n+  });\n",
+  "testOutput": "$ bun test src/ui/filters.test.ts\n✓ filters > matches a tag\n✓ filters > ignores case\n✓ filters > a repeated call reuses the cached result\n\n 3 pass\n 0 fail\nRan 3 tests across 1 file. [9.00ms]\n\n$ bun test\n 26 pass\n 0 fail",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "A small performance change whose DoD includes a caching assertion the diff really does satisfy."
+}

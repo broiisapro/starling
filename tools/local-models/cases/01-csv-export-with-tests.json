@@ -1,0 +1,18 @@
+{
+  "key": "csv-export-with-tests",
+  "title": "CSV export for the task list",
+  "goal": "Add an Export CSV action so a user can download the current task list as a spreadsheet.",
+  "definitionOfDone": [
+    "a toolbar action labelled 'Export CSV' downloads the current list",
+    "a title containing a comma or a double quote is escaped per RFC 4180",
+    "a unit test covers a title containing a comma and a double quote",
+    "no new runtime dependency is added"
+  ],
+  "diff": "diff --git a/src/features/csv-export/index.ts b/src/features/csv-export/index.ts\nnew file mode 100644\nindex 0000000..a1b2c3d\n--- /dev/null\n+++ b/src/features/csv-export/index.ts\n@@ -0,0 +1,31 @@\n+import type { Todo } from '../../lib/todos';\n+\n+/** RFC 4180: quote fields containing a comma, a quote or a newline, doubling inner quotes. */\n+export function csvField(value: string): string {\n+  const needsQuotes = value.includes(',') || value.includes('\"') || value.includes('\\n');\n+  return needsQuotes ? '\"' + value.replace(/\"/g, '\"\"') + '\"' : value;\n+}\n+\n+export function toCsv(todos: Todo[]): string {\n+  const header = 'id,title,done';\n+  const rows = todos.map((t) => [t.id, csvField(t.title), String(t.done)].join(','));\n+  return [header, ...rows].join('\\n');\n+}\n+\n+export function downloadCsv(todos: Todo[]): void {\n+  const blob = new Blob([toCsv(todos)], { type: 'text/csv;charset=utf-8' });\n+  const url = URL.createObjectURL(blob);\n+  const link = document.createElement('a');\n+  link.href = url;\n+  link.download = 'sky-todo.csv';\n+  link.click();\n+  URL.revokeObjectURL(url);\n+}\ndiff --git a/src/features/csv-export/index.test.ts b/src/features/csv-export/index.test.ts\nnew file mode 100644\nindex 0000000..d4e5f6a\n--- /dev/null\n+++ b/src/features/csv-export/index.test.ts\n@@ -0,0 +1,20 @@\n+import { describe, expect, test } from 'bun:test';\n+import { csvField, toCsv } from './index';\n+\n+describe('csv export', () => {\n+  test('escapes a comma and a double quote', () => {\n+    expect(csvField('buy milk, then say \"hi\"')).toBe('\"buy milk, then say \"\"hi\"\"\"');\n+  });\n+\n+  test('writes a header row and one row per todo', () => {\n+    const csv = toCsv([{ id: 1, title: 'a, b', done: false } as never]);\n+    expect(csv.split('\\n')).toHaveLength(2);\n+    expect(csv.split('\\n')[0]).toBe('id,title,done');\n+  });\n+\n+  test('leaves a plain title unquoted', () => {\n+    expect(csvField('buy milk')).toBe('buy milk');\n+  });\n+});\ndiff --git a/src/main.ts b/src/main.ts\nindex 1111111..2222222 100644\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -12,6 +12,7 @@ import { registerFeature } from './features/registry';\n import { itemCount } from './features/item-count';\n+import { downloadCsv } from './features/csv-export';\n \n registerFeature(itemCount);\n+registerToolbarAction({ label: 'Export CSV', run: () => downloadCsv(store.list()) });\n \n mount(document.querySelector('#app') as HTMLElement);",
+  "testOutput": "$ bun test src/features/csv-export\nbun test v1.4.4\n\nsrc/features/csv-export/index.test.ts:\n✓ csv export > escapes a comma and a double quote\n✓ csv export > writes a header row and one row per todo\n✓ csv export > leaves a plain title unquoted\n\n 3 pass\n 0 fail\n 9 expect() calls\nRan 3 tests across 1 file. [11.00ms]\n\n$ bun test\n 18 pass\n 0 fail",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "The reference good change: a real feature, tests for the exact DoD wording, no dependency."
+}

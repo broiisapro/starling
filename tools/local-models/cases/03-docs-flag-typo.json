@@ -1,0 +1,17 @@
+{
+  "key": "docs-flag-typo",
+  "title": "Fix the --max-parallel flag spelling in the README",
+  "goal": "The README tells users to pass --max_parallel, which the CLI rejects. Fix the docs.",
+  "definitionOfDone": [
+    "the README spells the flag --max-parallel, with two hyphens and one underscore",
+    "the README states the default value, 8",
+    "no source file is changed"
+  ],
+  "diff": "diff --git a/README.md b/README.md\nindex 1234567..89abcde 100644\n--- a/README.md\n+++ b/README.md\n@@ -21,9 +21,9 @@ bun run starling run \"add CSV export\"\n Flags you will use most:\n \n-| flag           | meaning                          |\n-| -------------- | -------------------------------- |\n-| --max_parallel | how many tasks run at once       |\n+| flag           | meaning                                    |\n+| -------------- | ------------------------------------------ |\n+| --max-parallel | how many tasks run at once (default: 8)    |\n \n See `docs/cli.md` for the rest.",
+  "testOutput": "$ bun test\n 18 pass\n 0 fail\n\n(docs-only change: no new tests were added and none were needed)",
+  "expect": {
+    "pass": true,
+    "mustMention": []
+  },
+  "why": "A trivially good change. If a model fails this, it is over-strict and would block safe work."
+}

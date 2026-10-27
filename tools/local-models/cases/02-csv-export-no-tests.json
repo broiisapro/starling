@@ -1,0 +1,17 @@
+{
+  "key": "csv-export-no-tests",
+  "title": "CSV export, shipped without a test",
+  "goal": "Add an Export CSV action so a user can download the current task list as a spreadsheet.",
+  "definitionOfDone": [
+    "a toolbar action labelled 'Export CSV' downloads the current list",
+    "a title containing a comma or a double quote is escaped per RFC 4180",
+    "a unit test covers a title containing a comma and a double quote"
+  ],
+  "diff": "diff --git a/src/ui/csv.ts b/src/ui/csv.ts\nnew file mode 100644\nindex 0000000..b7c8d9e\n--- /dev/null\n+++ b/src/ui/csv.ts\n@@ -0,0 +1,22 @@\n+import type { Todo } from '../lib/todos';\n+\n+export function csvField(value: string): string {\n+  const needsQuotes = value.includes(',') || value.includes('\"') || value.includes('\\n');\n+  return needsQuotes ? '\"' + value.replace(/\"/g, '\"\"') + '\"' : value;\n+}\n+\n+export function toCsv(todos: Todo[]): string {\n+  const header = 'id,title,done';\n+  const rows = todos.map((t) => [t.id, csvField(t.title), String(t.done)].join(','));\n+  return [header, ...rows].join('\\n');\n+}\n+\n+export function downloadCsv(todos: Todo[]): void {\n+  const blob = new Blob([toCsv(todos)], { type: 'text/csv;charset=utf-8' });\n+  const url = URL.createObjectURL(blob);\n+  const link = document.createElement('a');\n+  link.href = url;\n+  link.download = 'sky-todo.csv';\n+  link.click();\n+}\ndiff --git a/src/main.ts b/src/main.ts\nindex 1111111..3333333 100644\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -12,6 +12,7 @@ import { registerFeature } from './features/registry';\n import { itemCount } from './features/item-count';\n+import { downloadCsv } from './ui/csv';\n \n registerFeature(itemCount);\n+registerToolbarAction({ label: 'Export CSV', run: () => downloadCsv(store.list()) });",
+  "testOutput": "$ bun test\nbun test v1.4.4\n\nsrc/ui/filters.test.ts:\n✓ filters > matches a tag\n✓ filters > ignores case\nsrc/ui/render.test.ts:\n✓ render > renders an item\n✓ render > escapes the title\nsrc/features/item-count/item-count.test.ts:\n✓ item count > counts the visible items\nsrc/features/registry.test.ts:\n✓ registry > registers a feature once\nsrc/features/discovery.test.ts:\n✓ discovery > finds every feature folder\n\n 18 pass\n 0 fail\n 44 expect() calls\nRan 18 tests across 5 files. [96.00ms]",
+  "expect": {
+    "pass": false,
+    "mustMention": ["test"]
+  },
+  "why": "The classic audit miss: real code, green suite, but the DoD explicitly asks for a test and none was added."
+}

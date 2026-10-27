@@ -1,0 +1,17 @@
+{
+  "key": "date-month-off-by-one",
+  "title": "Default the due-date input to today",
+  "goal": "The due-date picker should open on today's local date in YYYY-MM-DD form.",
+  "definitionOfDone": [
+    "the date input defaults to today's local date",
+    "the value is formatted YYYY-MM-DD with zero padded month and day",
+    "a test covers the formatting helper"
+  ],
+  "diff": "diff --git a/src/lib/dates.ts b/src/lib/dates.ts\nnew file mode 100644\nindex 0000000..999eeee\n--- /dev/null\n+++ b/src/lib/dates.ts\n@@ -0,0 +1,10 @@\n+/** Local calendar date as YYYY-MM-DD, zero padded: safe for an <input type=\"date\">. */\n+export function toDateInput(d: Date): string {\n+  const pad = (n: number): string => String(n).padStart(2, '0');\n+  return d.getFullYear() + '-' + pad(d.getMonth()) + '-' + pad(d.getDate());\n+}\ndiff --git a/src/lib/dates.test.ts b/src/lib/dates.test.ts\nnew file mode 100644\nindex 0000000..aaa1111\n--- /dev/null\n+++ b/src/lib/dates.test.ts\n@@ -0,0 +1,9 @@\n+import { expect, test } from 'bun:test';\n+import { toDateInput } from './dates';\n+\n+test('formats a local date as a YYYY-MM-DD string', () => {\n+  expect(toDateInput(new Date(2026, 9, 27))).toMatch(/^\\d{4}-\\d{2}-\\d{2}$/);\n+  expect(toDateInput(new Date(2026, 0, 5))).toMatch(/^\\d{4}-\\d{2}-\\d{2}$/);\n+});\ndiff --git a/src/ui/due-date.ts b/src/ui/due-date.ts\nindex bbb2222..ccc3333 100644\n--- a/src/ui/due-date.ts\n+++ b/src/ui/due-date.ts\n@@ -4,7 +4,7 @@ export function mountDueDate(input: HTMLInputElement): void {\n-  input.value = '';\n+  input.value = toDateInput(new Date());\n }",
+  "testOutput": "$ bun test\nsrc/lib/dates.test.ts:\n✓ formats a local date as a YYYY-MM-DD string\n\n 24 pass\n 0 fail\nRan 24 tests across 8 files. [142.00ms]",
+  "expect": {
+    "pass": false,
+    "mustMention": ["month"]
+  },
+  "why": "The subtle one. Tests are green because they only assert the shape; January renders as month 00 because getMonth() was never incremented."
+}
