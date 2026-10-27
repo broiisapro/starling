@@ -96,8 +96,10 @@
       "name": "@starling/llm",
       "version": "0.0.0",
       "dependencies": {
+        "@opencode-ai/sdk": "1.19.4",
         "@starling/core": "workspace:*",
         "openai": "7.45.0",
+        "zod": "4.6.7",
       },
     },
     "packages/merger": {
