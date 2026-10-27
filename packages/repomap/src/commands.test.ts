@@ -220,7 +220,7 @@ describe('workspace and nested-package commands', () => {
       'packages/a/package.json': JSON.stringify({ scripts: { test: 'jest' } }),
       'packages/a/src/a.js': 'module.exports = 1\n',
     });
-    expect(commands.testCommand).toBe('bun run --filter \'*\' test');
+    expect(commands.testCommand).toBe("bun run --filter '*' test");
   });
 
   test('an app tree with no workspaces declaration uses its biggest app', async () => {

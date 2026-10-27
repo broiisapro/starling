@@ -10,7 +10,7 @@ export const PACKAGE = '@starling/repomap' as const;
 
 export type { DetectedCommands } from './commands';
 export { detectCommands, jsFileShare } from './commands';
-export type { ImportGraph } from './imports';
+export type { ImportGraph, RelatedFilesOptions } from './imports';
 export {
   attachImportGraph,
   buildImportGraph,
@@ -18,7 +18,6 @@ export {
   relatedFiles,
   resolveImportPath,
 } from './imports';
-export type { RelatedFilesOptions } from './imports';
 export { isBinaryPath, isLockfile, isSkippedPath, langForPath, SYMBOL_LANGUAGES } from './languages';
 export type { RepoMapperOptions } from './mapper';
 export { createRepoMapper, samplePaths } from './mapper';

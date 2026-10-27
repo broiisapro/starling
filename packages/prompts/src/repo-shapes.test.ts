@@ -53,7 +53,13 @@ function shapeTask(
 }
 
 function planFor(task: TaskSpec): Plan {
-  const sibling = shapeTask('sibling', 'A parallel lane', 'Work that runs at the same time.', ['docs/**'], []);
+  const sibling = shapeTask(
+    'sibling',
+    'A parallel lane',
+    'Work that runs at the same time.',
+    ['docs/**'],
+    [],
+  );
   return {
     id: '01jd2k7m3p4q5r6s7t8v9w0z1',
     goalId: '01jd2k7m3p4q5r6s7t8v9w0z2',
@@ -120,7 +126,7 @@ const SHAPES: Shape[] = [
     goal: 'Add a tooltip component to the shared UI package and use it in the docs site.',
     files: {
       'package.json': JSON.stringify({ private: true, scripts: { build: 'tsup' } }),
-      'pnpm-workspace.yaml': "packages:\n  - packages/*\n",
+      'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
       'pnpm-lock.yaml': 'lockfileVersion: 9\n',
       'packages/ui/package.json': JSON.stringify({ name: '@acme/ui', scripts: { test: 'vitest' } }),
       'packages/ui/src/index.ts': 'export { Button } from "./button"\n',
@@ -155,7 +161,8 @@ const SHAPES: Shape[] = [
       'src/acme/core.py': 'def run(message: str) -> str:\n    return message.strip()\n',
       'src/acme/cli.py':
         'import argparse\n\nfrom .core import run\n\n\ndef main(argv: list[str] | None = None) -> int:\n    parser = argparse.ArgumentParser()\n    parser.add_argument("message")\n    args = parser.parse_args(argv)\n    print(run(args.message))\n    return 0\n\n\nclass Command:\n    pass\n',
-      'tests/test_core.py': 'from acme.core import run\n\n\ndef test_run_strips():\n    assert run(" hi ") == "hi"\n',
+      'tests/test_core.py':
+        'from acme.core import run\n\n\ndef test_run_strips():\n    assert run(" hi ") == "hi"\n',
       'tests/test_cli.py': 'from acme.cli import main\n\n\ndef test_main():\n    assert main(["hi"]) == 0\n',
     },
     task: shapeTask(
@@ -204,7 +211,8 @@ const SHAPES: Shape[] = [
       'crates/core/src/parse.rs':
         'pub struct Parser {\n    strict: bool,\n}\n\nimpl Parser {\n    pub fn new() -> Self {\n        Self { strict: true }\n    }\n\n    pub fn parse(&self, input: &str) -> Option<&str> {\n        if self.strict && input.is_empty() {\n            None\n        } else {\n            Some(input)\n        }\n    }\n\n    fn reset(&mut self) {\n        self.strict = true;\n    }\n}\n',
       'crates/cli/Cargo.toml': '[package]\nname = "acme-cli"\nversion = "0.1.0"\n',
-      'crates/cli/src/main.rs': 'fn main() {\n    let parser = acme_core::parse::Parser::new();\n    println!("{:?}", parser.parse("hi"));\n}\n',
+      'crates/cli/src/main.rs':
+        'fn main() {\n    let parser = acme_core::parse::Parser::new();\n    println!("{:?}", parser.parse("hi"));\n}\n',
       'README.md': '# acme-core\n',
     },
     task: shapeTask(
@@ -234,7 +242,8 @@ const SHAPES: Shape[] = [
       'src/features/search/index.ts': 'export function initSearch(): string {\n  return "search"\n}\n',
       'src/features/search/index.test.ts': 'import { initSearch } from "./index"\n',
       'src/features/theme/index.ts': 'export function initTheme(): void {}\n',
-      'src/components/Button.tsx': 'export function Button({ label }: { label: string }) {\n  return <button>{label}</button>\n}\n',
+      'src/components/Button.tsx':
+        'export function Button({ label }: { label: string }) {\n  return <button>{label}</button>\n}\n',
       'README.md': '# vite app\n',
     },
     task: shapeTask(
@@ -268,7 +277,9 @@ describe('worker prompts on real repo shapes', () => {
       const root = await buildRepo(shape.files);
       try {
         const map = await createRepoMapper().map(root);
-        const prompt = createPromptCompiler().worker(contextFor(root, map, shape)).replaceAll(root, '<repo>');
+        const prompt = createPromptCompiler()
+          .worker(contextFor(root, map, shape))
+          .replaceAll(root, '<repo>');
 
         expect(prompt).toMatchSnapshot();
 
@@ -302,7 +313,10 @@ describe('worker prompts on real repo shapes', () => {
       const map = await createRepoMapper().map(root);
       expect(map.files.length).toBeGreaterThan(400);
       const prompt = createPromptCompiler().worker(contextFor(root, map, shape));
-      const mapSection = prompt.slice(prompt.indexOf('## Repo orientation'), prompt.indexOf('## How to verify'));
+      const mapSection = prompt.slice(
+        prompt.indexOf('## Repo orientation'),
+        prompt.indexOf('## How to verify'),
+      );
       const otherStart = mapSection.indexOf('Other files (orientation only):');
       const otherLines = mapSection
         .slice(otherStart)

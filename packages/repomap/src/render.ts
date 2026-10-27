@@ -57,8 +57,10 @@ interface BucketCaps {
 }
 
 const CAPS: Record<'full' | 'compact', BucketCaps> = {
-  full: { owned: 40, read: 12, related: 24, other: 30 },
-  compact: { owned: 16, read: 6, related: 12, other: 0 },
+  // A package-sized lane is 40-60 files (changesets' `packages/cli/src/**` is 57); the cap has to
+  // clear that or the worker cannot see the surface it is allowed to edit.
+  full: { owned: 60, read: 16, related: 24, other: 30 },
+  compact: { owned: 20, read: 8, related: 12, other: 0 },
 };
 
 const PLAIN_LINE_CHARS = 220;
@@ -114,7 +116,9 @@ function byPath(a: RepoFile, b: RepoFile): number {
 }
 
 function matchesRelated(path: string, related: readonly string[]): boolean {
-  return related.some((entry) => (entry.includes('*') || entry.includes('?') ? matchesAny(path, [entry]) : path === entry));
+  return related.some((entry) =>
+    entry.includes('*') || entry.includes('?') ? matchesAny(path, [entry]) : path === entry,
+  );
 }
 
 /** Split the map into editable / read / neighbour / other, each sorted by path for determinism. */
@@ -219,14 +223,11 @@ function limitPerDirectory(files: readonly RepoFile[], perDir: number): RepoFile
 }
 
 /** Render and also report how much of the map survived, so the caller can warn about omissions. */
-export function renderRepoMapDetail(
-  map: RepoMap,
-  opts: RenderRepoMapOptions = {},
-): RenderedRepoMap {
+export function renderRepoMapDetail(map: RepoMap, opts: RenderRepoMapOptions = {}): RenderedRepoMap {
   const style = opts.style ?? 'full';
-  const budget =
-    opts.maxChars ?? Math.max(0, Math.floor((opts.maxTokens ?? DEFAULT_RENDER_MAX_TOKENS) * 4));
-  if (budget === 0) return { text: '', filesShown: 0, filesTotal: map.files.length, truncated: map.files.length > 0 };
+  const budget = opts.maxChars ?? Math.max(0, Math.floor((opts.maxTokens ?? DEFAULT_RENDER_MAX_TOKENS) * 4));
+  if (budget === 0)
+    return { text: '', filesShown: 0, filesTotal: map.files.length, truncated: map.files.length > 0 };
 
   const caps: BucketCaps = { ...CAPS[style], ...opts.caps };
   const maxSymbols = opts.maxSymbols ?? 40;
@@ -353,7 +354,14 @@ export function renderRepoMapDetail(
     style: LineStyle;
     force: boolean;
   }> = [
-    { title: 'In your lane (editable):', files: ranked.owned, cap: caps.owned, perDir: 0, style: laneStyle, force: true },
+    {
+      title: 'In your lane (editable):',
+      files: ranked.owned,
+      cap: caps.owned,
+      perDir: 0,
+      style: laneStyle,
+      force: true,
+    },
     { title: 'You will read:', files: ranked.read, cap: caps.read, perDir: 0, style: laneStyle, force: true },
     {
       title: 'Neighbours (importers, imports, siblings):',

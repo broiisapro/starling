@@ -140,6 +140,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@starling/core": "workspace:*",
+        "@starling/repomap": "workspace:*",
         "zod": "4.6.7",
       },
     },

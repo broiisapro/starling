@@ -80,7 +80,10 @@ describe('relatedFiles', () => {
   });
 
   test('can skip siblings', () => {
-    expect(relatedFiles(demo, ['src/lib/b.ts'], { includeSiblings: false })).toEqual(['src/a.ts', 'src/c.ts']);
+    expect(relatedFiles(demo, ['src/lib/b.ts'], { includeSiblings: false })).toEqual([
+      'src/a.ts',
+      'src/c.ts',
+    ]);
   });
 
   test('falls back to siblings when the map has no graph', () => {

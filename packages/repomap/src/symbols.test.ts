@@ -92,14 +92,7 @@ impl Thing {
     fn hidden_method(&self) {}
 }
 `;
-    expect(extractSymbols(source, 'rust')).toEqual([
-      'start',
-      'Thing',
-      'Mode',
-      'serve',
-      'private',
-      'method',
-    ]);
+    expect(extractSymbols(source, 'rust')).toEqual(['start', 'Thing', 'Mode', 'serve', 'private', 'method']);
   });
   test('CSS captures top-level class selectors only', () => {
     const source = `.a { color: red }

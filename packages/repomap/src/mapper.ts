@@ -12,7 +12,7 @@ import { basename, join, resolve } from 'node:path';
 import type { Clock, LLM, RepoFile, RepoMap, RepoMapper } from '@starling/core';
 import { exec, StarlingError, systemClock } from '@starling/core';
 import { detectCommands } from './commands';
-import { buildImportGraph, attachImportGraph } from './imports';
+import { attachImportGraph, buildImportGraph } from './imports';
 import { isBinaryPath, isSkippedPath, langForPath, SYMBOL_LANGUAGES } from './languages';
 import { renderRepoMap } from './render';
 import { extractImportSpecifiers, summarizeCentralFiles } from './summaries';

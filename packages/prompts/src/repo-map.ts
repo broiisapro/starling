@@ -67,7 +67,9 @@ export function renderRepoMap(map: RepoMap, options: RenderRepoMapOptions = {}):
           .filter((file) => matchesAny(file.path, [...lane.owns, ...lane.reads]))
           .map((file) => file.path);
   const owned =
-    lane === undefined ? [] : map.files.filter((file) => matchesAny(file.path, lane.owns)).map((file) => file.path);
+    lane === undefined
+      ? []
+      : map.files.filter((file) => matchesAny(file.path, lane.owns)).map((file) => file.path);
 
   return renderRepoMapDetail(map, {
     maxChars: options.maxChars ?? DEFAULT_MAX_REPO_MAP_CHARS,
@@ -79,8 +81,6 @@ export function renderRepoMap(map: RepoMap, options: RenderRepoMapOptions = {}):
     tree: false,
     lanes: lane === undefined ? undefined : { owns: lane.owns, reads: lane.reads },
     related:
-      lane === undefined
-        ? []
-        : relatedFiles(map, seeds, { limit: RELATED_LIMIT, siblingSeeds: owned }),
+      lane === undefined ? [] : relatedFiles(map, seeds, { limit: RELATED_LIMIT, siblingSeeds: owned }),
   });
 }

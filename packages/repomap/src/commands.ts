@@ -196,7 +196,11 @@ interface NestedChoice {
  * The biggest nested package that has its own test script. This is how a repo of apps is tested:
  * `bulletproof-react` has no root scripts and three `apps/*` each with a lockfile and a vitest suite.
  */
-function pickNestedPackage(root: string, paths: readonly string[], rootRunner: Runner): NestedChoice | undefined {
+function pickNestedPackage(
+  root: string,
+  paths: readonly string[],
+  rootRunner: Runner,
+): NestedChoice | undefined {
   const dirs = new Set<string>();
   for (const path of paths) {
     if (path === 'package.json' || !path.endsWith('/package.json')) continue;
@@ -285,7 +289,11 @@ function isPythonTestPath(path: string): boolean {
   return /^test_.*\.py$/.test(base) || /_test\.py$/.test(base) || path.startsWith('tests/');
 }
 
-function pythonTestCommand(root: string, paths: readonly string[], pyproject: string | undefined): string | undefined {
+function pythonTestCommand(
+  root: string,
+  paths: readonly string[],
+  pyproject: string | undefined,
+): string | undefined {
   const declared = pythonTaskScript(pyproject);
   if (declared !== undefined) return declared;
   if (hasPytestConfig(root, pyproject)) return 'pytest';
@@ -363,7 +371,8 @@ export function detectCommands(root: string, paths: readonly string[]): Detected
         })();
   const jsLint = lintFromScripts(scripts, runner) ?? nestedLint;
   const otherLint =
-    (makeTarget(root, 'lint') ? 'make lint' : undefined) ?? (justTarget(root, 'lint') ? 'just lint' : undefined);
+    (makeTarget(root, 'lint') ? 'make lint' : undefined) ??
+    (justTarget(root, 'lint') ? 'just lint' : undefined);
   const lintCommand =
     jsLint !== undefined && (jsDominant || otherLint === undefined) ? jsLint : (otherLint ?? jsLint);
 
