@@ -1,6 +1,6 @@
 ## Epic 70 Handback — Load test: 30-task runs and a busy dashboard
 
-**Status:** Complete. Branch `epic/70-load-test` @ `817a805`. Closes #85.
+**Status:** Complete. Branch `epic/70-load-test`. Closes #85.
 
 **Delivered:**
 - `tools/load/plan.ts` — a 30-task lane-disjoint DAG as a real `PlanDraft`, plus a deterministic 300-event/`1.6 s` transcript per task (`session.started` → text/tool/edit/usage → `session.idle`).
