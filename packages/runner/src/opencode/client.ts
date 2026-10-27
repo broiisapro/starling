@@ -11,6 +11,12 @@
  *   GET  /api/session/active                foreground turns owned by this process
  *   GET  /api/info                          health / identity
  *   GET  /api/event                         server-wide SSE stream
+ *   POST /api/session/{id}/generate         one synchronous answer (used by the LLM router)
+ *   GET  /api/session/{id}                  session detail incl. token totals
+ *   DELETE /api/session/{id}                remove a throwaway session
+ *
+ * Since Epic 49 this is the **single** V2 client in the repo: `@starling/llm`'s `opencode` provider
+ * builds one of these instead of keeping its own copy of the REST calls.
  */
 
 import type { ModelRef } from '@starling/core';
@@ -36,12 +42,31 @@ export interface OpencodeClientOptions {
 }
 
 export interface CreateSessionInput {
-  directory: string;
+  /** Worktree/scope for the session. Omitted for a server-default location. */
+  directory?: string;
   title?: string;
   model?: ModelRef;
+  /** Optional agent id. A read-only agent keeps a throwaway completion off the filesystem. */
+  agent?: string;
+  signal?: AbortSignal;
+}
+
+export interface GenerateSessionInput {
+  prompt: string;
+  /** Needed for the per-directory header on servers that scope sessions by worktree. */
+  directory?: string;
+  signal?: AbortSignal;
+}
+
+/** Per-request controls for the plain read/delete routes. */
+export interface RequestOptions {
+  signal?: AbortSignal;
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+/** Status codes that mean "the provider asked us to slow down", not "this request is wrong". */
+const RATE_LIMIT_STATUSES = new Set([429, 503]);
 
 function encodeBasic(password: string): string {
   return `Basic ${btoa(`opencode:${password}`)}`;
@@ -73,18 +98,60 @@ export class OpencodeClient {
   }
 
   async createSession(input: CreateSessionInput): Promise<OpencodeSessionInfo> {
-    const body: OpencodeCreateSessionBody = { location: { directory: input.directory } };
+    const body: OpencodeCreateSessionBody = {};
+    if (input.directory !== undefined) body.location = { directory: input.directory };
     if (input.title !== undefined) body.title = input.title;
     if (input.model !== undefined) {
       body.model = { providerID: input.model.provider, id: input.model.model };
     }
+    if (input.agent !== undefined) body.agent = input.agent;
     const res = await this.#json<OpencodeDataResponse<OpencodeSessionInfo>>(
       'POST',
       '/api/session',
       body,
       input.directory,
+      input.signal,
     );
     return res.data;
+  }
+
+  /** One synchronous answer for a session (no tools loop). Returns the generated text. */
+  async generate(sessionId: string, input: GenerateSessionInput): Promise<string> {
+    const res = await this.#json<OpencodeDataResponse<{ text?: unknown }>>(
+      'POST',
+      `/api/session/${encodeURIComponent(sessionId)}/generate`,
+      { prompt: input.prompt },
+      input.directory,
+      input.signal,
+    );
+    const text = res.data?.text;
+    if (typeof text !== 'string') {
+      throw new StarlingError('RUNNER_ERROR', 'opencode generate returned no text', {
+        details: { sessionId },
+      });
+    }
+    return text;
+  }
+
+  async sessionInfo(sessionId: string, opts: RequestOptions = {}): Promise<OpencodeSessionInfo> {
+    const res = await this.#json<OpencodeDataResponse<OpencodeSessionInfo>>(
+      'GET',
+      `/api/session/${encodeURIComponent(sessionId)}`,
+      undefined,
+      undefined,
+      opts.signal,
+    );
+    return res.data ?? {};
+  }
+
+  async deleteSession(sessionId: string, opts: RequestOptions = {}): Promise<void> {
+    await this.#json<void>(
+      'DELETE',
+      `/api/session/${encodeURIComponent(sessionId)}`,
+      undefined,
+      undefined,
+      opts.signal,
+    );
   }
 
   async prompt(sessionId: string, text: string, directory?: string): Promise<void> {
@@ -154,12 +221,18 @@ export class OpencodeClient {
     return parsed as OpencodeEventEnvelope;
   }
 
-  async #json<T>(method: 'GET' | 'POST', path: string, body?: unknown, directory?: string): Promise<T> {
+  async #json<T>(
+    method: 'GET' | 'POST' | 'DELETE',
+    path: string,
+    body?: unknown,
+    directory?: string,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const headers = this.headers(directory);
     const init: RequestInit = {
       method,
       headers,
-      signal: AbortSignal.timeout(this.#timeoutMs),
+      signal: this.#signalFor(signal),
     };
     if (body !== undefined) {
       headers['content-type'] = 'application/json';
@@ -175,10 +248,17 @@ export class OpencodeClient {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => '');
+      const retryAfterMs = parseRetryAfterMs(res.headers.get('retry-after'), this.#nowMs());
       throw new StarlingError(
         'RUNNER_ERROR',
         `opencode ${method} ${path} failed with ${res.status}${detail === '' ? '' : `: ${detail.slice(0, 500)}`}`,
-        { details: { status: res.status } },
+        {
+          details: {
+            status: res.status,
+            rateLimited: RATE_LIMIT_STATUSES.has(res.status),
+            ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+          },
+        },
       );
     }
     if (res.status === 204) return undefined as T;
@@ -188,4 +268,26 @@ export class OpencodeClient {
       throw toStarlingError(err, 'RUNNER_ERROR', `opencode ${method} ${path} returned invalid JSON`);
     }
   }
+
+  /** Combine the per-request timeout with an optional caller signal. */
+  #signalFor(external: AbortSignal | undefined): AbortSignal {
+    const timeout = AbortSignal.timeout(this.#timeoutMs);
+    if (external === undefined) return timeout;
+    const anySignal = (AbortSignal as unknown as { any?: (signals: AbortSignal[]) => AbortSignal }).any;
+    return anySignal === undefined ? external : anySignal([external, timeout]);
+  }
+
+  #nowMs(): number {
+    return Date.now();
+  }
+}
+
+/** `Retry-After` is either delta-seconds or an HTTP date. Cap it so one header cannot park a run. */
+export function parseRetryAfterMs(value: string | null, nowMs: number): number | undefined {
+  if (value === null || value.trim() === '') return undefined;
+  const seconds = Number(value.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1000, 120_000);
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.min(date - nowMs, 120_000));
 }

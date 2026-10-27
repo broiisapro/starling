@@ -35,9 +35,22 @@ import {
 import { isLocalProvider, parseModel, parseUsage, pricingKey } from './agent-event';
 import type { StartRunInput } from './handshake';
 import type { LiveTask } from './live-task';
-import { computeRunMetrics, emptyLedger, MetricsPublisher, recordCall, type UsageLedger } from './metrics';
+import {
+  computeRunMetrics,
+  emptyLedger,
+  MetricsPublisher,
+  recordCall,
+  systemTimers,
+  type UsageLedger,
+} from './metrics';
 import { availableSlots, dispatchableNodes } from './nodes';
 import { type PipelineHost, TaskPipeline } from './pipeline';
+import { BudgetGuard } from './policies/budget';
+import { type LogLevel, type PolicyCode, policyLogPayload, policyMessage } from './policies/log';
+import { AimdLimit } from './policies/parallelism';
+import { rateLimitSignal } from './policies/rate-limit';
+import { type StallDecision, StallWatchdog, stallAfterMsFrom, stallDecision } from './policies/stall';
+import { fromRefFor, nodeNamePatch, runStatusEvent } from './run-status';
 import {
   activeByNode,
   activeCount,
@@ -48,7 +61,7 @@ import {
   promotableTaskKeys,
   unfinishedTaskKeys,
 } from './state';
-import { renderRunSummary, writerPrompt } from './summary';
+import { renderRunSummary, type SummaryOptions, writerPrompt } from './summary';
 import { assertTaskTransition, isTerminalStatus } from './transitions';
 import type { EngineDeps } from './types';
 
@@ -57,6 +70,18 @@ const WRITER_SYSTEM =
 
 function messageOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/** `--budget` reaches the engine as an additive `StartRunInput` field until Epic 40 wires core. */
+function inputBudgetUsd(input: StartRunInput): number | undefined {
+  const value = (input as unknown as Record<string, unknown>).budgetUsd;
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
+}
+
+/** A node may report its worktree on the handle; the locked `TaskHandle` does not have the field. */
+function handleWorktreePath(handle: { worktreePath?: unknown }): string | undefined {
+  const value = handle.worktreePath;
+  return typeof value === 'string' && value !== '' ? value : undefined;
 }
 
 export class RunDriver implements PipelineHost {
@@ -78,6 +103,11 @@ export class RunDriver implements PipelineHost {
   readonly #sessionModels = new Map<string, ModelRef>();
   readonly #publisher: MetricsPublisher;
   readonly #pipeline: TaskPipeline;
+  readonly #parallelism: AimdLimit;
+  readonly #budget: BudgetGuard;
+  readonly #watchdog: StallWatchdog | undefined;
+  readonly #stallAfterMs: number;
+  readonly #maxStallRetries: number;
   #resolveDone!: (run: Run) => void;
   #map?: RepoMap;
   #unsubRegistry?: () => void;
@@ -87,7 +117,9 @@ export class RunDriver implements PipelineHost {
   #done = false;
   #stopped = false;
   #cancelled = false;
-  #budgetAnnounced = false;
+  #cancelling = false;
+  /** Tasks that never got a session because the budget cap was reached. */
+  readonly #budgetSkipped = new Set<string>();
 
   constructor(deps: EngineDeps, input: StartRunInput) {
     this.#deps = deps;
@@ -100,6 +132,27 @@ export class RunDriver implements PipelineHost {
       deps.config.integrationBranch === 'auto'
         ? `starling/${this.#runShort}/integration`
         : deps.config.integrationBranch;
+
+    const policies = deps.policies ?? {};
+    this.#stallAfterMs = policies.stallAfterMs ?? stallAfterMsFrom(deps.config);
+    this.#maxStallRetries = Math.max(0, policies.maxStallRetries ?? 1);
+    this.#budget = new BudgetGuard({
+      maxUsd: inputBudgetUsd(input) ?? policies.budgetUsd ?? deps.config.budget.maxUsd,
+      ...(policies.budgetWarnRatio === undefined ? {} : { warnRatio: policies.budgetWarnRatio }),
+    });
+    this.#parallelism = new AimdLimit({
+      max: this.#maxParallel,
+      now: () => deps.clock.now(),
+      ...(policies.rateLimitRecoverMs === undefined ? {} : { recoverAfterMs: policies.rateLimitRecoverMs }),
+    });
+    this.#watchdog =
+      this.#stallAfterMs > 0
+        ? new StallWatchdog({
+            stallAfterMs: this.#stallAfterMs,
+            timers: deps.timers ?? systemTimers,
+            onStall: (key) => this.#onStall(key),
+          })
+        : undefined;
 
     const goal: Goal = {
       id: newId(),
@@ -184,6 +237,15 @@ export class RunDriver implements PipelineHost {
 
   async cancel(): Promise<void> {
     if (this.#done) return;
+    if (this.#cancelling) {
+      // A second Ctrl-C: the presenter wants out now. Keep the store consistent, skip the graceful
+      // filesystem cleanup that may be blocked, and let the CLI force-exit if this still hangs.
+      this.logPolicy('cancel.forced', 'warn', 'Second cancellation: skipping graceful cleanup.');
+      for (const key of unfinishedTaskKeys(this.#run)) this.transition(key, 'cancelled');
+      await this.#maybeFinish();
+      return;
+    }
+    this.#cancelling = true;
     this.#cancelled = true;
     this.#stopped = true;
     this.log('warn', 'Cancellation requested: aborting every active session.');
@@ -198,9 +260,54 @@ export class RunDriver implements PipelineHost {
       } catch (err) {
         this.log('debug', `abort failed on ${node.id}: ${messageOf(err)}`, live.key);
       }
+      // Abort stops the agent; cleanup releases the worktree but leaves the branch in the repo.
+      try {
+        await node.cleanup(handle);
+      } catch (err) {
+        this.log('debug', `cleanup failed on ${node.id}: ${messageOf(err)}`, live.key);
+      }
     }
-    for (const key of unfinishedTaskKeys(this.#run)) this.transition(key, 'cancelled');
+    const before = unfinishedTaskKeys(this.#run);
+    // Clean every worktree we still know about: unfinished tasks always, plus any earlier failure
+    // whose cleanup never ran. A merged task's worktree was already released.
+    const removable = Object.values(this.#run.tasks)
+      .filter((task) => task.status !== 'merged')
+      .map((task) => task.taskKey);
+    const removed = await this.#removeWorktrees(removable);
+    for (const key of before) this.transition(key, 'cancelled');
+    this.logPolicy(
+      'cancel.cleanup',
+      'info',
+      `Cancelled the run: aborted every session, removed ${removed} worktree(s), kept every branch.`,
+    );
     await this.#maybeFinish();
+  }
+
+  /** Best-effort worktree removal for the given tasks. Branches are never touched. */
+  async #removeWorktrees(taskKeys: readonly string[]): Promise<number> {
+    const attempted = new Set<string>();
+    let removed = 0;
+    for (const key of taskKeys) {
+      const task = this.#run.tasks[key];
+      if (task === undefined) continue;
+      const path = task.worktreePath ?? this.#expectedWorktree(task.branch);
+      if (path === undefined || attempted.has(path)) continue;
+      attempted.add(path);
+      try {
+        await this.#deps.workspace.remove(path);
+        task.worktreePath = undefined;
+        removed += 1;
+        this.save();
+      } catch (err) {
+        this.log('warn', `could not remove worktree ${path}: ${messageOf(err)}`, key);
+      }
+    }
+    return removed;
+  }
+
+  #expectedWorktree(branch: string | undefined): string | undefined {
+    if (branch === undefined) return undefined;
+    return this.#deps.worktreePathFor?.(branch);
   }
 
   async abortTask(taskKey: string): Promise<void> {
@@ -243,13 +350,11 @@ export class RunDriver implements PipelineHost {
     });
     this.touchMetrics();
 
-    this.#run.status = 'planning';
-    this.save();
+    this.#setRunStatus('planning');
     const { plan, issues } = await this.#deps.planner.plan(this.#run.goal, map);
     this.#run.plan = plan;
     this.#run.tasks = createTaskRuns(this.runId, plan);
-    this.#run.status = 'planned';
-    this.save();
+    this.#setRunStatus('planned');
     this.publish({
       type: 'plan.created',
       runId: this.runId,
@@ -287,8 +392,7 @@ export class RunDriver implements PipelineHost {
       this.#integrationBranchName,
     );
     await this.#syncTracker();
-    this.#run.status = 'running';
-    this.save();
+    this.#setRunStatus('running');
     this.#publishMetricsNow();
     this.#pump();
   }
@@ -330,18 +434,9 @@ export class RunDriver implements PipelineHost {
         if (this.#done || this.#stopped) return;
         const task = this.#run.tasks[spec.key];
         if (task === undefined || task.status !== 'ready') continue;
-        if (activeCount(this.#run) >= this.#maxParallel) return;
-        if (this.#budgetExhausted()) {
-          if (!this.#budgetAnnounced) {
-            this.#budgetAnnounced = true;
-            this.log(
-              'warn',
-              `API budget of $${this.#deps.config.budget.maxUsd} reached; no new tasks will be dispatched.`,
-              spec.key,
-            );
-          }
-          return;
-        }
+        // AIMD: a rate-limited provider temporarily shrinks the effective parallelism.
+        if (activeCount(this.#run) >= Math.min(this.#maxParallel, this.#parallelism.limit)) return;
+        if (this.#budgetExhausted()) return;
         const nodes = this.#nodesForDispatch();
         if (nodes.length === 0) return;
         if (availableSlots(nodes, activeByNode(this.#run)) <= 0) return;
@@ -387,16 +482,16 @@ export class RunDriver implements PipelineHost {
   #dispatch(spec: TaskSpec, info: NodeInfo, node: ExecutionNode): void {
     const branch = `starling/${this.#runShort}/${spec.key}`;
     const existing = this.#run.tasks[spec.key];
-    if (
-      !this.transition(spec.key, 'running', {
-        branch,
-        nodeId: node.id,
-        startedAt: existing?.startedAt ?? this.now(),
-      })
-    ) {
+    const live = this.#liveFor(spec.key, spec);
+    const patch: Partial<TaskRun> & { nodeName: string } = {
+      branch,
+      nodeId: node.id,
+      startedAt: existing?.startedAt ?? this.now(),
+      ...nodeNamePatch(info),
+    };
+    if (!this.transition(spec.key, 'running', patch)) {
       return;
     }
-    const live = this.#liveFor(spec.key, spec);
     live.generation += 1;
     const generation = live.generation;
     live.node = node;
@@ -420,7 +515,20 @@ export class RunDriver implements PipelineHost {
     live.migrationFrom = undefined;
     live.migrationReason = undefined;
 
-    const options = this.#startOptions(spec, info, branch);
+    // A task whose perch vanished after a collect resumes from its own branch, so the commit that
+    // was already imported into the hub is kept instead of redone.
+    const fromRef = fromRefFor({ commit: live.lastCommit, branch }, this.#integrationBranchName);
+    if (live.lastCommit !== undefined) {
+      this.logPolicy(
+        'perch.resume',
+        'info',
+        `${spec.key} resumes from ${branch} at ${live.lastCommit.slice(0, 12)}.`,
+        spec.key,
+      );
+    }
+
+    const options = this.#startOptions(spec, info, branch, fromRef);
+    live.prompt = options.prompt;
     this.enqueue(live, generation, async () => {
       try {
         const handle = await node.startTask(options);
@@ -429,6 +537,8 @@ export class RunDriver implements PipelineHost {
         const task = this.#run.tasks[spec.key];
         if (task !== undefined) {
           task.sessionId = handle.sessionId;
+          const worktreePath = handleWorktreePath(handle as { worktreePath?: unknown });
+          if (worktreePath !== undefined) task.worktreePath = worktreePath;
           this.save();
         }
       } catch (err) {
@@ -437,29 +547,29 @@ export class RunDriver implements PipelineHost {
     });
   }
 
-  #startOptions(spec: TaskSpec, info: NodeInfo, branch: string): StartTaskOptions {
+  #startOptions(spec: TaskSpec, info: NodeInfo, branch: string, fromRef: string): StartTaskOptions {
     const repo =
       info.kind === 'local'
         ? ({ kind: 'local', path: this.#run.goal.repoPath } as const)
-        : this.#bundleRepo();
+        : this.#bundleRepo(fromRef);
     return {
       runId: this.runId,
       taskKey: spec.key,
       title: spec.title,
       repo,
-      fromRef: this.#integrationBranchName,
+      fromRef,
       branch,
       prompt: this.#deps.prompts.worker(this.promptContext(spec, branch)),
       model: modelFor(this.#deps.config, 'worker'),
     };
   }
 
-  #bundleRepo(): { kind: 'bundle'; url: string; token: string } {
+  #bundleRepo(ref: string): { kind: 'bundle'; url: string; token: string } {
     const bundleUrlFor = this.#deps.bundleUrlFor;
     if (bundleUrlFor === undefined) {
       throw new StarlingError('INVALID_ARGUMENT', 'No bundleUrlFor configured for a remote node');
     }
-    const { url, token } = bundleUrlFor(this.#integrationBranchName);
+    const { url, token } = bundleUrlFor(ref);
     return { kind: 'bundle', url, token };
   }
 
@@ -503,6 +613,13 @@ export class RunDriver implements PipelineHost {
     const task = this.#run.tasks[event.taskKey];
     if (task === undefined) return;
 
+    if (event.kind === 'session.idle') {
+      this.#watchdog?.untrack(event.taskKey);
+    } else {
+      // Any event is proof of life: push the stall deadline out.
+      this.#watchdog?.touch(event.taskKey);
+    }
+
     if (event.kind === 'usage') {
       this.#recordAgentUsage(task, event);
       return;
@@ -518,6 +635,8 @@ export class RunDriver implements PipelineHost {
         `agent error on ${event.taskKey}: ${String(event.data.reason ?? 'unknown')}`,
         event.taskKey,
       );
+      const signal = rateLimitSignal(event);
+      if (signal !== undefined) this.#onRateLimit(event.taskKey, signal);
       return;
     }
     if (event.kind !== 'session.idle') return;
@@ -588,8 +707,184 @@ export class RunDriver implements PipelineHost {
     live.nodeId = undefined;
     live.migrationFrom = nodeId;
     live.migrationReason = reason;
-    this.log('warn', `${live.key} will be rescheduled: ${reason}`, live.key);
-    this.transition(live.key, 'ready', { nodeId: undefined, sessionId: undefined });
+    this.logPolicy(
+      'perch.loss',
+      'warn',
+      `${live.key} will be rescheduled after ${reason}` +
+        (live.lastCommit === undefined
+          ? '; no commit had been collected yet'
+          : `; keeping commit ${live.lastCommit.slice(0, 12)}`) +
+        ` and its ${task.attempts} attempt(s).`,
+      live.key,
+    );
+    // Attempts stay untouched (a migration must not burn the retry budget) and `lastCommit` stays
+    // on the live task so the next dispatch can resume from the task branch.
+    const patch: Partial<TaskRun> & { nodeName?: string } = {
+      nodeId: undefined,
+      sessionId: undefined,
+      nodeName: undefined,
+    };
+    this.transition(live.key, 'ready', patch);
+  }
+
+  // ── policies: stall, rate limit, budget, run status ─────────────────────────────────────────
+
+  #onRateLimit(taskKey: string, signal: { provider?: string; retryAfterMs?: number; detail: string }): void {
+    const change = this.#parallelism.onRateLimit();
+    this.logPolicy(
+      'rate-limit.backoff',
+      'warn',
+      `provider ${signal.provider ?? 'unknown'} rate limited ${taskKey}: ${signal.detail}` +
+        (signal.retryAfterMs === undefined ? '' : `; retry after ${signal.retryAfterMs} ms`),
+      taskKey,
+    );
+    if (change !== undefined) {
+      this.logPolicy(
+        'parallelism.reduced',
+        'warn',
+        `effective parallelism ${change.from} → ${change.to} (${change.reason}).`,
+      );
+    }
+  }
+
+  /** The watchdog fired: no agent event for `stallAfterMs`. */
+  #onStall(taskKey: string): void {
+    if (this.#done || this.#stopped) return;
+    const task = this.#run.tasks[taskKey];
+    const live = this.#live.get(taskKey);
+    if (task === undefined || live === undefined) return;
+    if (task.status !== 'running' && task.status !== 'fixing') return;
+
+    const decision: StallDecision = stallDecision({
+      stallRetries: live.stallRetries,
+      attempts: task.attempts,
+      maxAttempts: this.#deps.config.maxAttempts,
+      maxStallRetries: this.#maxStallRetries,
+    });
+    const seconds = Math.round(this.#stallAfterMs / 1000);
+
+    if (decision === 'fail') {
+      this.logPolicy(
+        'stall.failed',
+        'error',
+        `${taskKey} produced no agent event for ${seconds}s and has no recovery left; failing it.`,
+        taskKey,
+      );
+      const node = live.node;
+      const handle = live.handle;
+      live.handle = undefined;
+      live.generation += 1;
+      if (node !== undefined && handle !== undefined) {
+        void node.abort(handle).catch((err) => {
+          this.log('debug', `abort after stall failed on ${node.id}: ${messageOf(err)}`, taskKey);
+        });
+      }
+      this.transition(taskKey, 'failed');
+      return;
+    }
+
+    this.logPolicy(
+      'stall.detected',
+      'warn',
+      `${taskKey} produced no agent event for ${seconds}s; aborting the turn and resending the prompt.`,
+      taskKey,
+    );
+    live.stallRetries += 1;
+    // A recovery spends an attempt, so a stalled session cannot out-live the audit budget.
+    task.attempts += 1;
+    this.save();
+    live.generation += 1;
+    const generation = live.generation;
+    this.#watchdog?.untrack(taskKey);
+    this.enqueue(live, generation, () => this.#resendAfterStall(live, generation));
+  }
+
+  async #resendAfterStall(live: LiveTask, generation: number): Promise<void> {
+    if (this.#done || this.#stopped || generation !== live.generation) return;
+    const node = live.node;
+    const handle = live.handle;
+    const prompt =
+      live.prompt ?? this.#deps.prompts.worker(this.promptContext(live.spec, this.branchOf(live.key)));
+
+    if (node !== undefined && handle !== undefined) {
+      try {
+        await node.abort(handle);
+      } catch (err) {
+        this.log('debug', `abort after stall failed on ${node.id}: ${messageOf(err)}`, live.key);
+      }
+      if (generation !== live.generation) return;
+      try {
+        await node.sendPrompt(handle, prompt);
+        const attempts = this.#run.tasks[live.key]?.attempts ?? 0;
+        this.logPolicy(
+          'stall.retry',
+          'warn',
+          `${live.key} resumed after a stall on the same session (attempt ${attempts}).`,
+          live.key,
+        );
+        this.#watchdog?.track(live.key);
+        this.touchMetrics();
+        return;
+      } catch (err) {
+        this.logPolicy(
+          'stall.redispatch',
+          'warn',
+          `could not resend to the stalled session (${messageOf(err)}); starting a fresh one.`,
+          live.key,
+        );
+      }
+    }
+
+    // No live session (or the resend was rejected): go back through the queue with a fresh session.
+    live.handle = undefined;
+    live.generation += 1;
+    if (this.transition(live.key, 'ready')) this.#pump();
+  }
+
+  #setRunStatus(status: RunStatus): void {
+    const from = this.#run.status;
+    this.#run.status = status;
+    this.save();
+    if (from === status) return;
+    this.touchMetrics();
+    const event = runStatusEvent(this.runId, this.now(), from, this.#snapshot());
+    if (event !== undefined) this.publish(event);
+  }
+
+  /** A model call landed: let AIMD grow the cap back when the provider has been quiet. */
+  #onProgress(): void {
+    const change = this.#parallelism.onProgress();
+    if (change === undefined) return;
+    this.logPolicy(
+      'parallelism.increased',
+      'info',
+      `effective parallelism ${change.from} → ${change.to} (${change.reason}).`,
+    );
+  }
+
+  recordCollect(taskKey: string, commit: string): void {
+    const live = this.#live.get(taskKey);
+    if (live === undefined) return;
+    live.lastCommit = commit;
+  }
+
+  recordPrompt(taskKey: string, prompt: string): void {
+    const live = this.#live.get(taskKey);
+    if (live === undefined) return;
+    live.prompt = prompt;
+  }
+
+  clearWorktree(taskKey: string): void {
+    const task = this.#run.tasks[taskKey];
+    if (task === undefined || task.worktreePath === undefined) return;
+    task.worktreePath = undefined;
+    this.save();
+  }
+
+  logPolicy(code: PolicyCode, level: LogLevel, msg: string, taskKey?: string): void {
+    const payload = policyLogPayload(code, level, policyMessage(code, msg), taskKey);
+    // `code` is additive: core's log payload is frozen until Epic 40 lands the field (FIX REQUEST).
+    this.publish({ type: 'log', runId: this.runId, ts: this.now(), payload } as StarlingEvent);
   }
 
   // ── transitions and events ───────────────────────────────────────────────────────────────────
@@ -610,6 +905,8 @@ export class RunDriver implements PipelineHost {
     task.status = to;
     Object.assign(task, patch);
     if (isTerminalStatus(to)) task.finishedAt = task.finishedAt ?? this.now();
+    if (to === 'running' || to === 'fixing') this.#watchdog?.track(key);
+    else this.#watchdog?.untrack(key);
     this.save();
     this.publish({
       type: 'task.status',
@@ -619,6 +916,7 @@ export class RunDriver implements PipelineHost {
     });
     this.touchMetrics();
     if (isTerminalStatus(to) && to !== 'merged') this.#cancelDependents(key);
+    if (to === 'merged') this.#onProgress();
     if (isTerminalStatus(to)) this.#scheduleFinishCheck();
     this.#pump();
     return true;
@@ -675,7 +973,7 @@ export class RunDriver implements PipelineHost {
   #liveFor(taskKey: string, spec: TaskSpec): LiveTask {
     const existing = this.#live.get(taskKey);
     if (existing !== undefined) return existing;
-    const live: LiveTask = { key: taskKey, spec, generation: 0, chain: Promise.resolve() };
+    const live: LiveTask = { key: taskKey, spec, generation: 0, chain: Promise.resolve(), stallRetries: 0 };
     this.#live.set(taskKey, live);
     return live;
   }
@@ -712,8 +1010,24 @@ export class RunDriver implements PipelineHost {
   // ── budget + finish ──────────────────────────────────────────────────────────────────────────
 
   #budgetExhausted(): boolean {
-    const maxUsd = this.#deps.config.budget.maxUsd;
-    return computeRunMetrics(this.#run, this.#ledger, this.now()).apiCostUsd >= maxUsd;
+    const costUsd = computeRunMetrics(this.#run, this.#ledger, this.now()).apiCostUsd;
+    const action = this.#budget.observe(costUsd);
+    if (action.warn) {
+      const percent = Math.round((this.#budget.warnUsd / this.#budget.maxUsd) * 100);
+      this.logPolicy(
+        'budget.warn',
+        'warn',
+        `API spend $${costUsd.toFixed(4)} reached ${percent}% of the $${this.#budget.maxUsd} budget cap.`,
+      );
+    }
+    if (action.stop) {
+      this.logPolicy(
+        'budget.stop',
+        'warn',
+        `API budget of $${this.#budget.maxUsd} reached; running tasks may finish and the rest will be skipped.`,
+      );
+    }
+    return this.#budget.stopped;
   }
 
   #scheduleFinishCheck(): void {
@@ -741,7 +1055,8 @@ export class RunDriver implements PipelineHost {
       return status !== 'running' && status !== 'fixing' && status !== 'auditing' && status !== 'merging';
     });
     if (keys.length === 0) return;
-    this.log('warn', `Cancelling ${keys.length} undispatched task(s): ${reason}`);
+    for (const key of keys) this.#budgetSkipped.add(key);
+    this.logPolicy('budget.skipped', 'warn', `Skipping ${keys.length} undispatched task(s): ${reason}`);
     for (const key of keys) this.transition(key, 'cancelled');
   }
 
@@ -755,11 +1070,11 @@ export class RunDriver implements PipelineHost {
       : merged > 0 || Object.keys(run.tasks).length === 0
         ? 'finished'
         : 'failed';
-    run.status = status;
     run.finishedAt = this.now();
-    this.save();
+    this.#setRunStatus(status);
 
-    const summary = await this.#writeSummary();
+    const summaryOptions = this.#summaryOptions();
+    const summary = await this.#writeSummary(summaryOptions);
     run.metrics = computeRunMetrics(run, this.#ledger, this.now());
     this.save();
     this.#publishMetricsNow();
@@ -781,15 +1096,20 @@ export class RunDriver implements PipelineHost {
     this.#resolveDone(this.#snapshot());
   }
 
-  async #writeSummary(): Promise<string> {
-    const fallback = renderRunSummary(this.#run);
+  #summaryOptions(): SummaryOptions {
+    if (this.#budgetSkipped.size === 0) return {};
+    return { budget: { maxUsd: this.#budget.maxUsd, skipped: this.#budgetSkipped.size } };
+  }
+
+  async #writeSummary(options: SummaryOptions = {}): Promise<string> {
+    const fallback = renderRunSummary(this.#run, options);
     const writer = this.#deps.writer;
     if (writer === undefined) return fallback;
     try {
       const response = await writer.complete({
         role: 'writer',
         system: WRITER_SYSTEM,
-        messages: [{ role: 'user', content: writerPrompt(this.#run) }],
+        messages: [{ role: 'user', content: writerPrompt(this.#run, options) }],
         maxTokens: 200,
         temperature: 0.2,
       });
@@ -813,8 +1133,8 @@ export class RunDriver implements PipelineHost {
     this.log('error', `run failed: ${detail}`);
     // A run that never starts must not leave fresh tasks looking schedulable.
     for (const key of unfinishedTaskKeys(this.#run)) this.transition(key, 'cancelled');
-    this.#run.status = 'failed';
     this.#run.finishedAt = this.now();
+    this.#setRunStatus('failed');
     this.#run.metrics = computeRunMetrics(this.#run, this.#ledger, this.now());
     this.save();
     this.publish({
@@ -829,6 +1149,7 @@ export class RunDriver implements PipelineHost {
   }
 
   #dispose(): void {
+    this.#watchdog?.stop();
     this.#unsubRegistry?.();
     this.#unsubRegistry = undefined;
     for (const off of this.#unsubs.values()) off();

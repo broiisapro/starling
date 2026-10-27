@@ -13,4 +13,10 @@ export interface LiveTask {
   chain: Promise<void>;
   migrationFrom?: string;
   migrationReason?: string;
+  /** The worker prompt this dispatch started with, so a stall can resend exactly it. */
+  prompt?: string;
+  /** Stall recoveries already spent on this dispatch (capped by `maxStallRetries`). */
+  stallRetries: number;
+  /** Latest commit a node collected. A task rescheduled after a perch loss resumes from its branch. */
+  lastCommit?: string;
 }
