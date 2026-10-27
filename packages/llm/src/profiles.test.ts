@@ -7,6 +7,7 @@ import {
   describeProfile,
   LLM_PROFILES,
   LOCAL_DEFAULT_MODEL,
+  LOCAL_PROVIDER,
   MIXED_CLOUD_ROLES,
   MIXED_LOCAL_ROLES,
   OPENCODE_DEFAULT_MODEL,
@@ -122,6 +123,28 @@ describe('profiles', () => {
     expect(resolution.warnings).toEqual([]);
     expect(resolution.localRoles).toEqual([...MIXED_LOCAL_ROLES]);
     expect(resolution.opencodeRoles).toEqual([...MIXED_CLOUD_ROLES]);
+  });
+
+  test('every profile routes every role to a provider that exists in the config', () => {
+    // `applyProfile` is what the engine dispatches with, and `modelFor` throws CONFIG_INVALID for an
+    // unknown provider — so a profile naming a provider without a `providers` entry fails at the
+    // first task, half a run in.
+    for (const profile of LLM_PROFILES) {
+      const config = applyProfile(defaultConfig, profile, { localModel: 'tiny:1b' });
+      for (const role of ROLES) {
+        expect(config.providers[config.models[role].provider]).toBeDefined();
+      }
+    }
+  });
+
+  test('local workers keep the provider id opencode itself uses for Ollama', () => {
+    // This is the whole trick behind "workers are local too": the runner forwards this provider as
+    // opencode's providerID, and opencode ships a built-in `ollama` provider. Renaming one side
+    // breaks every local run at session start, so the two strings are pinned together here.
+    const config = applyProfile(defaultConfig, 'local', { localModel: 'tiny:1b' });
+    for (const role of ['planner', 'worker', 'resolver', 'auditor'] as const) {
+      expect(config.models[role]).toEqual({ provider: LOCAL_PROVIDER, model: 'tiny:1b' });
+    }
   });
 
   test('resolveProfile never mutates the input config', () => {
