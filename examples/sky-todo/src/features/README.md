@@ -14,6 +14,29 @@ src/features/<your-feature>/
 
 `id` must be kebab-case and unique. Test it with `bun test`.
 
+## Reserved folders
+
+The empty folders here are placeholders for the demo goals. They hold only a
+`.gitkeep` on purpose: a task's lane is "create `src/features/<folder>/index.ts`",
+so no shared file is edited and two features can land in parallel.
+
+| Folder        | Demo task                                                     |
+| ------------- | ------------------------------------------------------------- |
+| `theme`       | dark mode toggle (`launch-day`, `stage`)                      |
+| `search`      | live search filter (`launch-day`, `launch-day-xl`, `stage`)   |
+| `export`      | CSV export (`launch-day`, `stage`, `will-fail-audit`)         |
+| `shortcuts`   | keyboard shortcuts (`launch-day`, `launch-day-xl`, `stage`)   |
+| `help`        | help overlay, depends on `shortcuts`                          |
+| `due-dates`   | due-date badges, depends on the `src/lib/dates.ts` fix        |
+| `undo`        | undo / redo                                                   |
+| `stats`       | completion stats footer item                                  |
+| `tags`        | tag chips + tag filter                                        |
+| `today`       | today's date in the header (`quick-wins`, `stage`)            |
+| `tag-count`   | distinct tag count in the footer (`quick-wins`)               |
+| `title-count` | open-task count in the tab title (`quick-wins`)               |
+
+`item-count/` is the reference feature: copy its shape.
+
 ## The contract
 
 ```ts
