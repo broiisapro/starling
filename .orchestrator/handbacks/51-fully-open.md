@@ -1,5 +1,7 @@
 ## Epic 51 Handback — Fully-open mode (all roles local)
 
+Closes #38.
+
 **Status:** Complete for this wave (the live local-model smoke is deferred to Epic 72 by instruction).
 Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushing).
 
