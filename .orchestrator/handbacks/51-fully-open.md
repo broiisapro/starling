@@ -3,7 +3,7 @@
 Closes #38.
 
 **Status:** Complete for this wave (the live local-model smoke is deferred to Epic 72 by instruction).
-Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushing).
+Branch `epic/51-fully-open`, rebased on `origin/main` before pushing.
 
 **Delivered:**
 
@@ -66,8 +66,9 @@ Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushin
 - `bun test tools/fully-open`: `12 pass, 0 fail, 25 expect() calls; Ran 12 tests across 1 file`.
 - `bash -n tools/fully-open/smoke.sh` → exit 0. `tools/fully-open/smoke.sh --dry-run` → prints the
   8-step plan, the resolved tag (`qwen3.8:27b-mlx`), the recommendation path and the live rail
-  measurements (`31 opencode processes`, `7.6 GB free` → `rails: defer`), then exits 0 with
-  `dry run complete — nothing was loaded and Ollama was not contacted.`
+  measurements (14 opencode processes, 8.3 GB free → `rails: defer`), then exits 0 with
+  `dry run complete — nothing was loaded and Ollama was not contacted.` The final re-run put a
+  failing `curl` shim first on `PATH`: it was never called, so the dry run made no network call.
 - `bun tools/fully-open/check-config.ts --file <generated> --model qwen3.8:27b-mlx` → `ok`: the config
   `smoke.sh` derives from the checked-in template passes the same checks as the template itself.
 - `bun run test` (root):
