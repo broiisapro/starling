@@ -133,6 +133,10 @@ if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- .orchestrator AGENTS.md ope
   run "git -C '$REPO_ROOT' pull -q --rebase origin main && git -C '$REPO_ROOT' push -q origin HEAD:main"
   echo "• published orchestrator changes to origin/main"
 fi
+# Make sure every epic in epics.tsv has its GitHub issue (idempotent; never fatal).
+if [ -x "$REPO_ROOT/.orchestrator/bin/gh-bootstrap.sh" ] && [ "$DRY" = 0 ]; then
+  (cd "$REPO_ROOT" && bash .orchestrator/bin/gh-bootstrap.sh --quiet >/dev/null 2>&1) && echo "• GitHub issues in sync" || echo "• (gh-bootstrap skipped: issues may be missing; agents cope)"
+fi
 run "git -C '$REPO_ROOT' fetch origin --quiet"
 
 # ── checkpoint mode ───────────────────────────────────────────

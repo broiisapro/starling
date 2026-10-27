@@ -3,51 +3,59 @@ nn	slug	title	wave	machine	lane	depends
 01	demo-target	Demo target: sky-todo	0	mbp	examples/	-
 02	repo-ops	Repo ops: GitHub bootstrap + local model bring-up	0	mbp	.github/, tools/local-models/	-
 10	llm	LLM router (DeepSeek + Ollama)	1	mbp	packages/llm	00
-11	repomap	Repo mapper	1	air	packages/repomap	00
+11	repomap	Repo mapper	1	mbp	packages/repomap	00
 12	planner	Planner: goal to lane-safe task DAG	1	mbp	packages/planner	00
-13	prompts	Prompt compiler	1	air	packages/prompts	00
+13	prompts	Prompt compiler	1	mbp	packages/prompts	00
 14	workspace	Workspace: worktrees, conflict prediction, bundles	1	mbp	packages/workspace	00
 15	runner	opencode runner	1	mbp	packages/runner	00
 16	auditor	Auditor: tests + lanes + local LLM verdict	1	mbp	packages/auditor	00
 17	merger	Merge queue	1	mbp	packages/merger	00
-18	github	GitHub tracker	1	air	packages/github	00
-19	store	Store + record/replay	1	air	packages/store	00
+18	github	GitHub tracker	1	mbp	packages/github	00
+19	store	Store + record/replay	1	mbp	packages/store	00
 20	engine	Engine state machine	1	mbp	packages/engine	00
-21	server	Server: REST + SSE + flock endpoints	1	air	apps/server	00
-22	cli	CLI	1	air	apps/cli	00
+21	server	Server: REST + SSE + flock endpoints	1	mbp	apps/server	00
+22	cli	CLI	1	mbp	apps/cli	00
 23	web-shell	Web shell + data layer	1	mbp	apps/web shell	00
 24	web-sky	Web: The Sky murmuration	1	mbp	apps/web/src/features/sky	00
 25	web-dag-agents	Web: DAG + agent drawer	1	mbp	apps/web/src/features/dag, agents	00
-26	web-queue-metrics	Web: merge queue + cost meter	1	air	apps/web/src/features/queue, metrics	00
-27	skill	Agent Skill + opencode integration	1	air	skills/, integrations/	00
+26	web-queue-metrics	Web: merge queue + cost meter	1	mbp	apps/web/src/features/queue, metrics	00
+27	skill	Agent Skill + opencode integration	1	mbp	skills/, integrations/	00
 28	local-bench	Local model benchmark (MBP + Air)	1	mbp	tools/local-models	00,02
-29	evals	Evals harness	1	air	evals/	00
+29	evals	Evals harness	1	mbp	evals/	00
 30	flock	Flock core: nodes, registry, scheduler, discovery	1	mbp	packages/flock	00
 31	perch	Perch daemon	1	mbp	packages/perch	00
-32	web-flock	Web: flock panel	1	air	apps/web/src/features/flock	00
+32	web-flock	Web: flock panel	1	mbp	apps/web/src/features/flock	00
 33	c1-core-consolidation	C1: core consolidation, contract requests, root health	c1	mbp	root, packages/core, handshake mirrors	W1
 34	c1-web-wiring	C1: wire the dashboard together	c1	mbp	apps/web shell + features wiring	W1
 40	integration-captain	Integration captain: real end-to-end	2	mbp	cross-package	C1
-41	live-dashboard	Server-engine live + web on real SSE	2	air	apps/server, apps/web/src/data	C1
+41	live-dashboard	Server-engine live + web on real SSE	2	mbp	apps/server, apps/web/src/data	C1
 42	flock-e2e	Flock end-to-end (loopback + two laptops)	2	mbp	packages/flock, packages/perch	C1
-43	github-e2e	GitHub mode end-to-end	2	air	packages/github	C1
+43	github-e2e	GitHub mode end-to-end	2	mbp	packages/github	C1
 44	auditor-tuning	Auditor tuning with local model	2	mbp	packages/auditor, evals/auditor	C1
 45	resolver	Conflict-resolver loop	2	mbp	packages/merger, prompts resolver	C1
 46	golden-demo	Golden demo run + replay polish	2	mbp	packages/store, fixtures/demo	C1
-47	sky-polish	Sky polish: migrations + roosts	2	air	apps/web/src/features/sky	C1
-48	planner-quality	Planner quality pass	2	air	packages/planner, evals/planner	C1
+47	sky-polish	Sky polish: migrations + roosts	2	mbp	apps/web/src/features/sky	C1
+48	planner-quality	Planner quality pass	2	mbp	packages/planner, evals/planner	C1
 49	robustness	Robustness: stalls, backoff, budget, perch loss	2	mbp	packages/runner, packages/engine/src/policies	C1
-50	skill-e2e	Skill end-to-end from opencode	2	air	skills/, integrations/	C1
+50	skill-e2e	Skill end-to-end from opencode	2	mbp	skills/, integrations/	C1
 51	fully-open	Fully-open mode + perch-lent inference	2	mbp	packages/llm/src/profiles, perch llm-proxy	C1
-52	ci	CI: GitHub Actions	2	air	.github/workflows	C1
+52	ci	CI: GitHub Actions	2	mbp	.github/workflows	C1
 53	web-launch	Web: launch-a-run + history	2	mbp	apps/web/src/features/launch	C1
 54	dogfood	Dogfood: Starling on its own repo across both laptops	2	mbp	fixtures/dogfood	40,42
-60	readme	README, diagrams, CONTRIBUTING	3	air	README.md, docs/assets	C2
-61	onboarding	Onboarding: init, doctor, perch quickstart	3	mbp	apps/cli init/doctor/perch	C2
+55	web-panels-polish	Web panels polish (DAG, drawer, queue, metrics, flock)	2	mbp	apps/web/src/features/{dag,agents,queue,metrics,flock}	C1
+56	repomap-prompts	Repo map + worker prompts on real-world repos	2	mbp	packages/repomap, packages/prompts	C1
+57	workspace-hardening	Workspace hardening at swarm scale	2	mbp	packages/workspace, tools/stress	C1
+58	demo-targets	Demo targets: sky-todo polish + a Python target	2	mbp	examples/	C1
+59	landing-site	Landing page for judges	2	mbp	site/	C1
+60	readme	README, diagrams, CONTRIBUTING	2	mbp	README.md, docs/assets	C2
+61	onboarding	Onboarding: init, doctor, perch quickstart	2	mbp	apps/cli init/doctor/perch	C2
 62	bugbash-a	Bug bash A	3	mbp	per sheet	C2
 63	bugbash-b	Bug bash B	3	mbp	per sheet	C2
-64	bugbash-c	Bug bash C	3	air	per sheet	C2
-65	bugbash-d	Bug bash D	3	air	per sheet	C2
+64	bugbash-c	Bug bash C	3	mbp	per sheet	C2
+65	bugbash-d	Bug bash D	3	mbp	per sheet	C2
 66	bugbash-e	Bug bash E	3	mbp	per sheet	C2
-67	release	Release v0.1.0 + good-first-issues	3	air	CHANGELOG.md, GitHub	C2
-68	swarm-stats	Built-by-the-flock stats page	3	mbp	apps/web/src/features/about, tools/stats	C2
+67	release	Release v0.1.0 + good-first-issues	3	mbp	CHANGELOG.md, GitHub	C2
+68	swarm-stats	Built-by-the-flock stats page	2	mbp	apps/web/src/features/about, tools/stats	C2
+69	security-review	Security & safety review	2	mbp	tools/security	C1
+70	load-test	Load test: 30-task runs and a busy dashboard	2	mbp	tools/load	C1
+71	web-e2e	Browser end-to-end tests (Playwright)	2	mbp	apps/web/e2e	C1

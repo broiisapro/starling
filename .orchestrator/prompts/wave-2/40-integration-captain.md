@@ -12,7 +12,7 @@ Starling (`.orchestrator/PRD.md`) is an open-source, open-weight-first harness. 
 
 **Read before you start:** `.orchestrator/ARCHITECTURE.md` (§6 contracts, §7 locked decisions, §8 handshake, now living in core), the `docs/epic-*.md` for every package you touch (their "Interfaces for future epics" sections), and the handbacks in `.orchestrator/handbacks/` that mention your area.
 
-**Wave 2 is about making it real.** Unlike Wave 1, you **may import sibling packages** (they're done). You still **write only inside your lane**: about 12 agents are working in parallel right now, several of them in neighbouring files.
+**Wave 2 is about making it real.** Unlike Wave 1, you **may import sibling packages** (they're done). You still **write only inside your lane**: about 23 agents are working in parallel right now, all on this one machine, several of them in neighbouring files.
 
 ## Tech decisions already locked (build on these, don't relitigate)
 ARCHITECTURE §7 **L1–L25**, plus these Wave 2 rules:
@@ -33,10 +33,10 @@ From the Wave 1/C1 handbacks:
 2. **CLI from Epic 27's requests**:
    - `starling run --budget <usd>` overrides `budget.maxUsd` for the run.
    - `starling plan --json` prints **only** the JSON (`{ plan, issues }`) to stdout, and everything else goes to stderr.
-3. `doctor` already detects the opencode model; make `init` default to the **`opencode` LLM profile** when an `opencode-go/deepseek-v4.1-flash`-style model is listed (that's this machine).
+(The `init` profile default moved to Epic 61.)
 
 ## Your lane (you may write ONLY here)
-`apps/cli/src/compose.ts`, `apps/cli/src/real/**` (except `real/perch-compose.ts`, which is Epic 42's), `apps/cli/src/commands/{run,plan,status,dash,options}.ts`, `apps/cli/src/render/**`, **`packages/core/**` (additive only; you are its sole owner this wave)**, `fixtures/real/**`. For a *blocking* bug in another package (one that stops the real run), you may make the **minimal** fix there and must list it in the handback. Non-blocking issues go in FIX REQUESTS.
+`apps/cli/src/compose.ts`, `apps/cli/src/real/**` (except `real/perch-compose.ts`, which is Epic 42's), `apps/cli/src/commands/{run,plan,status,dash,options}.ts`, `apps/cli/src/render/**` (except `render/doctor.ts`, which is Epic 61's), **`packages/core/**` (additive only; you are its sole owner this wave)**, `fixtures/real/**`. For a *blocking* bug in another package (one that stops the real run), you may make the **minimal** fix there and must list it in the handback. Non-blocking issues go in FIX REQUESTS.
 plus `docs/epic-40-integration-captain.md` and `.orchestrator/handbacks/40-integration-captain.md`. Read anything.
 
 ## Goal

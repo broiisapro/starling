@@ -6,6 +6,8 @@
 
 Status: ⬜ not started · 🟦 prompt written · 🟨 running · 🟪 PR open / auditing · ✅ merged + tagged
 
+> **Update (2026-10-27, after C1):** all *development* agents run on the MacBook Pro only (it handles many dozens of opencode sessions; no local models during build waves). The Air is only for demoing Starling's **Flock** product feature. Wave 2 was widened to **23 parallel epics** (`prompts/wave-2/`): the original 12 plus 55–61, 68–71 pulled forward. **Wave 2b** (`prompts/wave-2b/`: 46, 50, 54) launches after Epic 40 merges. `epics.tsv` is the source of truth for numbering.
+
 ---
 
 ## Wave 0: Foundation (pre-event) · 3 sessions

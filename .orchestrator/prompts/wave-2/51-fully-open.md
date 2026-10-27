@@ -12,7 +12,7 @@ Starling (`.orchestrator/PRD.md`) is an open-source, open-weight-first harness. 
 
 **Read before you start:** `.orchestrator/ARCHITECTURE.md` (§6 contracts, §7 locked decisions, §8 handshake, now living in core), the `docs/epic-*.md` for every package you touch (their "Interfaces for future epics" sections), and the handbacks in `.orchestrator/handbacks/` that mention your area.
 
-**Wave 2 is about making it real.** Unlike Wave 1, you **may import sibling packages** (they're done). You still **write only inside your lane**: about 12 agents are working in parallel right now, several of them in neighbouring files.
+**Wave 2 is about making it real.** Unlike Wave 1, you **may import sibling packages** (they're done). You still **write only inside your lane**: about 23 agents are working in parallel right now, all on this one machine, several of them in neighbouring files.
 
 ## Tech decisions already locked (build on these, don't relitigate)
 ARCHITECTURE §7 **L1–L25**, plus these Wave 2 rules:
