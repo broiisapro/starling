@@ -3,7 +3,7 @@ import { PACKAGE as CORE_PACKAGE, newId } from '@starling/core';
 import { makeGoal } from '@starling/core/testing';
 import { PACKAGE } from './index.ts';
 
-describe('@starling/perch skeleton', () => {
+describe('@starling/perch', () => {
   test('exports its package name', () => {
     expect(PACKAGE).toBe('@starling/perch');
   });
