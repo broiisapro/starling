@@ -88,8 +88,13 @@ done
 remote_branches="$(gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[].name' 2>/dev/null \
   | grep '^starling/' || true)"
 for branch in $remote_branches; do
-  if gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1; then
+  # A ref that vanishes between list and delete is already clean (real gh: `Reference does not
+  # exist (HTTP 422)`), so only a real failure counts.
+  out="$(gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" 2>&1)"
+  if [ $? -eq 0 ]; then
     say "Deleted branch $branch"
+  elif printf '%s' "$out" | grep -q 'Reference does not exist'; then
+    say "Branch $branch was already gone"
   else
     say "warning: could not delete branch $branch"
     failures=$((failures + 1))
