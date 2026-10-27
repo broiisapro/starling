@@ -1,0 +1,82 @@
+# Epic 173: Community files: Hacktoberfest-ready CONTRIBUTING, CoC, SECURITY, issue forms, 15 good first issues
+
+**Wave 3 · Branch `epic/173-contributing` · Issue: `gh issue list --search "Epic 173 in:title"` · Model: DeepSeek V4.1 Flash · Budget: 60–120 min of autonomous work**
+
+## Where you are
+Starling (`.orchestrator/PRD.md`) is an open-source, open-weight-first harness. It turns one coding goal into a lane-safe task DAG, runs a flock of opencode agents in parallel git worktrees on this laptop and on other laptops ("perches"), audits each result, and merges everything through a queue, shown live in a murmuration dashboard.
+
+**Waves 0, 1, C1 and 2 are merged** (tags `epic-NN-complete`). About 2,500 tests pass across every package, the CLI, server, web dashboard, skill, tools and evals. Epic 40 (integration captain) is landing the **real** composition (`starling run` driving real opencode agents) in parallel with you, so for now `apps/cli`, `packages/core`, `packages/llm`, `packages/runner` and `apps/web/src/data` are **off limits** (Wave 3b takes them after Epic 40 merges).
+
+**Wave 3 is the big one: about 100 agents run at the same time on one laptop**, each in its own worktree and lane. That only works if everyone follows the rules below exactly.
+
+**Read before you start:** `AGENTS.md`, `.orchestrator/ARCHITECTURE.md` (§6 contracts, §7 locked decisions), the `docs/epic-*.md` for every package you touch (their "Interfaces for future epics" sections), the handbacks in `.orchestrator/handbacks/` that mention your area, and **`.orchestrator/fix-requests-w2.md`**.
+
+## Tech decisions already locked (build on these, don't relitigate)
+ARCHITECTURE §7 **L1–L31** still hold (Bun 1.4.4, TS 5.9.3, zod 4, Biome 2.6.3; web tests run in their own process; Markdown formatter off; no local models; real LLM calls only via the `opencode` profile). Wave 3 adds:
+- **L32 Lanes are absolute.** Write only inside your lane, plus your own `docs/epic-173-contributing.md` and `.orchestrator/handbacks/173-contributing.md`. Shared registration files you don't own (`apps/web/src/App.tsx` and `app/Layout.tsx`, `apps/cli/src/program.ts`, `apps/server/src/app.ts`, any package `index.ts` outside your lane) are **wired later by checkpoint C3**. Ship your work as a self-contained module with the manifest described in your prompt, and say in the handback exactly what C3 must add (file, line, code).
+- **L33 Public APIs are additive only.** Never rename or remove an export, field, route, CLI flag or event other code uses. Deprecate instead. About 100 branches merge after yours.
+- **L34 No new dependencies.** Don't touch any `package.json` dependency list, `bun.lock`, the root `package.json`, `tsconfig.base.json` or `biome.json`. Everything you need is already installed (React 19, lucide-react, zustand, @xyflow/react, Tailwind v4, Hono, commander, zod, bun:test, happy-dom, Playwright). If something is truly missing, write a CONTRACT REQUEST instead.
+- **L35 Heavy commands go through the slot gate.** With 100 agents, everyone running the full suite at once would melt the laptop. While iterating, run **only your own tests** (`bun test <your dir>`; for web code `cd apps/web && bun test src/features/<x>`) and **only your own typecheck** (`bunx tsc --noEmit -p <your package or app>`). Run the full suite **once, at the end**, through the gate: `bash .orchestrator/bin/heavy.sh bun run test` and `bash .orchestrator/bin/heavy.sh bun run check` (also wrap `bun run build` and any Playwright run). The gate may print "waiting" for a few minutes. If your shell tool times out while it waits, just run it again.
+- **L36 Bugs outside your lane are FIX REQUESTS, never edits.** QA epics record a confirmed bug as **`test.todo('BUG <area>: <one line>', () => { ... })`** with the real assertions inside, plus a FIX REQUEST. Never use `test.failing` and never commit a red test: about 100 fixes land in parallel, and a `test.failing` turns red the moment someone fixes the bug. **The one allowed cross-lane edit:** if your fix makes an existing `test.failing` probe in `tools/security/**` pass, change that probe's `test.failing(` to `test(` in the same PR (nothing else in that file) and say so in the handback.
+- **L37 No real model calls and no real Starling runs in Wave 3a** unless your prompt says otherwise. Use the recorded runs in `fixtures/runs/*.jsonl`, `@starling/core/testing` fakes and the mock compose paths. No Ollama, no local models (L23).
+- **L38 Tests live next to the code, and everything is deterministic.** No sleeps over 50 ms, no wall-clock assertions, no network beyond `127.0.0.1` on port `0`, and temp dirs under `os.tmpdir()` that clean up after themselves. Another 99 agents are hammering the CPU, so timing-sensitive tests will flake.
+- **D1 docs convention (shared by Epics 172–183, all writing in parallel).**
+  - **Entry points:** every docs area has its index at `docs/<area>/README.md`. Link siblings by these planned paths even if they don't exist yet: `docs/guide/` (175), `docs/api/` (176), `docs/architecture/` (177), `docs/demo/` (178), `docs/blog/` (180), `docs/troubleshooting/` (181), `docs/models/` (182), `docs/flock/` (183), `docs/release/` + `CHANGELOG.md` (174), `CONTRIBUTING.md`, `SECURITY.md`, `docs/good-first-issues.md` (173), `examples/README.md` (171), `examples/birdwatch-api/` (168), `site/` (179).
+  - **The pending marker:** anything not merged on `main` yet gets `⏳ Epic NN` (or `⏳ C3` for wiring) on the same line or table row. Checkers skip existence checks on marked lines but require the marker to name an epic. Never present unmerged behaviour as working.
+  - **The real-run flow (Epic 40, branch `epic/40-integration-captain`, merging in parallel with you; read `git show epic/40-integration-captain:docs/epic-40-integration-captain.md`):** `starling run` is **real by default**: one private `opencode serve` on a free port, git worktrees under `worktreeRoot`, SQLite at `<repo>/.starling/starling.db`, the flock hub and the merge queue. It starts the dashboard server and prints its URL unless `--no-dash`, then prints a summary such as `✔ 5 merged · ✘ 0 failed · 0 conflicts / api $0.223 · local $0 / branch starling/3rcdzr/integration (7m 11s)`. Flags new in Epic 40 (all `⏳ Epic 40` until merged): `run --mock` (the old no-process demo stack), `run --budget <usd>` (overrides `budget.maxUsd`) and `status --repo <path>`. `plan --json` prints only `{ plan, issues }` on stdout. `starling dash` serves the repo's store read-only (`POST /api/runs` → 501, "use `starling run`"). The default LLM profile for real runs is `opencode` (`STARLING_LLM_PROFILE` overrides it; the library default stays `deepseek`). Recordings over 5 MB keep lifecycle events only. Real recordings: `fixtures/real/quick-wins.jsonl`, `fixtures/real/launch-day.jsonl`. Known limits: the auditor runs tests in the hub repo, opencode completions report `$0` for planner/auditor turns, a single machine only (perches come from Epic 42's `starling perch`), and no conflict-resolver wiring.
+  - **Wave 3 CLI extensions** (built in `apps/cli/src/ext/*`, registered by C3/Epic 203, so mark them `⏳ C3`): `watch` (142), `gc` (143), `explain` (144), `completions` + `version --json` (145), `report` (146), `config` (147), `logs` (148), `try` (149).
+  - **Verify against code, not memory.** The CLI surface is `createProgram()` in `apps/cli/src/program.ts`. Import it read-only (`import { createProgram } from '../../apps/cli/src/program.ts'`) and walk `program.commands` / `command.options` (`.long`, `.short`, `.negate`, `.required`, `.defaultValue`). It works from `docs/` today (verified). Core schemas: `../../packages/core/src/index.ts` (`StarlingEventTypeSchema.options`, `TaskStatusSchema.options`, `RunStatusSchema.options`, `defaultConfig`, `StarlingConfigSchema`). Never spawn the CLI binary, start servers or touch the network in a checker.
+  - **Checker layout:** `docs/<area>/check.ts` (pure exported functions plus an `import.meta.main` CLI with `--check` (exit 1 on problems) and, where it generates content, `--write`), `docs/<area>/check.test.ts` beside it, and `docs/<area>/tsconfig.json` = `{ "extends": "../../tsconfig.base.json", "include": ["*.ts"] }`. Generated blocks sit between `<!-- generated:<name>:start -->` / `<!-- generated:<name>:end -->` markers. Tests are offline, deterministic and finish in under 2 s.
+  - **Root `bun run test` does not cover `docs/`** (its filters are `packages apps/server apps/cli skills integrations tools evals`; keep those words out of your file paths). Run `bun test docs/<area>` and `bunx tsc --noEmit -p docs/<area>` yourself. Biome **does** lint `docs/**/*.ts`, so `bun run check` must stay clean. C3 wiring for every docs epic: "add `bun test docs` and the `docs/*/tsconfig.json` typechecks to the CI docs job (Epic 150) / root scripts".
+  - Mermaid fenced blocks are fine (GitHub renders them). Reuse images from `docs/assets/**` (Epic 172 owns that folder; link, don't copy).
+- This epic has no folder of its own, so it has no checker script. Verification is the inline `bun -e` commands in the DoD; paste them verbatim in the handback.
+
+## FIRST TASK: carryover
+Open `.orchestrator/fix-requests-w2.md`. Implement every request that targets a file in your lane, or decline it with a one-line reason. List each one in your handback under **Carryover done**.
+
+Also, specifically for this epic:
+- **From 60-readme, FIX REQUEST 4:** add `starling init --yes` / `--dry-run` to the CONTRIBUTING setup example (both flags are registered).
+- **From 60, Open question:** the hard-coded test count in CONTRIBUTING goes stale. Replace it with a count-free phrase.
+
+## Your lane (you may write ONLY here)
+`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/**`, `.github/PULL_REQUEST_TEMPLATE.md`, `docs/good-first-issues.md`
+plus `docs/epic-173-contributing.md` and `.orchestrator/handbacks/173-contributing.md`. Read anything.
+
+## Goal
+Starling is a Hacktoberfest project, and the demo closes on "here are the good first issues". This epic makes that true: a CONTRIBUTING guide that turns our lane method into an on-ramp for humans, standard community files (Code of Conduct, a security policy that is honest about the LAN-only flock model and the open SEC findings), issue forms that route reports to the right area, and **15 concrete good first issues** with real file pointers and a literal definition of done. Great looks like this: a first-time contributor picks an issue, declares a lane, and opens a mergeable PR without asking a question.
+
+## Deliverables
+1. **`CONTRIBUTING.md` refresh** (keep its structure and tone):
+   - a **Hacktoberfest** section (how PRs count: the `hacktoberfest` topic and the `hacktoberfest-accepted` label; one concern per PR; no spam);
+   - **"Adding things without touching shared files"**: the CLI extension module (`apps/cli/src/ext/<name>/` with `export const extension = { name, summary, register(program, io) }`) and the web feature manifest (`apps/web/src/features/<x>/index.ts` → `export const feature = {…}`), copied from the Wave 3 conventions so humans use the same seams;
+   - **standalone projects** and how to test each: `examples/*` (own suites; `bun test examples/scripts`), `site/` (`bun run --cwd site test`), and the docs checkers (`bun test docs/<area>`);
+   - replace "1,785 tests" with a count-free phrase ("≈2,500 tests; CI has the current number").
+   Keep the handback section and "If you are an AI agent" consistent with `AGENTS.md` (read it; don't contradict it).
+2. **Setup example** (FIX REQUEST 60.4): `bun run starling init --yes` and `bun run starling init --dry-run`. Verify both flags exist in `createProgram()` (they do). The real-run note: `starling run` is real by default once Epic 40 merges (`⏳ Epic 40` for `--mock`).
+3. **`CODE_OF_CONDUCT.md`:** the Contributor Covenant 2.1, with the required attribution (CC BY 4.0) and the enforcement guidelines. For the reporting channel, don't invent an email address: point to GitHub's private reporting / a maintainer contact line marked clearly as to-be-filled, and list "conduct contact email" as an Open question in the handback.
+4. **`SECURITY.md`:**
+   - supported versions (`main`, 0.x);
+   - how to report (GitHub private vulnerability reporting; no public issues);
+   - the threat model in plain words (ARCHITECTURE L18: a LAN-only flock, the join code as a shared secret in `x-flock-token`, no TLS; agents run repo commands; run Starling only on repos and networks you trust);
+   - a **known findings table** SEC-01…SEC-11 from `.orchestrator/fix-requests-w2.md` §69 (id, one line, status: SEC-04 fixed by Epic 41; the others `⏳ Epic 101/102/103/104/110` per the w3 list), each linking its probe in `tools/security/*.test.ts`.
+   Link `docs/flock/` for the operational guide.
+5. **Issue forms**, additive only: add `feature.yml`, `docs.yml` and `good-first-issue.yml` (a maintainer form with lane, files, DoD, test command and difficulty fields). Extend the `area` dropdown in `bug.yml` with any missing areas (`examples`, `docs`, `site`, `integrations`, `server`, `cli extensions`). **Don't rename or remove** `bug.yml`, `epic.yml`, `contract-request.yml` or `config.yml` (the orchestrator uses them). Add a contact link for security reports to `config.yml`.
+6. **`.github/PULL_REQUEST_TEMPLATE.md`:** keep the handback block **verbatim** (the orchestrator parses those headings; agents use `--body-file`, so the template only affects humans). Add a short human preface ("Human contributor? Fill in Lane, what changed, how you tested; the handback fields are optional for small PRs") and two checklist items (lane declared; `hacktoberfest` rules read).
+7. **`docs/good-first-issues.md`: 15 issues.** Each has: a title (Conventional-Commit style), area, **lane globs**, the files to read and the files to change (real paths that exist today), why it matters (one line), a literal DoD, the test command, difficulty (S/M), labels, and a ready `gh issue create --title … --label good-first-issue,hacktoberfest --body-file -` snippet. Source the ideas from the "Known limitations / deferred" sections of `docs/epic-*.md` and the handbacks' Open questions.
+8. **Avoid stepping on Wave 3:** don't pick work that a Wave 3 epic already owns (check `.orchestrator/epics.tsv` and `gh issue list --label epic --state open --limit 200`). Good candidates live in quiet lanes: doctor hints, error messages, `skills/` examples, py-ledger import dedupe docs, etc. Each issue's lane must be **disjoint** from the other 14, so 15 people can work at once. Say so at the top of the doc.
+
+## Explicitly out of scope
+- `README.md` (Epic 172), `.github/workflows/**` (Epic 150), `AGENTS.md`, `.orchestrator/**`.
+- Actually creating GitHub issues or labels (done later by the maintainer; your doc has the snippets).
+
+## Definition of done (run literally, paste results in the handback)
+1. `bun install` clean in your worktree (it must not change `bun.lock`).
+2. Every issue form parses: `for f in .github/ISSUE_TEMPLATE/*.yml; do bun -e "Bun.YAML.parse(await Bun.file('$f').text())" || echo BAD $f; done` → no `BAD` (if `Bun.YAML` is missing, use `cd packages/core && bun -e "import {parse} from 'yaml'; …"`).
+3. Every repo path in `docs/good-first-issues.md` exists: run a short `bun -e` script that extracts backticked paths containing `/` and `existsSync`s them, and paste it plus its output (0 missing). Same for the `tools/security/*.test.ts` links in `SECURITY.md`.
+4. The 15 issues' lane globs are pairwise disjoint: check with `globsOverlap` from `packages/core/src/glob.ts` in the same `bun -e` script (paste).
+5. `bash .orchestrator/bin/heavy.sh bun run test` at the repo root → 0 fail (paste both halves' summary lines).
+6. `bash .orchestrator/bin/heavy.sh bun run check` → clean.
+7. `docs/epic-173-contributing.md` (AGENTS.md §6 sections) and `.orchestrator/handbacks/173-contributing.md` written. The handback has **Carryover done**, **C3 wiring** (exact code C3 must add, or "none") and **FIX REQUESTS** (or "none") sections. PR opened per AGENTS.md §6 with `Closes #<issue>`. Print the PR URL last.
+
+## Git
+Branch `epic/173-contributing`. Conventional Commits scoped to your lane, committed small and often (at least 5 commits). `git fetch origin && git rebase origin/main` before pushing. No merging, no tags. Never `git add -A` at the repo root without checking `git status` first: only your lane's files belong in the PR.

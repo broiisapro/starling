@@ -59,3 +59,111 @@ nn	slug	title	wave	machine	lane	depends
 69	security-review	Security & safety review	2	mbp	tools/security	C1
 70	load-test	Load test: 30-task runs and a busy dashboard	2	mbp	tools/load	C1
 71	web-e2e	Browser end-to-end tests (Playwright)	2	mbp	apps/web/e2e	C1
+100	engine-r2	Engine round 2: diff events, run.status, merge queue, resolver + tracker hooks, warn verdicts	3	mbp	packages/engine/**	W2
+101	flock-hardening	Flock hardening: SEC-02/03/05, worktree handles, bundle GC, hub rehydration, registry eviction	3	mbp	packages/flock/**	W2
+102	perch-hardening	Perch hardening: body limits, hostile refs, mDNS code opt-in, health, drain, jitter	3	mbp	packages/perch/**	W2
+103	auditor-r2	Auditor round 2: lane traversal (SEC-08), command policy (SEC-11), verdict explanations	3	mbp	packages/auditor/**	W2
+104	merger-r2	Merger round 2: native serial merges, priority queue, batch bisect, SEC-11	3	mbp	packages/merger/**	W2
+105	workspace-r2	Workspace round 2: gc library, worktree locks, disk budget, dependency linking	3	mbp	packages/workspace/**	W2
+106	github-r2	GitHub round 2: rate-limit backoff, idempotent labels and milestones, murmuration PR body, commit statuses	3	mbp	packages/github/**	W2
+107	planner-r2	Planner round 2: one repo-map renderer, swarm-size plans, plan diffing, lane suggestions	3	mbp	packages/planner/**	W2
+108	repomap-r2	Repo map round 2: more languages, import graphs, CODEOWNERS hints, 10k-file budget	3	mbp	packages/repomap/**	W2
+109	prompts-r2	Prompts round 2: section budgets, injection guards, explain and summary templates	3	mbp	packages/prompts/**	W2
+110	server-hardening	Server hardening: SEC-01/05/06/09, LAN token guard, rate limits, preview and budget	3	mbp	apps/server/**, apps/server/src/routes/insights*	W2
+111	server-insights	Server insights routes: report, timeline, costs, compare	3	mbp	apps/server/src/routes/insights.ts, apps/server/src/routes/insights.test.ts, apps/server/src/insights/**	W2
+112	web-shell-r2	Web shell round 2: feature registry, page router, panel dock, overlay host, compact 720p stage	3	mbp	apps/web/src/app/**, apps/web/src/App.tsx, apps/web/src/main.tsx, apps/web/src/index.css, apps/web/index.html, apps/web/vite.config.ts	W2
+113	web-report	Web: flight report (the post-run summary page)	3	mbp	apps/web/src/features/report/**	W2
+114	web-timeline	Web: timeline (a live Gantt of the flock)	3	mbp	apps/web/src/features/timeline/**	W2
+115	web-lanes	Web: lanes map (who owns which files)	3	mbp	apps/web/src/features/lanes/**	W2
+116	web-costs	Web: costs and tokens breakdown, with open-weight savings	3	mbp	apps/web/src/features/costs/**	W2
+117	web-console	Web: event console (the raw murmuration)	3	mbp	apps/web/src/features/console/**	W2
+118	web-settings	Web: settings drawer (typed, persisted, safe)	3	mbp	apps/web/src/features/settings/**	W2
+119	web-tour	Web: guided tour for judges	3	mbp	apps/web/src/features/tour/**	W2
+120	web-palette	Web: command palette (Cmd-K)	3	mbp	apps/web/src/features/palette/**	W2
+121	web-toasts	Web: toasts and notifications	3	mbp	apps/web/src/features/toasts/**	W2
+122	web-compare	Web: compare two runs	3	mbp	apps/web/src/features/compare/**	W2
+123	web-export	Web: export and share card	3	mbp	apps/web/src/features/export/**	W2
+124	web-scrubber	Web: replay scrubber	3	mbp	apps/web/src/features/scrubber/**	W2
+125	web-heatmap	Web: file churn heatmap	3	mbp	apps/web/src/features/heatmap/**	W2
+126	web-leaderboard	Web: flock leaderboard	3	mbp	apps/web/src/features/leaderboard/**	W2
+127	web-stage	Web: presenter stage mode	3	mbp	apps/web/src/features/stage/**	W2
+128	web-topology	Web: flock topology	3	mbp	apps/web/src/features/topology/**	W2
+129	web-health	Web: system health panel	3	mbp	apps/web/src/features/health/**	W2
+130	web-sky-r3	Web: Sky round 3 (100 tasks, richer roosts, murmuration burst)	3	mbp	apps/web/src/features/sky/**	W2
+131	web-dag-r2	Web: DAG round 2 (60-task plans, lane collapse, re-plan diff)	3	mbp	apps/web/src/features/dag/**	W2
+132	web-agents-r2	Web: agent drawer round 2 (split diff, verdict explanations, fix prompt, search)	3	mbp	apps/web/src/features/agents/**	W2
+133	web-queue-r2	Web: merge queue round 2 (720p board, column widths, batch/bisect)	3	mbp	apps/web/src/features/queue/**	W2
+134	web-metrics-r2	Web: metrics round 2 (throughput, parallelism, time saved, tokens/s)	3	mbp	apps/web/src/features/metrics/**	W2
+135	web-flock-r3	Web: flock panel round 3 (join polish, perch drill-down, drain/remove, offline)	3	mbp	apps/web/src/features/flock/**	W2
+136	web-launch-r2	Web: launch form round 2 (templates, preview step, validation, recent goals)	3	mbp	apps/web/src/features/launch/**	W2
+137	web-about-r2	Web: about / built-by-the-flock round 2	3	mbp	apps/web/src/features/about/**	W2
+138	web-gallery	Web: component gallery	3	mbp	apps/web/src/gallery/**, apps/web/gallery.html	W2
+139	web-a11y-audit	Web: accessibility audit	3	mbp	apps/web/src/__a11y__/**	W2
+140	web-e2e-r2	Web: Playwright round 2	3	mbp	apps/web/e2e/**	W2
+141	web-perf	Web: performance budgets	3	mbp	apps/web/src/__perf__/**	W2
+142	cli-watch	CLI: `starling watch`, a live murmuration in the terminal	3	mbp	apps/cli/src/ext/watch/**	W2
+143	cli-gc	CLI: `starling gc` for stale worktrees and branches	3	mbp	apps/cli/src/ext/gc/**	W2
+144	cli-explain	CLI: `starling explain`, plans and runs in plain English	3	mbp	apps/cli/src/ext/explain/**	W2
+145	cli-completions	CLI: shell completions, `starling version`, and a bird banner	3	mbp	apps/cli/src/ext/completions/**	W2
+146	cli-report	CLI: `starling report`, the flight report for PRs and READMEs	3	mbp	apps/cli/src/ext/report/**	W2
+147	cli-config	CLI: `starling config` get/set/list/validate/path	3	mbp	apps/cli/src/ext/config/**	W2
+148	cli-logs	CLI: `starling logs`, per-task agent transcripts	3	mbp	apps/cli/src/ext/logs/**	W2
+149	cli-try	CLI: `starling try`, the one-command demo	3	mbp	apps/cli/src/ext/try/**	W2
+150	ci-r2	CI round 2: split jobs, e2e, site, Pages, nightly, PR size, links	3	mbp	.github/workflows/**	W2
+151	packaging	Packaging: single-file binaries, checksums, Homebrew template	3	mbp	tools/release/**	W2
+152	installer	Install script: `curl | sh` with checksum verification	3	mbp	tools/install/**	W2
+153	devcontainer	Devcontainer and Docker demo image	3	mbp	.devcontainer/**, Dockerfile, .dockerignore, tools/docker/**	W2
+154	stats-r2	Stats round 2: the 100-agent wave in numbers	3	mbp	tools/stats/**	W2
+155	load-r2	Load test round 2: 60 and 100 tasks, 20 dashboards, Wave 2 baseline	3	mbp	tools/load/**	W2
+156	stress-r2	Workspace stress round 2: 100 worktrees, crash recovery and baselines	3	mbp	tools/stress/**	W2
+157	security-r2	Security review round 2: injection, SSRF, XSS sinks and secret leakage	3	mbp	tools/security/r2/**	W2
+158	flock-demo-kit	Flock demo kit: preflight, rehearsal and a one-page runbook	3	mbp	tools/flock/**	W2
+159	github-sandbox-r2	GitHub sandbox round 2: idempotent, dry-run, rate-limit aware	3	mbp	tools/github-sandbox/**	W2
+160	repo-hygiene	Repo hygiene checker	3	mbp	tools/hygiene/**	W2
+161	evals-planner-r2	Evals: planner round 2 (harder goals, structure scoring, recorded mode)	3	mbp	evals/planner/**	W2
+162	evals-auditor-r2	Evals: auditor round 2 (adversarial diffs, recorded verdicts, precision/recall)	3	mbp	evals/auditor/**	W2
+163	vscode	Integration: VS Code extension	3	mbp	integrations/vscode/**	W2
+164	github-action	Integration: GitHub Action (plan on label, report on artifact)	3	mbp	integrations/github-action/**	W2
+165	mcp-server	Integration: MCP server (plan, status, report, live events)	3	mbp	integrations/mcp/**	W2
+166	notify	Integration: run notifications (webhook, macOS, dry run)	3	mbp	integrations/notify/**	W2
+167	shell-prompt	Integration: shell prompt segment	3	mbp	integrations/shell/**	W2
+168	example-api	Demo target 3: birdwatch-api, a zero-dependency Bun TypeScript API	3	mbp	examples/birdwatch-api/**	W2
+169	sky-todo-r3	sky-todo round 3: big-day, conflict-storm and fix-loop goals	3	mbp	examples/sky-todo/**	W2
+170	py-ledger-r2	py-ledger round 2: more goals, a pure-Python test runner fallback, README polish	3	mbp	examples/py-ledger/**	W2
+171	examples-scripts	Examples tooling: generic demo repos, an answer-key validator, a demo-day reset	3	mbp	examples/scripts/**, examples/README.md	W2
+172	readme-r2	README round 2: judge-ready, real-run quickstart, docs hub	3	mbp	README.md, docs/assets/**	W2
+173	contributing	Community files: Hacktoberfest-ready CONTRIBUTING, CoC, SECURITY, issue forms, 15 good first issues	3	mbp	CONTRIBUTING.md, CODE_OF_CONDUCT.md, SECURITY.md, .github/ISSUE_TEMPLATE/**, .github/PULL_REQUEST_TEMPLATE.md, docs/good-first-issues.md	W2
+174	changelog	CHANGELOG and release notes for v0.1.0, generated from tags and handbacks	3	mbp	CHANGELOG.md, docs/release/**	W2
+175	guide	User guide: install to first real run, verified against the CLI	3	mbp	docs/guide/**	W2
+176	api-docs	API reference: REST, SSE events, perch API and config, checked against the zod schemas	3	mbp	docs/api/**	W2
+177	arch-docs	Architecture deep dive with Mermaid diagrams checked against the code	3	mbp	docs/architecture/**	W2
+178	demo-script	Demo script (3 and 5 minutes), backup plans, judge Q&A, pre-demo checklist	3	mbp	docs/demo/**	W2
+179	site-r2	Landing site round 2: embedded murmuration replay, the 100-agent story, model table	3	mbp	site/**	W2
+180	blog	Blog post: how a flock of 100 open-weight agents built Starling	3	mbp	docs/blog/**	W2
+181	troubleshooting	Troubleshooting and FAQ: every StarlingErrorCode, every known symptom	3	mbp	docs/troubleshooting/**	W2
+182	models-guide	Open-weight models guide: roles, profiles, hardware sizing, adding a provider	3	mbp	docs/models/**	W2
+183	flock-guide	Flock guide: laptops as a cluster, join codes, security model, networking, runbook	3	mbp	docs/flock/**	W2
+184	qa-engine	QA: engine state machine, ordering, cancellation and policies	3	mbp	tools/qa/engine/**	W2
+185	qa-flock-perch	QA: flock hub, registry, scheduler and the perch HTTP API	3	mbp	tools/qa/flock-perch/**	W2
+186	qa-auditor-merger	QA: auditor verdicts, lane checks, merge queue and conflict handling	3	mbp	tools/qa/auditor-merger/**	W2
+187	qa-workspace	QA: worktrees, diffs, merge-tree prediction and bundles on real repos	3	mbp	tools/qa/workspace/**	W2
+188	qa-plan-pipeline	QA: repo map → planner → prompts, end to end with fake LLMs	3	mbp	tools/qa/plan-pipeline/**	W2
+189	qa-github-store	QA: GitHub tracker (fake gh) and the SQLite/JSONL store	3	mbp	tools/qa/github-store/**	W2
+190	qa-server-api	QA: every REST route and the SSE stream against the documented API	3	mbp	tools/qa/server-api/**	W2
+191	qa-web-core	QA: web reducer, selectors, store, SSE client and shell	3	mbp	apps/web/src/__qa__/core/**	W2
+192	qa-web-features	QA: every web feature panel with empty, huge and weird data	3	mbp	apps/web/src/__qa__/features/**	W2
+193	qa-fixtures	QA: recorded runs, plans, repo maps and demo goals are valid and consistent	3	mbp	tools/qa/fixtures/**	W2
+194	qa-config-env	QA: config loading, env overrides, profiles, defaults and paths	3	mbp	tools/qa/config-env/**	W2
+195	qa-docs-accuracy	QA: docs accuracy checker (commands, flags, env vars, routes, paths, exports)	3	mbp	tools/qa/docs/**	W2
+196	qa-races	QA: concurrency and races with deterministic interleavings	3	mbp	tools/qa/races/**	W2
+197	qa-fuzz	QA: seeded property and fuzz tests for every parser	3	mbp	tools/qa/fuzz/**	W2
+198	qa-examples	QA: demo targets build, seeded bugs exist, answer keys fix them	3	mbp	tools/qa/examples/**	W2
+199	qa-perf-budgets	QA: op-count and size budgets for package hot paths	3	mbp	tools/qa/perf/**	W2
+200	llm-r2	LLM round 2: honest usage, one retry policy, model capabilities	3	mbp	packages/llm/**	40
+201	runner-r2	Runner round 2: opencode 2.x edge cases, session cleanup, server pool, log limits	3	mbp	packages/runner/**	40
+202	core-r2	Core round 2: contract consolidation	3	mbp	packages/core/**	40
+203	cli-r2	CLI round 2: wire the extensions, exit codes and JSON output	3	mbp	apps/cli/**	40
+204	web-data-r2	Web data round 2: diff events, seekable replays, insights clients, feature slices	3	mbp	apps/web/src/data/**	40
+205	evals-e2e	Evals: end-to-end (plan → run → audit → merge) with scripted agents	3	mbp	evals/e2e/**, evals/run.ts, evals/lib/**, evals/real.ts	40
+206	qa-cli	QA: CLI	3	mbp	tools/qa/cli/**	40
+207	real-run-matrix	Real-run matrix: every demo target, for real	3	mbp	tools/realrun/**, fixtures/real/**	40
