@@ -3,6 +3,7 @@ export const FEATURE = 'components' as const;
 
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { ErrorBoundary, type ErrorBoundaryProps } from './ErrorBoundary';
 export { Kbd, type KbdProps } from './Kbd';
 export { Panel, type PanelProps } from './Panel';
 export { Stat, type StatProps, type StatTone } from './Stat';

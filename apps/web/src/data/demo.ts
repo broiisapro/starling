@@ -81,7 +81,11 @@ export function demoEvents(): StarlingEvent[] {
  * verdict/merge `ts`), while leaving every duration untouched — so `metrics.elapsedMs`, the sample
  * spacing and the run's own reported cost/timing stay exactly as recorded.
  */
-function rebaseTask(task: TaskRun, offset: number, rebaseVerdict: (v: AuditVerdict) => AuditVerdict): TaskRun {
+function rebaseTask(
+  task: TaskRun,
+  offset: number,
+  rebaseVerdict: (v: AuditVerdict) => AuditVerdict,
+): TaskRun {
   const next: TaskRun = { ...task };
   if (task.startedAt !== undefined) next.startedAt = task.startedAt + offset;
   if (task.finishedAt !== undefined) next.finishedAt = task.finishedAt + offset;
@@ -89,11 +93,7 @@ function rebaseTask(task: TaskRun, offset: number, rebaseVerdict: (v: AuditVerdi
   return next;
 }
 
-function rebaseRun(
-  run: Run,
-  offset: number,
-  rebaseVerdict: (v: AuditVerdict) => AuditVerdict,
-): Run {
+function rebaseRun(run: Run, offset: number, rebaseVerdict: (v: AuditVerdict) => AuditVerdict): Run {
   const tasks: Record<string, TaskRun> = {};
   for (const [key, task] of Object.entries(run.tasks)) tasks[key] = rebaseTask(task, offset, rebaseVerdict);
   const next: Run = {
@@ -123,7 +123,10 @@ function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
       return {
         ...event,
         ts,
-        payload: { ...event.payload, plan: { ...event.payload.plan, createdAt: event.payload.plan.createdAt + offset } },
+        payload: {
+          ...event.payload,
+          plan: { ...event.payload.plan, createdAt: event.payload.plan.createdAt + offset },
+        },
       };
     case 'task.status': {
       const rebase = (verdict: AuditVerdict) => ({ ...verdict, ts: verdict.ts + offset });
@@ -135,7 +138,8 @@ function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
           run: rebaseTask(event.payload.run, offset, rebase),
         },
       };
-    }    case 'agent.event':
+    }
+    case 'agent.event':
       return { ...event, ts, payload: { ...event.payload, ts: event.payload.ts + offset } };
     case 'audit.verdict':
       return { ...event, ts, payload: { ...event.payload, ts: event.payload.ts + offset } };
@@ -144,7 +148,11 @@ function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
     case 'node.joined':
     case 'node.stats': {
       const node = event.payload.node;
-      return { ...event, ts, payload: { ...event.payload, node: { ...node, lastSeen: node.lastSeen + offset } } };
+      return {
+        ...event,
+        ts,
+        payload: { ...event.payload, node: { ...node, lastSeen: node.lastSeen + offset } },
+      };
     }
     // Durations live in the payload and must not move; the envelope ts has already been shifted.
     case 'metrics':

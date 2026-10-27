@@ -1,20 +1,39 @@
-import { ChevronLeft, ChevronRight, PanelRight } from 'lucide-react';
-import { useState } from 'react';
-import { Badge, Panel, type TabItem, Tabs } from '../components';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Badge, ErrorBoundary, Panel } from '../components';
 import type { SkyState } from '../data/reducer';
-import { activeRunOf, flockProps, sortedRuns } from '../data/selectors';
+import {
+  activeRunOf,
+  dagProps,
+  displayTasks,
+  drawerProps,
+  flockProps,
+  metricsProps,
+  queueProps,
+  type SelectorActions,
+  skyProps,
+  sortedRuns,
+  storeActions,
+} from '../data/selectors';
+import { AgentDrawer } from '../features/agents';
+import { DagView } from '../features/dag';
+import { FlockPanel } from '../features/flock';
+import { MetricsPanel, usePrefersReducedMotion } from '../features/metrics';
+import { MergeQueue } from '../features/queue';
+import { SkyView } from '../features/sky';
 import { cn } from '../lib/cn';
+import { formatUsd } from '../lib/format';
 import type { DemoSpeed } from '../lib/speed';
 import type { Theme } from '../lib/theme';
+import { KeyboardHelp } from './KeyboardHelp';
 import { RegionPlaceholder } from './RegionPlaceholder';
-import { TopBar } from './TopBar';
+import { type CentreView, TopBar } from './TopBar';
 
-type SkyTab = 'sky' | 'dag';
+export type { CentreView };
 
-const SKY_TABS: readonly TabItem<SkyTab>[] = [
-  { id: 'sky', label: 'Sky' },
-  { id: 'dag', label: 'Flight plan' },
-];
+const FLOCK_OPEN = '15rem';
+const FLOCK_CLOSED = '3.25rem';
+const DRAWER_OPEN = '22rem';
 
 export interface LayoutProps {
   state: SkyState;
@@ -24,19 +43,26 @@ export interface LayoutProps {
   onToggleTheme(): void;
   onSelectRun?(runId: string): void;
   onCloseDrawer?(): void;
+  /** Select a task from any panel. Defaults to the store (this is what makes C1 wiring one-liners work). */
+  onSelectTask?(key: string): void;
+  /** The centre view to start on. Keys 1/2 and the top-bar toggle change it after mount. */
+  initialView?: CentreView;
 }
 
 /**
- * The shell. Five regions, one receiving stream:
+ * The shell. Five regions, one receiving stream, every panel fed by a selector:
  *
- *     ┌────────────── top bar: logo · run picker · connection · demo speed · theme ──────────────┐
- *     │ flock │                     sky / flight plan                      │      drawer       │
+ *     ┌────────────── top bar: logo · run · live badge · Sky/DAG toggle · speed · ? · theme ──────┐
+ *     │ flock │                     sky / flight plan                      │      agent        │
  *     ├───────┴────────────────────────────────────────────────────────────┴───────────────────┤
- *     │                        merge queue                        │         metrics              │
+ *     │                        merge queue                        │        cost & speed         │
  *     └──────────────────────────────────────────────────────────────────────────────────────────┘
  *
- * Each region is a `RegionPlaceholder` in Wave 1. C1 replaces the placeholder with the one-line
- * wiring noted beside it; nothing else in the shell has to move.
+ * At 1280×720 the sky keeps the centre and the right column only exists while a task is selected;
+ * at 1920×1080 everything breathes. Each region sits behind its own `ErrorBoundary`, so a panel
+ * that throws shows the `RegionPlaceholder` fallback instead of blanking the dashboard.
+ *
+ * Keyboard: `1` Sky · `2` DAG · `b` bottom strip · `f` flock rail · `?` help · `Esc` close.
  */
 export function Layout({
   state,
@@ -46,15 +72,85 @@ export function Layout({
   onToggleTheme,
   onSelectRun,
   onCloseDrawer,
+  onSelectTask,
+  initialView = 'sky',
 }: LayoutProps) {
-  const [skyTab, setSkyTab] = useState<SkyTab>('sky');
+  const [view, setView] = useState<CentreView>(initialView);
   const [flockOpen, setFlockOpen] = useState(true);
-  const run = activeRunOf(state);
+  const [stripOpen, setStripOpen] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const reducedMotion = usePrefersReducedMotion();
+
+  const actions = useMemo<SelectorActions>(
+    () => ({
+      selectTask: onSelectTask ?? storeActions.selectTask,
+      closeDrawer: onCloseDrawer ?? storeActions.closeDrawer,
+    }),
+    [onSelectTask, onCloseDrawer],
+  );
+
+  // Only the three label-rendering panels get display node names; the Sky and the flock panel
+  // need real node ids (roost lookup and per-roost task grouping).
+  const tasks = useMemo(() => displayTasks(state, activeRunOf(state)?.tasks ?? {}), [state]);
+  const sky = skyProps(state, actions);
+  const dag = dagProps(state, actions);
+  const drawer = drawerProps(state, actions);
+  const queue = queueProps(state, actions);
+  const metrics = metricsProps(state, { live: activeRunOf(state)?.status === 'running' });
+  const flock = flockProps(state, actions, {
+    compact: true,
+    reducedMotion,
+    onSelectTask: actions.selectTask,
+  });
+
   const runs = sortedRuns(state);
-  const flock = flockProps(state);
+  const run = activeRunOf(state);
+  const tasksOfRun = Object.values(tasks);
+  const landed = tasksOfRun.filter((task) => task.status === 'merged').length;
+  const flying = tasksOfRun.filter((task) => task.status === 'running' || task.status === 'fixing').length;
   const online = flock.nodes.filter((node) => node.status !== 'offline').length;
-  const taskList = run === undefined ? [] : Object.values(run.tasks);
-  const landed = taskList.filter((task) => task.status === 'merged').length;
+  const drawerOpen = state.selectedTask !== undefined;
+  const onTheWire = metrics.metrics?.tasksMerged ?? 0;
+
+  const closeDrawer = useCallback(() => actions.closeDrawer(), [actions]);
+
+  // One document-level handler for the whole shell; text fields keep their keystrokes.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement) {
+        const tag = target.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable) return;
+      }
+      switch (event.key) {
+        case '1':
+          setView('sky');
+          break;
+        case '2':
+          setView('dag');
+          break;
+        case 'b':
+          setStripOpen((open) => !open);
+          break;
+        case 'f':
+          setFlockOpen((open) => !open);
+          break;
+        case '?':
+          setHelpOpen((open) => !open);
+          break;
+        case 'Escape':
+          if (helpOpen) setHelpOpen(false);
+          else closeDrawer();
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [helpOpen, closeDrawer]);
 
   return (
     <div className="flex h-screen min-h-0 w-full flex-col overflow-hidden text-ink-1">
@@ -74,14 +170,19 @@ export function Layout({
         theme={theme}
         onToggleTheme={onToggleTheme}
         onSelectRun={(runId) => onSelectRun?.(runId)}
+        view={view}
+        onViewChange={setView}
+        onOpenHelp={() => setHelpOpen(true)}
         landed={landed}
-        totalTasks={taskList.length}
+        totalTasks={tasksOfRun.length}
       />
 
       <main
-        className="grid min-h-0 flex-1 gap-2 px-2 pt-2 pb-2"
+        className="grid min-h-0 flex-1 gap-2 px-2 pt-2 pb-2 transition-[grid-template-columns] duration-300 ease-out"
         style={{
-          gridTemplateColumns: flockOpen ? '15rem minmax(0, 1fr) 21rem' : '3.25rem minmax(0, 1fr) 21rem',
+          gridTemplateColumns: `${flockOpen ? FLOCK_OPEN : FLOCK_CLOSED} minmax(0, 1fr) ${
+            drawerOpen ? DRAWER_OPEN : '0rem'
+          }`,
         }}
       >
         <aside data-region="flock" aria-label="Flock region" className="flex min-h-0 min-w-0 flex-col">
@@ -108,10 +209,11 @@ export function Layout({
               </>
             }
           >
-            <div id="flock-region-body" className="h-full">
+            <div id="flock-region-body" className="h-full overflow-y-auto overscroll-contain p-1.5">
               {flockOpen ? (
-                // WIRED AT C1: <FlockPanel {...flockProps(state)} />
-                <RegionPlaceholder name="flock" compact />
+                <ErrorBoundary name="flock" resetKey={state.activeRunId}>
+                  <FlockPanel {...flock} />
+                </ErrorBoundary>
               ) : (
                 <div className="flex h-full flex-col items-center gap-3 pt-3">
                   <span className="[writing-mode:vertical-rl] text-micro tracking-[0.18em] text-ink-4 uppercase">
@@ -126,79 +228,154 @@ export function Layout({
         <section
           id="region-sky"
           data-region="sky"
-          aria-label="Sky region"
+          aria-label={view === 'sky' ? 'Sky region' : 'Flight plan region'}
           tabIndex={-1}
           className="min-h-0 min-w-0"
         >
           <Panel
             className="h-full sky-field"
-            title="The sky"
+            title={view === 'sky' ? 'The sky' : 'Flight plan'}
             subtitle={run?.plan?.summary ?? run?.goal.text ?? 'No run yet — waiting for a goal'}
             actions={
-              <Tabs<SkyTab>
-                ariaLabel="Sky or flight plan"
-                tabs={SKY_TABS}
-                value={skyTab}
-                onChange={setSkyTab}
-                size="sm"
-              />
+              <Badge tone={flying > 0 ? 'accent' : 'neutral'} title="Birds in the air right now">
+                {flying} flying
+              </Badge>
             }
             bodyClassName="relative"
           >
-            <div hidden={skyTab !== 'sky'} className="h-full">
-              {/* WIRED AT C1: <SkyView {...skyProps(state)} /> */}
-              <RegionPlaceholder name="sky" />
+            <div hidden={view !== 'sky'} className="h-full">
+              <ErrorBoundary
+                name="sky"
+                resetKey={state.activeRunId}
+                fallback={(error) => <RegionPlaceholder name="sky" detail={error.message} />}
+              >
+                <SkyView {...sky} reducedMotion={reducedMotion} />
+              </ErrorBoundary>
             </div>
-            <div hidden={skyTab !== 'dag'} className="h-full">
-              {/* WIRED AT C1: <DagView {...dagProps(state)} /> */}
-              <RegionPlaceholder name="dag" />
+            <div hidden={view !== 'dag'} className="h-full">
+              <ErrorBoundary
+                name="dag"
+                resetKey={state.activeRunId}
+                fallback={(error) => <RegionPlaceholder name="dag" detail={error.message} />}
+              >
+                <DagView {...dag} />
+              </ErrorBoundary>
             </div>
           </Panel>
         </section>
 
-        <aside data-region="drawer" aria-label="Agent drawer region" className="min-h-0 min-w-0">
-          <Panel
-            as="aside"
-            className="h-full"
-            title="Agent"
-            subtitle={state.selectedTask === undefined ? 'No bird selected' : state.selectedTask}
-            actions={
-              <button
-                type="button"
-                onClick={() => onCloseDrawer?.()}
-                aria-label="Close the agent drawer"
-                className={cn(
-                  'inline-flex h-6 w-6 items-center justify-center rounded-md text-ink-4 hover:bg-surface-3 hover:text-ink-1',
-                  state.selectedTask === undefined && 'pointer-events-none opacity-30',
-                )}
-              >
-                <PanelRight className="h-4 w-4" />
-              </button>
-            }
-          >
-            {/* WIRED AT C1: <AgentDrawer {...drawerProps(state)} /> */}
-            <RegionPlaceholder name="drawer" />
-          </Panel>
+        <aside
+          data-region="drawer"
+          aria-label="Agent drawer region"
+          className={cn('relative min-h-0 min-w-0', !drawerOpen && 'hidden')}
+        >
+          {drawerOpen ? (
+            <ErrorBoundary
+              name="drawer"
+              resetKey={state.selectedTask}
+              fallback={(error) => <RegionPlaceholder name="drawer" detail={error.message} />}
+            >
+              {/*
+                The drawer is a fixed, right-edge overlay by design (Epic 25) so it can be read over
+                the graph. Inside the shell it belongs to a region, so the wrapper pins it to that
+                region instead of the viewport: same component, no feature edits, no occlusion of
+                the sky.
+              */}
+              <div className="h-full w-full [&>aside]:absolute [&>aside]:inset-0 [&>aside]:w-full [&>aside]:max-w-none [&>aside]:border-l">
+                <AgentDrawer {...drawer} />
+              </div>
+            </ErrorBoundary>
+          ) : null}
         </aside>
       </main>
 
       <footer
         data-region="strip"
-        className="grid h-40 shrink-0 grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] gap-2 px-2 pb-2"
+        className={cn(
+          'shrink-0 gap-2 px-2 pb-2',
+          stripOpen ? 'grid h-40 grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]' : 'flex h-10 flex-col',
+        )}
       >
-        <section data-region="queue" aria-label="Merge queue region" className="min-h-0 min-w-0">
-          <Panel className="h-full" title="Merge queue" subtitle="Branches waiting to land">
-            {/* WIRED AT C1: <MergeQueue {...queueProps(state)} /> */}
-            <RegionPlaceholder name="queue" compact />
-          </Panel>
-        </section>
-        <section data-region="metrics" aria-label="Metrics region" className="min-h-0 min-w-0">
-          <Panel className="h-full" title="Cost & speed">
-            {/* WIRED AT C1: <MetricsPanel {...metricsProps(state)} /> */}
-            <RegionPlaceholder name="metrics" compact />
-          </Panel>
-        </section>
+        {stripOpen ? (
+          <>
+            <section data-region="queue" aria-label="Merge queue region" className="min-h-0 min-w-0">
+              <Panel
+                className="h-full"
+                title="Landing strip"
+                subtitle="Branches waiting to land"
+                actions={
+                  <button
+                    type="button"
+                    onClick={() => setStripOpen(false)}
+                    aria-expanded="true"
+                    aria-controls="region-strip-body"
+                    aria-label="Collapse the bottom strip"
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-md text-ink-4 hover:bg-surface-3 hover:text-ink-1"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                }
+              >
+                <div id="region-strip-body" className="h-full overflow-y-auto overscroll-contain">
+                  <ErrorBoundary
+                    name="queue"
+                    resetKey={state.activeRunId}
+                    fallback={(error) => <RegionPlaceholder name="queue" detail={error.message} compact />}
+                  >
+                    <MergeQueue {...queue} />
+                  </ErrorBoundary>
+                </div>
+              </Panel>
+            </section>
+            <section data-region="metrics" aria-label="Metrics region" className="min-h-0 min-w-0">
+              <Panel
+                className="h-full"
+                title="The meter"
+                subtitle="API spend vs this laptop"
+                bodyClassName="overflow-y-auto overscroll-contain"
+              >
+                <ErrorBoundary
+                  name="metrics"
+                  resetKey={state.activeRunId}
+                  fallback={(error) => <RegionPlaceholder name="metrics" detail={error.message} compact />}
+                >
+                  <MetricsPanel {...metrics} />
+                </ErrorBoundary>
+              </Panel>
+            </section>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStripOpen(true)}
+            aria-expanded="false"
+            aria-controls="region-strip-body"
+            className="flex h-full w-full items-center gap-3 rounded-[var(--radius-panel)] border border-hairline bg-panel px-3 text-left text-caption text-ink-2 hover:bg-surface-2"
+          >
+            <ChevronUp aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-4" />
+            <span className="font-semibold text-ink-1">Landing strip</span>
+            <span className="tabular-nums">
+              {landed}/{tasksOfRun.length} landed
+            </span>
+            <span aria-hidden="true" className="text-ink-4">
+              ·
+            </span>
+            <span className="tabular-nums">{onTheWire} on the wire</span>
+            <span aria-hidden="true" className="text-ink-4">
+              ·
+            </span>
+            <span className="tabular-nums text-sky-300">
+              {formatUsd(metrics.metrics?.apiCostUsd ?? 0)} API
+            </span>
+            <span className="tabular-nums text-emerald-300">
+              {metrics.metrics?.localCallCount ?? 0} local calls
+            </span>
+            <span className="ml-auto text-micro tracking-[0.12em] text-ink-4 uppercase">Show (b)</span>
+          </button>
+        )}
       </footer>
+
+      <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }

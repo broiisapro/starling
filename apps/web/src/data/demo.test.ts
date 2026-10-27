@@ -251,9 +251,9 @@ describe('rebaseEvents', () => {
       throw new Error('fixture has no finished task');
     }
     expect(Number.isFinite(taskEvent.payload.run.finishedAt)).toBe(true);
-    expect(
-      (taskEvent.payload.run.finishedAt ?? 0) - (taskEvent.payload.run.startedAt ?? 0),
-    ).toBeGreaterThan(0);
+    expect((taskEvent.payload.run.finishedAt ?? 0) - (taskEvent.payload.run.startedAt ?? 0)).toBeGreaterThan(
+      0,
+    );
   });
 
   test('never mutates the source log and tolerates an empty one', () => {
