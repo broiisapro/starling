@@ -1,10 +1,12 @@
 import './test-env';
 import { afterEach, expect, test } from 'bun:test';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, within } from '@testing-library/react';
 import { AuditTab } from './AuditTab';
 import { failingVerdict, passingVerdict } from './test-fixtures';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  if (typeof document !== 'undefined') cleanup();
+});
 
 test('renders newest verdict first with pass and fail banners', () => {
   const { container } = render(<AuditTab verdicts={[failingVerdict(), passingVerdict()]} />);
@@ -17,37 +19,37 @@ test('renders newest verdict first with pass and fail banners', () => {
 });
 
 test('a failing verdict shows the checks table, lane violations and numbered fix steps', () => {
-  render(<AuditTab verdicts={[failingVerdict()]} />);
+  const view = render(<AuditTab verdicts={[failingVerdict()]} />);
 
-  const table = screen.getByTestId('checks-table-1');
+  const table = view.getByTestId('checks-table-1');
   expect(table.textContent).toContain('tests');
   expect(table.textContent).toContain('bun test: 1 failing test');
   expect(within(table).getAllByLabelText('not ok')).toHaveLength(2);
   expect(within(table).getAllByLabelText('ok')).toHaveLength(1);
   expect(table.textContent).toContain('1.2s');
 
-  expect(screen.getByTestId('lane-violations').textContent).toContain('src/main.ts');
-  expect(screen.getByTestId('lane-violations').textContent).toContain('index.html');
+  expect(view.getByTestId('lane-violations').textContent).toContain('src/main.ts');
+  expect(view.getByTestId('lane-violations').textContent).toContain('index.html');
 
-  const steps = screen.getByTestId('fix-instructions').querySelectorAll('li');
+  const steps = view.getByTestId('fix-instructions').querySelectorAll('li');
   expect(steps).toHaveLength(2);
   expect(steps[0]?.textContent).toContain('stubbed localStorage');
   expect(steps[1]?.textContent).toContain('Keep the change inside');
 });
 
 test('a passing verdict shows no fix instructions or lane violations', () => {
-  render(<AuditTab verdicts={[passingVerdict()]} />);
+  const view = render(<AuditTab verdicts={[passingVerdict()]} />);
 
-  expect(screen.getByTestId('verdict-attempt-2').getAttribute('data-pass')).toBe('true');
-  expect(screen.queryByTestId('fix-instructions')).toBeNull();
-  expect(screen.queryByTestId('lane-violations')).toBeNull();
+  expect(view.getByTestId('verdict-attempt-2').getAttribute('data-pass')).toBe('true');
+  expect(view.queryByTestId('fix-instructions')).toBeNull();
+  expect(view.queryByTestId('lane-violations')).toBeNull();
 });
 
 test('shows the attempt count and an empty state', () => {
-  const { unmount } = render(<AuditTab verdicts={[failingVerdict(), passingVerdict()]} />);
-  expect(screen.getByText('2 audit attempts')).toBeTruthy();
-  unmount();
+  const both = render(<AuditTab verdicts={[failingVerdict(), passingVerdict()]} />);
+  expect(both.getByText('2 audit attempts')).toBeTruthy();
+  both.unmount();
 
-  render(<AuditTab verdicts={[]} />);
-  expect(screen.getByText(/still reviewing/)).toBeTruthy();
+  const empty = render(<AuditTab verdicts={[]} />);
+  expect(empty.getByText(/still reviewing/)).toBeTruthy();
 });

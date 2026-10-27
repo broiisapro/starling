@@ -1,15 +1,17 @@
 import './test-env';
 import { afterEach, expect, test } from 'bun:test';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { DiffTab } from './DiffTab';
 import { sampleDiff } from './test-fixtures';
 
-afterEach(() => cleanup());
+afterEach(() => {
+  if (typeof document !== 'undefined') cleanup();
+});
 
 test('lists changed files with add and remove counts', () => {
-  render(<DiffTab diff={sampleDiff} />);
+  const view = render(<DiffTab diff={sampleDiff} />);
 
-  const rows = screen.getAllByTestId('diff-file-row');
+  const rows = view.getAllByTestId('diff-file-row');
   expect(rows).toHaveLength(2);
   expect(rows[0]?.textContent).toContain('src/lib/dates.ts');
   expect(rows[1]?.textContent).toContain('+34');
@@ -35,19 +37,19 @@ test('files are collapsible and open by default', () => {
 });
 
 test('shows a truncated-patch notice', () => {
-  render(<DiffTab diff={sampleDiff} />);
+  const view = render(<DiffTab diff={sampleDiff} />);
 
-  expect(screen.getByTestId('diff-truncated').textContent).toContain('Patch truncated');
+  expect(view.getByTestId('diff-truncated').textContent).toContain('Patch truncated');
 });
 
 test('handles a file with no textual patch and a missing diff', () => {
-  const { unmount } = render(
+  const noPatch = render(
     <DiffTab diff={{ files: [{ path: 'logo.png', added: 0, removed: 0 }], patch: '', truncated: false }} />,
   );
-  expect(screen.getByText(/No textual patch/)).toBeTruthy();
-  expect(screen.queryByTestId('diff-truncated')).toBeNull();
-  unmount();
+  expect(noPatch.getByText(/No textual patch/)).toBeTruthy();
+  expect(noPatch.queryByTestId('diff-truncated')).toBeNull();
+  noPatch.unmount();
 
-  render(<DiffTab />);
-  expect(screen.getByText('No diff recorded yet.')).toBeTruthy();
+  const empty = render(<DiffTab />);
+  expect(empty.getByText('No diff recorded yet.')).toBeTruthy();
 });

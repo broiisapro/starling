@@ -1,16 +1,25 @@
-import { afterAll, afterEach, expect, test } from 'bun:test';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { makePlan, makeTaskRun, makeTaskSpec } from '@starling/core/testing';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { DagView } from './DagView';
 import { installDomShims } from './test-dom';
 
-const registeredHere = typeof document === 'undefined';
-if (registeredHere) GlobalRegistrator.register({ url: 'http://localhost/' });
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-installDomShims();
+/**
+ * Re-register the DOM and the React Flow shims before every test. Bun runs every workspace's test
+ * files in one process, and another lane's teardown may unregister happy-dom between files.
+ */
+function ensureDom(): void {
+  if (typeof document === 'undefined') GlobalRegistrator.register({ url: 'http://localhost/' });
+  (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  installDomShims();
+}
 
-afterEach(() => cleanup());
+ensureDom();
+beforeEach(ensureDom);
+afterEach(() => {
+  if (typeof document !== 'undefined') cleanup();
+});
 
 const plan = makePlan({
   id: 'plan-dag-view',
@@ -34,8 +43,8 @@ test('renders one node per task and one edge per dependency', () => {
 
   expect(container.querySelectorAll('.react-flow__node')).toHaveLength(3);
   expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(2);
-  expect(screen.getByText('a')).toBeTruthy();
-  expect(screen.getByText('Beta')).toBeTruthy();
+  expect(container.textContent).toContain('a');
+  expect(container.textContent).toContain('Beta');
 });
 
 test('shows the status, node badge, attempts and elapsed time on a card', () => {
@@ -48,9 +57,9 @@ test('shows the status, node badge, attempts and elapsed time on a card', () => 
       startedAt: Date.now() - 65_000,
     }),
   };
-  render(<DagView plan={plan} tasks={tasks} onSelectTask={() => {}} />);
+  const view = render(<DagView plan={plan} tasks={tasks} onSelectTask={() => {}} />);
 
-  const card = screen.getByTestId('task-node-a');
+  const card = view.getByTestId('task-node-a');
   expect(card.textContent).toContain('running');
   expect(card.getAttribute('data-status')).toBe('running');
   expect(card.textContent).toContain('M2-Air');
@@ -60,7 +69,7 @@ test('shows the status, node badge, attempts and elapsed time on a card', () => 
 
 test('clicking a node reports its key and selection is highlighted', () => {
   const selected: string[] = [];
-  const { rerender } = render(
+  const view = render(
     <DagView
       plan={plan}
       tasks={runs({ a: 'merged', b: 'ready', c: 'pending' })}
@@ -68,10 +77,10 @@ test('clicking a node reports its key and selection is highlighted', () => {
     />,
   );
 
-  fireEvent.click(screen.getByTestId('rf__node-b'));
+  fireEvent.click(view.getByTestId('rf__node-b'));
   expect(selected).toEqual(['b']);
 
-  rerender(
+  view.rerender(
     <DagView
       plan={plan}
       tasks={runs({ a: 'merged', b: 'ready', c: 'pending' })}
@@ -79,12 +88,12 @@ test('clicking a node reports its key and selection is highlighted', () => {
       onSelectTask={() => {}}
     />,
   );
-  expect(screen.getByTestId('task-node-b').getAttribute('data-selected')).toBe('true');
-  expect(screen.getByTestId('task-node-a').getAttribute('data-selected')).toBe('false');
+  expect(view.getByTestId('task-node-b').getAttribute('data-selected')).toBe('true');
+  expect(view.getByTestId('task-node-a').getAttribute('data-selected')).toBe('false');
 });
 
 test('edges animate while the downstream task waits on a running upstream', () => {
-  const { container } = render(
+  const view = render(
     <DagView
       plan={plan}
       tasks={runs({ a: 'running', b: 'pending', c: 'pending' })}
@@ -92,58 +101,60 @@ test('edges animate while the downstream task waits on a running upstream', () =
     />,
   );
 
-  expect(container.querySelector('.react-flow__edge.animated')).not.toBeNull();
-  expect(screen.getByTestId('rf__edge-a->b').classList.contains('animated')).toBe(true);
+  expect(view.container.querySelector('.react-flow__edge.animated')).not.toBeNull();
+  expect(view.getByTestId('rf__edge-a->b').classList.contains('animated')).toBe(true);
 });
 
 test('edges do not animate once upstream is done', () => {
-  render(
+  const view = render(
     <DagView plan={plan} tasks={runs({ a: 'merged', b: 'ready', c: 'pending' })} onSelectTask={() => {}} />,
   );
 
-  expect(screen.getByTestId('rf__edge-a->b').classList.contains('animated')).toBe(false);
+  expect(view.getByTestId('rf__edge-a->b').classList.contains('animated')).toBe(false);
 });
 
 test('hovering a node reveals its lane globs', () => {
-  render(<DagView plan={plan} tasks={runs({ a: 'pending' })} onSelectTask={() => {}} />);
+  const view = render(<DagView plan={plan} tasks={runs({ a: 'pending' })} onSelectTask={() => {}} />);
 
-  expect(screen.queryByTestId('lane-tooltip-a')).toBeNull();
-  fireEvent.mouseEnter(screen.getByTestId('task-node-a'));
-  const tooltip = screen.getByTestId('lane-tooltip-a');
+  expect(view.queryByTestId('lane-tooltip-a')).toBeNull();
+  fireEvent.mouseEnter(view.getByTestId('task-node-a'));
+  const tooltip = view.getByTestId('lane-tooltip-a');
   expect(tooltip.textContent).toContain('src/alpha/**');
-  fireEvent.mouseLeave(screen.getByTestId('task-node-a'));
-  expect(screen.queryByTestId('lane-tooltip-a')).toBeNull();
+  fireEvent.mouseLeave(view.getByTestId('task-node-a'));
+  expect(view.queryByTestId('lane-tooltip-a')).toBeNull();
 });
 
 test('arrow keys move the selection along the DAG', () => {
   const selected: string[] = [];
   const tasks = runs({ a: 'merged', b: 'running', c: 'pending' });
-  const { rerender } = render(
+  const view = render(
     <DagView plan={plan} tasks={tasks} selectedTask="a" onSelectTask={(key) => selected.push(key)} />,
   );
 
-  fireEvent.keyDown(screen.getByTestId('dag-canvas'), { key: 'ArrowRight' });
+  fireEvent.keyDown(view.getByTestId('dag-canvas'), { key: 'ArrowRight' });
   expect(selected).toEqual(['b']);
 
   // Selection is controlled by the shell, so feed the new selection back before moving again.
-  rerender(<DagView plan={plan} tasks={tasks} selectedTask="b" onSelectTask={(key) => selected.push(key)} />);
-  fireEvent.keyDown(screen.getByTestId('dag-canvas'), { key: 'ArrowLeft' });
+  view.rerender(
+    <DagView plan={plan} tasks={tasks} selectedTask="b" onSelectTask={(key) => selected.push(key)} />,
+  );
+  fireEvent.keyDown(view.getByTestId('dag-canvas'), { key: 'ArrowLeft' });
   expect(selected).toEqual(['b', 'a']);
 });
 
 test('the minimap toggles on and off', () => {
-  render(<DagView plan={plan} tasks={runs({ a: 'pending' })} onSelectTask={() => {}} />);
+  const view = render(<DagView plan={plan} tasks={runs({ a: 'pending' })} onSelectTask={() => {}} />);
 
-  const toggle = screen.getByLabelText('Toggle minimap');
+  const toggle = view.getByLabelText('Toggle minimap');
   expect(toggle.getAttribute('aria-pressed')).toBe('false');
-  expect(document.querySelector('.react-flow__minimap')).toBeNull();
+  expect(view.container.querySelector('.react-flow__minimap')).toBeNull();
 
   fireEvent.click(toggle);
   expect(toggle.getAttribute('aria-pressed')).toBe('true');
-  expect(document.querySelector('.react-flow__minimap')).not.toBeNull();
+  expect(view.container.querySelector('.react-flow__minimap')).not.toBeNull();
 
   fireEvent.click(toggle);
-  expect(document.querySelector('.react-flow__minimap')).toBeNull();
+  expect(view.container.querySelector('.react-flow__minimap')).toBeNull();
 });
 
 test('a new plan replaces the graph without losing the canvas', () => {
@@ -151,25 +162,18 @@ test('a new plan replaces the graph without losing the canvas', () => {
     id: 'plan-dag-view-2',
     tasks: [makeTaskSpec({ key: 'solo', title: 'Solo task' })],
   });
-  const { container, rerender } = render(
-    <DagView plan={plan} tasks={runs({ a: 'merged' })} onSelectTask={() => {}} />,
-  );
-  expect(container.querySelectorAll('.react-flow__node')).toHaveLength(3);
+  const view = render(<DagView plan={plan} tasks={runs({ a: 'merged' })} onSelectTask={() => {}} />);
+  expect(view.container.querySelectorAll('.react-flow__node')).toHaveLength(3);
 
-  rerender(
+  view.rerender(
     <DagView plan={nextPlan} tasks={{ solo: makeTaskRun({ taskKey: 'solo' }) }} onSelectTask={() => {}} />,
   );
-  expect(container.querySelectorAll('.react-flow__node')).toHaveLength(1);
-  expect(screen.getByTestId('dag-canvas').getAttribute('data-plan-id')).toBe('plan-dag-view-2');
+  expect(view.container.querySelectorAll('.react-flow__node')).toHaveLength(1);
+  expect(view.getByTestId('dag-canvas').getAttribute('data-plan-id')).toBe('plan-dag-view-2');
 });
 
 test('renders a friendly empty state when there is no plan', () => {
-  render(<DagView tasks={{}} onSelectTask={() => {}} />);
+  const view = render(<DagView tasks={{}} onSelectTask={() => {}} />);
 
-  expect(screen.getByTestId('dag-empty').textContent).toContain('flock is still thinking');
-});
-
-afterAll(() => {
-  cleanup();
-  if (registeredHere) GlobalRegistrator.unregister();
+  expect(view.getByTestId('dag-empty').textContent).toContain('flock is still thinking');
 });
