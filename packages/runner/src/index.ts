@@ -10,13 +10,25 @@
 export const PACKAGE = '@starling/runner' as const;
 
 export type { CreateSessionInput, OpencodeClientOptions } from './opencode/client';
-export { OpencodeClient } from './opencode/client';
+export { OpencodeClient, parseRetryAfterMs } from './opencode/client';
 export type {
   EventNormalizerOptions,
   NormalizerEmit,
   NormalizerSessionMeta,
 } from './opencode/normalize';
 export { EventNormalizer } from './opencode/normalize';
+export type {
+  BucketSnapshot,
+  ProviderRateLimiterOptions,
+  RateLimitSignal,
+} from './opencode/rate-limit';
+export {
+  annotateRateLimit,
+  detectRateLimit,
+  looksRateLimited,
+  ProviderRateLimiter,
+  rateLimitFromError,
+} from './opencode/rate-limit';
 export type { OpencodeRunner, OpencodeRunnerOptions } from './opencode/runner';
 export { createOpencodeRunner } from './opencode/runner';
 export type {

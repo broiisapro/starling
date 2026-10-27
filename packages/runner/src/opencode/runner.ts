@@ -7,13 +7,28 @@
  * Starling `AgentEvent`s.
  */
 
-import type { AgentEvent, AgentEventKind, AgentRunner, Clock, EventBus, ModelRef } from '@starling/core';
+import type {
+  AgentEvent,
+  AgentEventKind,
+  AgentRunner,
+  Clock,
+  EventBus,
+  ModelRef,
+  StarlingEvent,
+} from '@starling/core';
 import { StarlingError, systemClock, toStarlingError } from '@starling/core';
 import { sleep } from '../schedule';
 import { Semaphore } from '../semaphore';
 import { readSse } from '../sse';
 import { OpencodeClient } from './client';
 import { EventNormalizer } from './normalize';
+import {
+  annotateRateLimit,
+  ProviderRateLimiter,
+  type ProviderRateLimiterOptions,
+  type RateLimitSignal,
+  rateLimitFromError,
+} from './rate-limit';
 import { type SpawnedServer, spawnOpencodeServer } from './spawn';
 
 export interface OpencodeRunnerOptions {
@@ -46,6 +61,12 @@ export interface OpencodeRunnerOptions {
   /** How long `start()` waits for the SSE stream to open. Default 5 s. */
   streamReadyTimeoutMs?: number;
   reconnect?: { minMs?: number; maxMs?: number; factor?: number };
+  /** Reuse a limiter across runners (the hub starts one server; a caller may share the bucket). */
+  limiter?: ProviderRateLimiter;
+  /** Token-bucket knobs (ignored when `limiter` is given). */
+  rateLimit?: ProviderRateLimiterOptions;
+  /** Called on every detected provider rate limit, for observability or engine feedback. */
+  onRateLimit?: (signal: RateLimitSignal) => void;
 }
 
 export interface OpencodeRunner extends AgentRunner {
@@ -57,6 +78,7 @@ interface SessionMeta {
   runId: string;
   taskKey: string;
   directory: string;
+  model: ModelRef;
 }
 
 interface ReconnectConfig {
@@ -94,6 +116,8 @@ class OpencodeRunnerImpl implements OpencodeRunner {
   readonly #streamReadyTimeoutMs: number;
   readonly #slots: Semaphore;
   readonly #normalizer: EventNormalizer;
+  readonly #limiter: ProviderRateLimiter;
+  readonly #onRateLimit: ((signal: RateLimitSignal) => void) | undefined;
   readonly #sessions = new Map<string, SessionMeta>();
   readonly #listeners = new Set<(event: AgentEvent) => void>();
   readonly #held = new Map<string, Promise<(() => void) | undefined>>();
@@ -125,6 +149,8 @@ class OpencodeRunnerImpl implements OpencodeRunner {
     this.#healthPollMs = options.healthPollMs ?? 100;
     this.#streamReadyTimeoutMs = options.streamReadyTimeoutMs ?? 5_000;
     this.#slots = new Semaphore(options.maxConcurrentPrompts ?? 8);
+    this.#limiter = options.limiter ?? new ProviderRateLimiter(options.rateLimit);
+    this.#onRateLimit = options.onRateLimit;
     this.#normalizer = new EventNormalizer({
       textDebounceMs: options.textDebounceMs ?? 500,
       emit: (sessionId, kind, data) => this.#emit(sessionId, kind, data),
@@ -200,6 +226,7 @@ class OpencodeRunnerImpl implements OpencodeRunner {
       runId: opts.runId,
       taskKey: opts.taskKey,
       directory: opts.dir,
+      model: opts.model,
     });
     this.#normalizer.register(session.id, {
       title: opts.title,
@@ -211,7 +238,7 @@ class OpencodeRunnerImpl implements OpencodeRunner {
 
     // The port says "send the prompt asynchronously and return sessionId": admission happens
     // in the background so a saturated semaphore never delays session creation.
-    void this.#admit(session.id, opts.prompt, opts.dir);
+    void this.#admit(session.id, opts.prompt);
     return { sessionId: session.id };
   }
 
@@ -228,7 +255,7 @@ class OpencodeRunnerImpl implements OpencodeRunner {
     }
 
     try {
-      await this.#client.prompt(sessionId, prompt, meta.directory);
+      await this.#promptWithBackoff(meta, sessionId, prompt);
     } catch (err) {
       this.#normalizer.fail(sessionId, 'PromptRejected', describe(err));
       throw toStarlingError(err, 'RUNNER_ERROR', `could not send a prompt to ${sessionId}`);
@@ -382,13 +409,47 @@ class OpencodeRunnerImpl implements OpencodeRunner {
     });
   }
 
-  async #admit(sessionId: string, prompt: string, directory: string): Promise<void> {
+  async #admit(sessionId: string, prompt: string): Promise<void> {
     if (!(await this.#acquireSlot(sessionId))) return;
+    const meta = this.#sessions.get(sessionId);
+    if (meta === undefined) return;
     try {
-      await this.#client.prompt(sessionId, prompt, directory);
+      await this.#promptWithBackoff(meta, sessionId, prompt);
     } catch (err) {
       this.#normalizer.fail(sessionId, 'PromptRejected', describe(err));
       this.#log('error', `prompt for ${sessionId} was rejected: ${describe(err)}`, sessionId);
+    }
+  }
+
+  /**
+   * Admit one prompt through the shared provider bucket, retrying **once** after a rate limit.
+   *
+   * `acquire()` is what makes the bucket shared: every session waits on the same per-provider
+   * state, so one 429 pauses the whole flock instead of letting the others hammer the provider.
+   */
+  async #promptWithBackoff(meta: SessionMeta, sessionId: string, prompt: string): Promise<void> {
+    const provider = meta.model.provider;
+    for (let attempt = 0; ; attempt++) {
+      await this.#limiter.acquire(provider);
+      if (this.#closed) {
+        throw new StarlingError('RUNNER_ERROR', 'runner closed before the prompt could be admitted');
+      }
+      try {
+        await this.#client.prompt(sessionId, prompt, meta.directory);
+        this.#limiter.reward(provider);
+        return;
+      } catch (err) {
+        const signal = rateLimitFromError(err);
+        if (signal === undefined || attempt >= 1) throw err;
+        const backoffMs = this.#limiter.penalize(provider, signal.retryAfterMs);
+        this.#log(
+          'warn',
+          `provider ${provider} rate limited ${meta.taskKey}; pausing ${backoffMs} ms before one retry`,
+          meta.taskKey,
+          'runner.rate-limit',
+        );
+        this.#onRateLimit?.({ ...signal, provider, retryAfterMs: backoffMs });
+      }
     }
   }
 
@@ -482,13 +543,30 @@ class OpencodeRunnerImpl implements OpencodeRunner {
     const meta = this.#sessions.get(sessionId);
     if (meta === undefined) return;
 
+    let payload = data;
+    if (kind === 'session.error') {
+      const annotated = annotateRateLimit(data, meta.model.provider, (provider, retryAfterMs) =>
+        this.#limiter.penalize(provider, retryAfterMs),
+      );
+      payload = annotated.data;
+      if (annotated.signal !== undefined) {
+        this.#log(
+          'warn',
+          `provider ${annotated.signal.provider} rate limited ${meta.taskKey}: ${annotated.signal.detail}; backoff ${annotated.signal.retryAfterMs} ms`,
+          meta.taskKey,
+          'runner.rate-limit',
+        );
+        this.#onRateLimit?.(annotated.signal);
+      }
+    }
+
     const event: AgentEvent = {
       runId: meta.runId,
       taskKey: meta.taskKey,
       sessionId,
       ts: this.#clock.now(),
       kind,
-      data,
+      data: payload,
     };
 
     if (kind === 'session.idle' || kind === 'session.error') this.#releaseSlot(sessionId);
@@ -502,11 +580,17 @@ class OpencodeRunnerImpl implements OpencodeRunner {
     }
   }
 
-  #log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, taskKey?: string): void {
+  #log(level: 'debug' | 'info' | 'warn' | 'error', msg: string, taskKey?: string, code?: string): void {
     if (this.#bus === undefined) return;
-    const payload: { level: typeof level; msg: string; taskKey?: string } = { level, msg };
+    const payload: { level: typeof level; msg: string; taskKey?: string; code?: string } = {
+      level,
+      msg,
+    };
     if (taskKey !== undefined) payload.taskKey = taskKey;
-    this.#bus.publish({ type: 'log', runId: '*', ts: this.#clock.now(), payload });
+    if (code !== undefined) payload.code = code;
+    // `code` is additive: core's log payload is locked, and the web/CLI ignore unknown fields
+    // until Epic 40 lands the field properly. FIX REQUEST in the epic doc.
+    this.#bus.publish({ type: 'log', runId: '*', ts: this.#clock.now(), payload } as StarlingEvent);
   }
 }
 
