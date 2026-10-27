@@ -16,21 +16,26 @@
 
 :root {
   color-scheme: dark;
-  --surface-0: #04060f;
-  --surface-1: #070b1c;
-  --surface-2: #0b1229;
-  --surface-3: #111a3a;
-  --panel: color-mix(in oklab, #0b1229 82%, transparent);
-  --panel-strong: #0d1530;
-  --hairline: color-mix(in oklab, #b9c6ff 14%, transparent);
-  --hairline-strong: color-mix(in oklab, #b9c6ff 24%, transparent);
-  --ink-1: #f2f5ff;
-  --ink-2: #c3cbe6;
-  --ink-3: #8d97b8;
-  --ink-4: #646f91;
-  --focus-ring: #3fe0c5;
-  --sky-indigo: #0a1030;
-  --sky-violet: #2a1a52;
+  --surface-0: #03050c;
+  --surface-1: #060914;
+  --surface-2: #0a0f20;
+  --surface-3: #111831;
+  --panel: color-mix(in oklab, #0a1022 62%, transparent);
+  --panel-strong: #0b1124;
+  --hairline: rgb(255 255 255 / 0.08);
+  --hairline-strong: rgb(255 255 255 / 0.14);
+  --ink-1: #f4f6fc;
+  --ink-2: #c4cadc;
+  --ink-3: #8a93ad;
+  --ink-4: #5d6683;
+  --focus-ring: #f5b544;
+  --accent: #f5b544;
+  --accent-soft: #ffd98f;
+  --live: #3fe0c5;
+  --panel-glow: inset 0 1px 0 0 rgb(255 255 255 / 0.06), inset 0 0 0 1px rgb(255 255 255 / 0.02),
+    0 24px 60px -32px rgb(0 0 0 / 0.95);
+  --sky-indigo: #050a1c;
+  --sky-violet: #120d2c;
   --horizon: #f2a65a;
 }
 
@@ -48,7 +53,11 @@
   --ink-2: #403a56;
   --ink-3: #655e7b;
   --ink-4: #8b839e;
-  --focus-ring: #6f4bd8;
+  --focus-ring: #c27a12;
+  --accent: #c27a12;
+  --accent-soft: #e2a24a;
+  --live: #0f9f88;
+  --panel-glow: inset 0 1px 0 0 rgb(255 255 255 / 0.7), 0 18px 40px -28px rgb(40 30 60 / 0.35);
   --sky-indigo: #efe9ff;
   --sky-violet: #f7e8d8;
   --horizon: #d98236;
@@ -82,17 +91,63 @@
     color: var(--ink-1);
     background-color: var(--surface-0);
     background-image:
-      radial-gradient(
-        120% 80% at 50% 118%,
-        color-mix(in oklab, var(--horizon) 26%, transparent) 0%,
-        transparent 58%
-      ),
-      radial-gradient(90% 70% at 82% -10%, color-mix(in oklab, #7c5cff 30%, transparent) 0%, transparent 62%),
-      radial-gradient(100% 90% at 8% -20%, color-mix(in oklab, #1f4fff 22%, transparent) 0%, transparent 60%),
-      linear-gradient(180deg, var(--sky-indigo) 0%, var(--sky-violet) 68%, var(--surface-1) 100%);
+      radial-gradient(70% 55% at 50% 125%, color-mix(in oklab, var(--horizon) 18%, transparent) 0%, transparent 70%),
+      radial-gradient(60% 50% at 85% -10%, color-mix(in oklab, #5b3fd6 22%, transparent) 0%, transparent 70%),
+      radial-gradient(70% 60% at 5% -15%, color-mix(in oklab, #1d4ed8 18%, transparent) 0%, transparent 65%),
+      linear-gradient(180deg, var(--sky-indigo) 0%, var(--surface-0) 55%, var(--sky-violet) 100%);
     background-attachment: fixed;
-    font-feature-settings: "cv11", "ss01";
+    font-feature-settings: "cv11", "ss01", "tnum";
+    font-variant-numeric: tabular-nums;
     text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* A faint star field and film grain sit behind every panel (dark only). */
+  body::before,
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::before {
+    background-image:
+      radial-gradient(1px 1px at 12% 18%, rgb(255 255 255 / 0.55), transparent 60%),
+      radial-gradient(1px 1px at 27% 72%, rgb(255 255 255 / 0.35), transparent 60%),
+      radial-gradient(1.5px 1.5px at 41% 34%, rgb(255 236 200 / 0.6), transparent 60%),
+      radial-gradient(1px 1px at 58% 12%, rgb(255 255 255 / 0.4), transparent 60%),
+      radial-gradient(1px 1px at 66% 58%, rgb(200 230 255 / 0.4), transparent 60%),
+      radial-gradient(1.5px 1.5px at 79% 28%, rgb(255 255 255 / 0.5), transparent 60%),
+      radial-gradient(1px 1px at 88% 82%, rgb(255 255 255 / 0.35), transparent 60%),
+      radial-gradient(1px 1px at 6% 90%, rgb(255 255 255 / 0.3), transparent 60%),
+      radial-gradient(1px 1px at 94% 6%, rgb(255 255 255 / 0.45), transparent 60%),
+      radial-gradient(1px 1px at 35% 95%, rgb(255 255 255 / 0.3), transparent 60%);
+    background-size: 420px 380px;
+    opacity: 0.7;
+  }
+
+  body::after {
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+
+  [data-theme="light"] body::before,
+  [data-theme="light"] body::after {
+    display: none;
+  }
+
+  #root {
+    position: relative;
+    z-index: 1;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
   }
 
   [data-theme="light"] body {
@@ -180,6 +235,102 @@
 
   .hairline {
     border: 1px solid var(--hairline);
+  }
+
+  /* Glass: translucent surface, 8% hairline, soft inner top-light. Every Panel wears it. */
+  .glass {
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 40%),
+      var(--panel);
+    box-shadow: var(--panel-glow);
+    backdrop-filter: blur(18px) saturate(140%);
+  }
+
+  .text-accent {
+    color: var(--accent);
+  }
+
+  .accent-glow {
+    filter: drop-shadow(0 0 10px color-mix(in oklab, var(--accent) 55%, transparent));
+  }
+
+  /* The LIVE/DEMO pill heartbeat. */
+  .pulse-dot {
+    position: relative;
+  }
+
+  .pulse-dot::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.5;
+    animation: starling-ping 1.8s var(--ease-flock) infinite;
+  }
+
+  @keyframes starling-ping {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.55;
+    }
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
+
+  /* Cinematic vignette laid over the Sky canvas. */
+  .sky-vignette {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(120% 95% at 50% 45%, transparent 55%, rgb(2 3 10 / 0.55) 100%),
+      linear-gradient(180deg, rgb(2 3 10 / 0.25), transparent 18%);
+  }
+
+  [data-theme="light"] .sky-vignette {
+    display: none;
+  }
+
+  .stat-num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  @keyframes starling-land {
+    0% {
+      transform: scale(0.96);
+      box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 60%, transparent);
+    }
+    40% {
+      transform: scale(1.02);
+      box-shadow: 0 0 22px 2px color-mix(in oklab, var(--accent) 45%, transparent);
+    }
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 transparent;
+    }
+  }
+
+  .land-flash {
+    animation: starling-land 900ms var(--ease-flock) both;
+  }
+
+  @keyframes starling-rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .rise-in {
+    animation: starling-rise 380ms var(--ease-flock) both;
   }
 
   .no-scrollbar {

@@ -64,19 +64,19 @@ const CONNECTION: Record<ConnectionState, { label: string; tone: BadgeTone; titl
     label: 'live',
     tone: 'success',
     title: 'Connected to the Starling server over SSE.',
-    dot: 'bg-emerald-400',
+    dot: 'bg-emerald-400 text-emerald-400',
   },
   demo: {
     label: 'demo',
-    tone: 'violet',
+    tone: 'warn',
     title: 'No server found — replaying the recorded launch-day run.',
-    dot: 'bg-violet-400',
+    dot: 'bg-amber-300 text-amber-300',
   },
   offline: {
     label: 'offline',
     tone: 'danger',
     title: 'The event stream dropped. Reconnecting with backoff…',
-    dot: 'bg-red-400',
+    dot: 'bg-red-400 text-red-400',
   },
 };
 
@@ -111,10 +111,12 @@ export function TopBar({
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0];
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-3 border-b border-hairline bg-surface-1/70 px-4 backdrop-blur-xl">
+    <header className="relative flex h-14 shrink-0 items-center gap-3 border-b border-hairline bg-surface-1/60 px-4 backdrop-blur-xl after:pointer-events-none after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-gradient-to-r after:from-transparent after:via-[color-mix(in_oklab,var(--accent)_45%,transparent)] after:to-transparent">
       <div className="flex items-center gap-2 pr-1">
-        <Bird className="h-6 w-6 text-irid-teal" aria-hidden="true" />
-        <span className="iridescent-text text-title font-bold tracking-tight">Starling</span>
+        <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-xl border border-hairline-strong bg-gradient-to-b from-white/10 to-white/0 shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]">
+          <Bird className="accent-glow h-[18px] w-[18px] text-[var(--accent)]" aria-hidden="true" />
+        </span>
+        <span className="text-title font-semibold tracking-[-0.035em] text-ink-1">Starling</span>
         <span className="hidden text-micro font-medium tracking-[0.14em] text-ink-4 uppercase xl:inline">
           murmuration
         </span>
@@ -146,9 +148,14 @@ export function TopBar({
         <Badge
           tone={status.tone}
           className="gap-1.5"
-          icon={<span className={cn('h-1.5 w-1.5 rounded-full', status.dot)} aria-hidden="true" />}
+          icon={
+            <span
+              className={cn('pulse-dot h-1.5 w-1.5 rounded-full', status.dot)}
+              aria-hidden="true"
+            />
+          }
         >
-          {status.label}
+          <span className="font-semibold tracking-[0.12em] uppercase">{status.label}</span>
         </Badge>
       </Tooltip>
 
@@ -186,12 +193,25 @@ export function TopBar({
       ) : null}
 
       {totalTasks !== undefined && totalTasks > 0 ? (
-        <Badge
-          tone={landed === totalTasks ? 'success' : 'neutral'}
+        <div
           title="Tasks merged into the integration branch"
+          className="hidden min-w-[92px] flex-col gap-1 sm:flex"
         >
-          {landed ?? 0}/{totalTasks} landed
-        </Badge>
+          <span
+            className={cn(
+              'stat-num text-caption font-semibold whitespace-nowrap',
+              landed === totalTasks ? 'text-emerald-300' : 'text-ink-1',
+            )}
+          >
+            {landed ?? 0}/{totalTasks} landed
+          </span>
+          <span className="h-1 w-full overflow-hidden rounded-full bg-white/8" aria-hidden="true">
+            <span
+              className="block h-full rounded-full bg-gradient-to-r from-[var(--accent)] to-[var(--accent-soft)] shadow-[0_0_8px_var(--accent)] transition-[width] duration-700 ease-[var(--ease-flock)]"
+              style={{ width: `${Math.round(((landed ?? 0) / totalTasks) * 100)}%` }}
+            />
+          </span>
+        </div>
       ) : null}
 
       <Tabs<CentreView> ariaLabel="Centre view" tabs={VIEW_TABS} value={view} onChange={onViewChange} />

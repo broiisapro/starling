@@ -40,7 +40,7 @@ export function Panel({
       id={id}
       aria-labelledby={title === undefined ? undefined : headingId}
       className={cn(
-        'flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)] border border-hairline bg-panel shadow-[var(--shadow-panel)] backdrop-blur-md',
+        'glass flex min-h-0 flex-col overflow-hidden rounded-[var(--radius-panel)] border border-hairline bg-panel',
         className,
       )}
     >
@@ -48,7 +48,7 @@ export function Panel({
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-[var(--spacing-panel)] py-2.5">
           <div className="min-w-0">
             {title !== undefined ? (
-              <h2 id={headingId} className="truncate text-heading font-semibold tracking-tight text-ink-1">
+              <h2 id={headingId} className="truncate text-heading font-semibold tracking-[-0.02em] text-ink-1">
                 {title}
               </h2>
             ) : null}

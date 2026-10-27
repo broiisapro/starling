@@ -349,6 +349,7 @@ export function SkyView(props: SkyViewProps) {
         onKeyDown={handleKeyDown}
         style={{ ...CANVAS_STYLE, cursor: hover ? 'pointer' : 'default' }}
       />
+      <div className="sky-vignette" aria-hidden="true" />
       <button
         type="button"
         onClick={toggleSound}

@@ -124,7 +124,16 @@ export function createSkyRenderer(canvas: HTMLCanvasElement): SkyRenderer {
       ctx2.setTransform(1, 0, 0, 1, 0, 0);
       ctx2.clearRect(0, 0, canvas.width, canvas.height);
       ctx2.drawImage(background, 0, 0);
-      if (tctx) ctx2.drawImage(trail, 0, 0);
+      if (tctx) {
+        // A blurred additive copy of the bird layer first: every flock reads as a soft glow.
+        ctx2.save();
+        ctx2.globalCompositeOperation = 'lighter';
+        ctx2.globalAlpha = 0.55;
+        ctx2.filter = `blur(${Math.round(4 * dpr)}px)`;
+        ctx2.drawImage(trail, 0, 0);
+        ctx2.restore();
+        ctx2.drawImage(trail, 0, 0);
+      }
       ctx2.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx2.textBaseline = 'alphabetic';
 
