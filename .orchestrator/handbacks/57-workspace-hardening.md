@@ -1,7 +1,7 @@
 ## Epic 57 Handback — Workspace hardening at swarm scale
 
-**Status:** Complete. Branch `epic/57-workspace-hardening` @ `62e3b00` (this handback is the final
-commit on top).
+**Status:** Complete. Branch `epic/57-workspace-hardening` @ `c75c67b` (this handback is the final
+commit on top), rebased onto current `origin/main`.
 
 **Delivered:**
 
@@ -75,25 +75,25 @@ commit on top).
 
 **Verification (exact commands + results):**
 
-- `bun install` (worktree): `Checked 162 installs across 221 packages (no changes) [42.00ms]` — no
+- `bun install` (worktree): `Checked 162 installs across 221 packages (no changes) [8.00ms]` — no
   lockfile change, no dependencies added.
 - `bun test packages/workspace`: **135 pass / 0 fail**, `408 expect() calls`, `Ran 135 tests across 12
-  files. [22.98s]`.
+  files. [11.42s]`.
 - `bun run test` (root): packages half **1417 pass / 4 skip / 0 fail**, `6497 expect() calls`,
-  `Ran 1421 tests across 167 files. [30.77s]`; web half **426 pass / 0 fail**, `3527 expect() calls`,
-  `Ran 426 tests across 39 files. [2.49s]`; script exit 0.
-- `bun run check` (root): `Checked 717 files in 157ms. No fixes applied.` and the per-workspace
+  `Ran 1421 tests across 167 files. [26.90s]`; web half **426 pass / 0 fail**, `3527 expect() calls`,
+  `Ran 426 tests across 39 files. [2.31s]`; script exit 0.
+- `bun run check` (root): `Checked 717 files in 217ms. No fixes applied.` and the per-workspace
   `tsc --noEmit -p` loop exits 0. `tools/stress` (not in the root loop) also passes
   `tsc --noEmit -p tools/stress/tsconfig.json` and `biome check`.
-- `bun tools/stress/worktrees.ts` (full run, load average 18.3/48.5/57.4): see below.
+- `bun tools/stress/worktrees.ts` (full run, load average 23.1/22.4/40.1): see below.
 - `bun tools/stress/worktrees.ts --files 400 --worktrees 8 --pairs 3 --bundles 3`: exit 0, zero
   failures (used to sanity-check the phase/disk report before the final run).
 
-**Full stress run (verbatim, 5 000 files / 60 worktrees):**
+**Full stress run (verbatim, 5 000 files / 60 worktrees, re-run after the rebase):**
 
 ```
 starling-wt/57-workspace-hardening $ bun tools/stress/worktrees.ts
-repo ready: 5000 files, 20 conflict pairs (3399 ms)
+repo ready: 5000 files, 20 conflict pairs (2161 ms)
 creating 60 worktrees concurrently…
 committing in 60 worktrees concurrently…
 diffing 60 worktrees concurrently…
@@ -103,24 +103,24 @@ measuring disk use…
 removing 60 worktrees concurrently…
 measuring a sparse lane worktree…
 Starling workspace stress — 5,000 files, 60 worktrees
-repo:         /var/folders/…/starling-stress-MIVoG0/repo
-worktreeRoot: /var/folders/…/starling-stress-MIVoG0/worktrees
-load average: 18.3 / 48.5 / 57.4 (1 / 5 / 15 min — absolute timings include whatever else the machine was doing)
+repo:         /var/folders/…/starling-stress-IKEPH7/repo
+worktreeRoot: /var/folders/…/starling-stress-IKEPH7/worktrees
+load average: 23.1 / 22.4 / 40.1 (1 / 5 / 15 min — absolute timings include whatever else the machine was doing)
 
 operation           n  fail     p50     p95     p99     max    total
 -----------------  --  ----  ------  ------  ------  ------  -------
-create             60     0  12.16s  22.13s  23.00s  23.26s  744.65s
-commit             60     0   8.12s   8.25s   8.25s   8.25s  487.08s
-remove             60     0   7.37s  13.04s  13.49s  13.62s  430.60s
-diff               60     0    732ms   761ms   765ms   767ms   43.91s
-predict-conflicts  20     0    69ms    79ms    80ms    80ms    1.36s
-bundle-fetch       10     0    50ms    55ms    57ms    57ms    504ms
-bundle-create      10     0    31ms    38ms    40ms    40ms    318ms
-create-sparse       1     0    48ms    48ms    48ms    48ms     48ms
-remove-sparse       1     0    20ms    20ms    20ms    20ms     20ms
+create             60     0  12.53s  22.62s  23.32s  23.53s  747.42s
+remove             60     0   9.29s  17.14s  17.83s  18.01s  548.88s
+commit             60     0   7.26s   7.37s   7.38s   7.39s  435.53s
+diff               60     0    735ms   761ms   763ms   764ms   43.71s
+predict-conflicts  20     0    67ms    79ms    80ms    80ms    1.35s
+bundle-fetch       10     0    50ms    62ms    63ms    63ms    530ms
+bundle-create      10     0    32ms    41ms    42ms    42ms    337ms
+create-sparse       1     0    74ms    74ms    74ms    74ms     74ms
+remove-sparse       1     0    63ms    63ms    63ms    63ms     63ms
 
-total 55.72s (setup 3.40s)   failures 0   OK
-phases (wall clock): create 23.26s/60, commit 8.25s/60, diff 768ms/60, predict-conflicts 80ms/20, bundles 823ms/10, disk 5.30s/60, remove 13.62s/60, sparse 71ms
+total 58.82s (setup 2.16s)   failures 0   OK
+phases (wall clock): create 23.53s/60, commit 7.39s/60, diff 765ms/60, predict-conflicts 80ms/20, bundles 867ms/10, disk 5.71s/60, remove 18.01s/60, sparse 156ms
 checks: 60/60 commits, 60/60 diffs, 20/20 conflicting pairs found, 10/10 bundles fetched, 60/60 worktrees removed, 1 registered after cleanup
 
 disk: 394 KB per worktree apparent size (p50 394 KB, p95 394 KB; ~5,023 files each), 19.6 MB allocated (du sample)
@@ -129,9 +129,9 @@ disk: 394 KB per worktree apparent size (p50 394 KB, p95 394 KB; ~5,023 files ea
 ```
 
 How to read it: per-call `create`/`remove` latencies include mutex queueing (60 tasks in flight), so
-their sums exceed the run; the `phases (wall clock)` line is the cost. One earlier run at load average
-95 also finished with zero failures in 208 s (create phase 97 s, remove 25 s), which is the same code
-under a saturated machine — the numbers move with the machine, the correctness does not.
+their sums exceed the run; the `phases (wall clock)` line is the cost. The run before the rebase (load
+average 18.3, total 55.72 s, create phase 23.26 s) and a run at load average 95 (208 s total) both
+finished with zero failures — the numbers move with the machine, the correctness does not.
 
 **Dependencies added:** none.
 
@@ -167,10 +167,10 @@ unchanged; `recoverWorkspace`, `diskUsage` and the pool are additive exports of 
 
 **Open questions / flagged tradeoffs:**
 
-- **Machine load makes absolute timings non-comparable.** The final stress run reports the 1/5/15-minute
-  load average because ~23 sibling agents were building on this same 10-core laptop (load average was
-  in the 90s–100s). Phase wall clock and the zero-failure result are the meaningful parts; the p95s
-  should be re-measured on a quiet machine before quoting them as a product claim.
+- **Machine load makes absolute timings non-comparable.** The final stress run reports load average
+  23.1/22.4/40.1 because sibling agents were building on this same 10-core laptop (earlier runs saw
+  load in the 90s–100s). Phase wall clock and the zero-failure result are the meaningful parts; the
+  p95s should be re-measured on a quiet machine before quoting them as a product claim.
 - **`GIT_LFS_SKIP_SMUDGE=1` is a deliberate product decision**: Starling never downloads LFS content.
   If a future epic needs binary assets for a task, it must opt in explicitly rather than re-enabling
   the smudge filter globally.
