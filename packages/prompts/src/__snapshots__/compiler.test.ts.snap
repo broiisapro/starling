@@ -1,0 +1,134 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`createPromptCompiler matches the compact-style worker snapshot 1`] = `
+"# Starling worker — csv-export
+
+You are one of 7 agents working in parallel on one goal. Work autonomously; do not stop to ask questions.
+
+Branch: \`starling/9w0x1y/csv-export\` — already created and checked out. Do not switch branches.
+
+## Project context
+
+**Goal:** Add dark mode with a toggle, live search filtering, CSV export, keyboard shortcuts (n = new, / = search, ? = help), due-date badges, and fix the overdue-calculation and date-sorting bugs in src/lib/dates.ts.
+
+**Plan:** Seven lane-disjoint tasks: five new features plus the two date bugs, with due-date badges gated on the date fix and the help overlay gated on shortcuts.
+
+**Repo:** \`examples/sky-todo\` · tests: \`bun test\` · lint: \`bunx biome check .\`
+
+**Locked decisions — repo-wide, do not relitigate:**
+
+- Vanilla TypeScript + Vite, no UI framework
+- Tests live beside their sources and run with bun test
+- Feature folders under src/features/<feature>/ own their code; shared UI lives in src/ui
+- localStorage is the only persistence layer
+
+**Constraints from the goal:**
+
+- Do not add runtime dependencies
+- Keep the bundle vanilla TypeScript
+
+## Your task: CSV export
+
+Export the current todo list as a CSV download with a proper header row and escaped fields.
+
+**Deliverables**
+
+- [ ] src/features/export/index.ts exports exportCsv(todos) and initExportButton()
+- [ ] Fields containing commas or quotes are escaped
+- [ ] Downloaded filename is sky-todo-YYYY-MM-DD.csv
+
+**Out of scope — do not do these**
+
+- Importing CSV
+
+**Definition of done — Starling checks every item**
+
+1. bun test passes
+2. A round-trip test covers commas, quotes and newlines
+3. The button is disabled when the list is empty
+
+**Dependencies:** none — you start from the integration branch, so your work must stand on its own.
+
+## Your lane
+
+You may create or modify **only** files matching these globs:
+
+- \`src/features/export/**\`
+
+You may read anything, but these are the files that matter:
+
+- \`src/store/todos.ts\`
+- \`src/main.ts\`
+
+**Lane violations fail the audit.** Changed files outside these globs fail the audit. Describe any out-of-lane change you need in your handback instead of making it.
+
+## What the others are doing
+
+Other agents are working in parallel. Their lanes are off-limits: do not edit their files or duplicate their work.
+
+- \`theme\` — Dark mode with a toggle · owns \`src/features/theme/**\`, \`src/ui/styles.css\`
+- \`search\` — Live search filtering · owns \`src/features/search/**\`
+- \`shortcuts\` — Keyboard shortcuts · owns \`src/features/shortcuts/**\`
+- \`due-badges\` — Due-date badges · owns \`src/features/due-dates/**\`
+- \`dates-fix\` — Fix overdue calculation and date sorting · owns \`src/lib/dates.ts\`, \`src/lib/dates.test.ts\`
+- \`help-overlay\` — Help overlay · owns \`src/features/help/**\`
+
+## Repo orientation
+
+Repo: examples/sky-todo · 18 files · typescript 13, json 2, css 1, html 1
+Tools: test \`bun test\` · lint \`bunx biome check .\`
+
+In your lane (editable):
+- src/features/export/index.ts · typescript · 24 B
+
+You will read:
+- src/main.ts · typescript · 1.2 kB · symbols: mount, handleSubmit — Creates the store, wires the form and renders the list.
+- src/store/todos.ts · typescript · 1.6 kB · symbols: createTodoStore, addTodo, toggleTodo, removeTodo, setQuery, visibleTodos — In-memory todo store with a tiny subscribe API.
+
+Other files (orientation only):
+- index.html · html · 512 B
+- package.json · json · 288 B
+- src/features/due-dates/index.ts · typescript · 24 B
+- src/features/search/index.ts · typescript · 24 B
+- src/features/shortcuts/index.ts · typescript · 24 B
+- src/features/theme/index.ts · typescript · 24 B
+- src/lib/dates.test.ts · typescript · 940 B — Tests for date helpers.
+- src/lib/dates.ts · typescript · 860 B · symbols: formatDueDate, isOverdue, sortByDueDate — Date formatting, overdue check and due-date sorting helpers.
+- src/lib/ids.test.ts · typescript · 360 B
+- src/lib/ids.ts · typescript · 410 B · symbols: newTodoId
+- src/store/persist.ts · typescript · 620 B · symbols: loadTodos, saveTodos — localStorage persistence with schema validation.
+- src/store/todos.test.ts · typescript · 1.2 kB
+- src/ui/render.ts · typescript · 1.4 kB · symbols: render, renderItem — Renders the todo list and applies due-date badges.
+- src/ui/styles.css · css · 980 B
+- tsconfig.json · json · 340 B
+
+## How to verify
+
+Run \`bun test\` from the repo root before you finish. It must pass; a green suite is the difference between merged and failed.
+
+Starling will check the definition of done item by item:
+
+1. bun test passes
+2. A round-trip test covers commas, quotes and newlines
+3. The button is disabled when the list is empty
+
+## Git rules
+
+- Commit on \`starling/9w0x1y/csv-export\` with Conventional Commits: \`feat(csv-export): …\`, \`fix(csv-export): …\`, \`test(csv-export): …\`.
+- Commit small and often, and leave the working tree clean when you finish.
+- Do not push, merge, rebase or switch branches, and never touch \`main\`. Starling handles integration.
+- Never commit secrets, \`.env\`, \`node_modules\` or build output.
+
+## Finish line
+
+End your final message with exactly this block. Starling parses it; a missing or unparseable block counts as a partial result:
+
+<<<STARLING_HANDBACK
+{"status":"<complete|partial>","summary":"<one line>","filesChanged":["<paths>"],"testsAdded":["<test files>"],"notes":"<optional>"}
+STARLING_HANDBACK>>>
+
+- Replace every \`<…>\` placeholder. The template is an example, not a valid handback.
+- \`status\` is \`"complete"\` only when every definition-of-done item is met; otherwise use \`"partial"\`.
+- \`filesChanged\` lists every file you changed; \`testsAdded\` lists every test file you added or extended.
+- Keep \`summary\` to one line. Valid JSON only: no comments, no trailing commas. No fence is needed."
+`;

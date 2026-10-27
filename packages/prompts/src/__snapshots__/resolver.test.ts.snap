@@ -1,0 +1,72 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`resolver prompt — sky-todo fixture matches the committed snapshot 1`] = `
+"# Starling resolver — help-overlay
+
+Merging \`starling/9w0x1y/help-overlay\` into the integration branch conflicted in 1 file. Resolve it so both sides' behaviour survives: this is real engineering, not marker deletion. Your work is already committed on the branch.
+
+## Conflicted files
+
+- \`src/features/search/index.ts\`
+
+**Merger detail:** CONFLICT (content): Merge conflict in src/features/search/index.ts
+
+## Your task's intent
+
+**Help overlay**
+
+**Goal:** Build the ? help overlay that lists every shortcut and closes on Escape or a backdrop click.
+
+**Deliverables**
+
+- src/features/help/index.ts exports initHelpOverlay()
+- The overlay is a dialog with a focus trap and aria-modal
+- Opening it via ? works after the shortcuts task merges
+
+**Out of scope:** A full documentation page
+
+**Definition of done**
+
+1. bun test passes
+2. Escape and backdrop click both close it
+3. Focus returns to the trigger
+
+## The other side
+
+One other task also owns a conflicted file. Both behaviours must survive the resolution.
+
+### \`search\` · Live search filtering
+
+**Goal:** Filter the visible todo list as the user types, with a clear button and an empty state.
+
+**Deliverables**
+
+- src/features/search/index.ts exports initSearch(store) and mounts an accessible search input
+- Filtering reuses the store's setQuery/visibleTodos rather than mutating todos
+- An empty state reads 'No matches'
+
+**Out of scope:** Fuzzy matching or highlighting
+
+## Rules
+
+- Preserve both behaviours. Never drop one side’s work to make the conflict disappear.
+- Do not delete or weaken either side's tests. If two tests genuinely contradict each other, keep the stronger one and explain the choice in \`notes\`.
+- Keep the change minimal: resolve the markers in \`src/features/search/index.ts\`, and avoid refactoring while you are there.
+- Your lane is \`src/features/help/**\`. A true conflict resolution may need one line in a sibling's file; keep it as small as possible and list every out-of-lane file in \`notes\`.
+- Resolve the markers in place. Do not \`git merge --abort\`, \`git reset --hard\`, or switch branches.
+- Run \`bun test\` and keep the whole suite green.
+- Commit the resolution on \`starling/9w0x1y/help-overlay\` with \`fix(help-overlay): resolve merge conflict\`.
+
+## Finish line
+
+End your final message with exactly this block. Starling parses it; a missing or unparseable block counts as a partial result:
+
+<<<STARLING_HANDBACK
+{"status":"<complete|partial>","summary":"<one line>","filesChanged":["<paths>"],"testsAdded":["<test files>"],"notes":"<optional>"}
+STARLING_HANDBACK>>>
+
+- Replace every \`<…>\` placeholder. The template is an example, not a valid handback.
+- \`status\` is \`"complete"\` only when every definition-of-done item is met; otherwise use \`"partial"\`.
+- \`filesChanged\` lists every file you changed; \`testsAdded\` lists every test file you added or extended.
+- Keep \`summary\` to one line. Valid JSON only: no comments, no trailing commas. No fence is needed."
+`;
