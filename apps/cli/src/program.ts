@@ -31,7 +31,8 @@ Examples:
 Examples:
   $ starling run "add dark mode and fix the overdue bug" --repo ../sky-todo
   $ starling run "add CSV export" --record run.jsonl --no-dash
-  $ starling run "harden the parser" --dry-run
+  $ starling run "harden the parser" --budget 2.50
+  $ starling run "add CSV export" --mock --no-dash   # no agents, no network
 `,
   replay: `
 Examples:
@@ -92,7 +93,8 @@ Examples:
   $ starling perch --hub http://192.168.1.20:7777 --code STAR-LING
   $ starling doctor
 
-Wave 1 runs on the mock composition; real wiring lands in Epic 40.
+Real runs wire every package: one opencode server, git worktrees, SQLite, the flock hub and the
+merge queue. \`--mock\` (or \`starling run --mock\`) gives you the no-process demo stack instead.
 `,
     );
   program.exitOverride();
@@ -121,7 +123,9 @@ Wave 1 runs on the mock composition; real wiring lands in Epic 40.
       if (options.dispatch !== undefined) {
         code = await options.dispatch(name, args, parsed);
       } else {
-        const context = createCliContext(deps);
+        // Real by default: the binary wires every package. Tests and embedders pass `mode: 'mock'`
+        // (or `--mock` on `run`) to keep the no-process, no-network demo stack.
+        const context = createCliContext({ ...deps, mode: deps.mode ?? 'real' });
         code = await runGuarded(context, () => action(args, parsed, context));
       }
       if (options.onExitCode !== undefined) options.onExitCode(code);
@@ -154,7 +158,9 @@ Wave 1 runs on the mock composition; real wiring lands in Epic 40.
         .option('--fully-open', 'run every role on local open-weight models')
         .option('--dry-run', 'plan only, do not launch agents')
         .option('--record <path>', 'append every event to a JSONL recording')
-        .option('--no-dash', 'do not print the dashboard URL');
+        .option('--budget <usd>', 'per-run spend cap in dollars (overrides budget.maxUsd)')
+        .option('--mock', 'use the mock composition: no opencode, no network, no repo writes')
+        .option('--no-dash', 'do not start the dashboard');
     },
   );
 
@@ -212,6 +218,7 @@ Wave 1 runs on the mock composition; real wiring lands in Epic 40.
     (command) => {
       command
         .option('--json', 'print the run as JSON')
+        .option('--repo <path>', 'repo whose store to read', '.')
         .option('--file <path>', 'read a recorded JSONL run instead of the live store');
     },
   );

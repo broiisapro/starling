@@ -1,16 +1,22 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Run } from '@starling/core';
+import type { SqliteStore } from '@starling/store';
+import { createSqliteStore } from '@starling/store';
 import type { CliContext } from '../context';
 import { readEventsJsonl } from '../jsonl';
 import { stateFromEvents } from '../live-state';
+import { storePathFor } from '../real/paths';
 import { renderStatus } from '../render/status';
 import { failWith, readBoolean, readString } from './options';
 
 /**
  * `starling status [runId]` — one run, in detail.
  *
- * In Wave 1 the store is in-memory, so there is nothing to list from a previous process. `--file`
- * is an additive flag that renders a recorded JSONL through the same reducer, which makes status
- * useful today and in the dashboard era.
+ * Reads the repo's SQLite store (`<repo>/.starling/starling.db`, written by `starling run`), so a run
+ * survives the process that flew it. `--file <jsonl>` still renders a recording through the same
+ * reducer, which is what the dashboard and `starling replay` do. `--repo` (additive) picks the store
+ * of a demo repo without `cd`-ing into it.
  */
 export async function statusCommand(
   runId: string | undefined,
@@ -18,40 +24,46 @@ export async function statusCommand(
   context: CliContext,
 ): Promise<number> {
   const file = readString(options, 'file');
-  let run: Run | undefined;
-  let now = context.now();
+  const repoPath = resolve(context.cwd, readString(options, 'repo') ?? '.');
 
   if (file !== undefined) {
     const events = readEventsJsonl(file, context.cwd);
     const state = stateFromEvents(events);
-    run = state.run;
-    now = state.now;
+    const run = state.run;
     if (run === undefined) failWith('INVALID_ARGUMENT', `${file} does not contain a run.created event`);
-  } else {
-    const composition = context.composition();
-    const target = runId ?? composition.engine.listRuns()[0]?.id;
-    if (target !== undefined) run = composition.engine.getRun(target);
-    if (runId !== undefined && run === undefined) {
-      failWith('INVALID_ARGUMENT', `No run ${runId} in this session — recordings are available with --file`);
-    }
+    return renderRun(run, state.now, options, context);
   }
 
-  if (run === undefined) {
-    context.write(context.palette.dim('No runs in this session yet.'));
-    context.write(
-      `${context.palette.dim('Try')} starling replay fixtures/runs/sky-todo-launch-day.jsonl --speed 200`,
-    );
-    context.write(
-      `${context.palette.dim('or')} starling status --file fixtures/runs/sky-todo-launch-day.jsonl`,
-    );
+  const dbPath = storePathFor(repoPath);
+  if (!existsSync(dbPath)) {
+    context.write(context.palette.dim(`No runs recorded in ${repoPath} yet.`));
+    context.write(`${context.palette.dim('Start one with')} starling run "<goal>" --repo ${repoPath}`);
     return 0;
   }
 
+  let store: SqliteStore | undefined;
+  try {
+    store = createSqliteStore(dbPath);
+    const target = runId ?? store.listRuns()[0]?.id;
+    const run = target === undefined ? undefined : store.getRun(target);
+    if (runId !== undefined && run === undefined) {
+      failWith('INVALID_ARGUMENT', `No run ${runId} in ${dbPath}`);
+    }
+    if (run === undefined) {
+      context.write(context.palette.dim('No runs recorded here yet.'));
+      return 0;
+    }
+    return renderRun(run, context.now(), options, context);
+  } finally {
+    store?.close();
+  }
+}
+
+function renderRun(run: Run, now: number, options: Record<string, unknown>, context: CliContext): number {
   if (readBoolean(options, 'json')) {
     context.write(JSON.stringify(run, null, 2));
     return run.status === 'failed' ? 1 : 0;
   }
-
   context.write(renderStatus(run, { palette: context.palette, width: context.columns, now }));
   return run.status === 'failed' ? 1 : 0;
 }
