@@ -244,8 +244,10 @@ export async function recoverWorkspace(
       }
     }
 
+    // Integration entries only get this far when the operator opted in, so every entry here is a
+    // candidate for collection (their branch included).
     const actions: RecoveryAction[] = exists ? ['remove-worktree'] : ['prune-registration'];
-    if (!integration) actions.push('delete-branch');
+    actions.push('delete-branch');
     report.entries.push({
       kind: 'worktree',
       reason: exists ? 'dead-run' : 'missing-directory',
@@ -335,6 +337,18 @@ export async function recoverWorkspace(
   };
 
   await git.lock(ctx.lockKey, async () => {
+    // Prune missing registrations *first*: git refuses `branch -D` for a branch that a (broken)
+    // worktree registration still claims, so the entry has to go before the branch can.
+    const stale = report.entries.filter((entry) => entry.actions.includes('prune-registration'));
+    if (stale.length > 0) {
+      try {
+        await pruneWorktrees(git, ctx.root);
+        report.removed.registrations = stale.length;
+      } catch (err) {
+        record('worktree prune', err);
+      }
+    }
+
     for (const entry of report.entries) {
       const target = entry.path ?? entry.branch ?? '(unknown)';
       try {
@@ -356,7 +370,6 @@ export async function recoverWorkspace(
           }
           report.removed.worktrees.push(path);
         }
-        if (entry.actions.includes('prune-registration')) report.removed.registrations += 1;
         if (entry.actions.includes('delete-branch') && entry.branch !== undefined) {
           const result = await git.attempt(['branch', '-D', entry.branch], { cwd: ctx.root });
           if (result.code !== 0) throw gitFailure(['branch', '-D', entry.branch], result);
@@ -364,13 +377,6 @@ export async function recoverWorkspace(
         }
       } catch (err) {
         record(target, err);
-      }
-    }
-    if (report.removed.registrations > 0) {
-      try {
-        await pruneWorktrees(git, ctx.root);
-      } catch (err) {
-        record('worktree prune', err);
       }
     }
   });

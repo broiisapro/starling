@@ -25,7 +25,11 @@ import type { Git } from './git';
 export function normalizeSparseDirs(directories: string[]): string[] {
   const cleaned: string[] = [];
   for (const raw of directories) {
-    const dir = raw.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    const dir = raw
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\.\/+/, '')
+      .replace(/\/+$/, '');
     if (dir === '' || dir === '.') continue;
     if (isAbsolute(dir) || dir.startsWith('/')) {
       throw new StarlingError('INVALID_ARGUMENT', `sparse checkout path must be relative: ${raw}`);
@@ -47,8 +51,10 @@ export function normalizeSparseDirs(directories: string[]): string[] {
 /**
  * Narrow a freshly added `--no-checkout` worktree to `directories`.
  *
- * `git sparse-checkout set --cone` writes the patterns and updates the working tree in one step, so
- * no extra checkout is needed. The call runs inside the worktree and therefore takes no repo lock.
+ * Two steps, and both are needed: `git sparse-checkout set --cone` writes the patterns, but a
+ * `--no-checkout` worktree still has an empty index, so it leaves every path staged as deleted.
+ * `git read-tree -mu HEAD` then materialises exactly the cone's files into the index and working
+ * tree (verified: README/root files plus `src/a`, nothing from `src/b`).
  */
 export async function applySparseCheckout(
   git: Git,
@@ -58,11 +64,16 @@ export async function applySparseCheckout(
   const dirs = normalizeSparseDirs(directories);
   if (dirs.length === 0) return;
   const target = resolve(worktreePath);
-  const args = ['sparse-checkout', 'set', '--cone', ...dirs];
-  const result = await git.attempt(args, { cwd: target });
-  if (result.code !== 0) {
-    throw new StarlingError('WORKSPACE_ERROR', `sparse checkout failed in ${target}`, {
-      details: { args, stderr: result.stderr.trim().slice(0, 2000) },
-    });
+  const steps = [
+    ['sparse-checkout', 'set', '--cone', ...dirs],
+    ['read-tree', '-m', '-u', 'HEAD'],
+  ];
+  for (const args of steps) {
+    const result = await git.attempt(args, { cwd: target });
+    if (result.code !== 0) {
+      throw new StarlingError('WORKSPACE_ERROR', `sparse checkout failed in ${target}`, {
+        details: { args, stderr: result.stderr.trim().slice(0, 2000) },
+      });
+    }
   }
 }
