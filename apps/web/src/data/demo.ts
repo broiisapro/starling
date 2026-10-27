@@ -1,7 +1,8 @@
-import type { AuditVerdict, Run, StarlingEvent, TaskRun } from '@starling/core';
-import { StarlingError, StarlingEventSchema } from '@starling/core';
+import type { AuditVerdict, Run, StarlingEvent, TaskRun } from '@starling/core/browser';
+import { StarlingError, StarlingEventSchema } from '@starling/core/browser';
 import fixtureRaw from '../../../../fixtures/runs/sky-todo-launch-day.jsonl?raw';
 import { DEFAULT_DEMO_SPEED, type DemoSpeed } from '../lib/speed';
+import { isRunStatusEvent, type KnownStarlingEvent, type RunStatusEvent } from './run-status';
 
 /**
  * Demo mode: replay the recorded launch-day run with its original timing, scaled by 1× / 4× / 16×.
@@ -110,48 +111,61 @@ function rebaseRun(run: Run, offset: number, rebaseVerdict: (v: AuditVerdict) =>
 function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
   const ts = event.ts + offset;
   const rebaseVerdict = (verdict: AuditVerdict): AuditVerdict => ({ ...verdict, ts: verdict.ts + offset });
-  switch (event.type) {
+
+  // Additive in core (Epic 40): shift the embedded run snapshot, then let the known-event switch below
+  // stay exhaustive whether or not the union has grown yet.
+  if (isRunStatusEvent(event)) {
+    const statusEvent = event as RunStatusEvent;
+    return {
+      ...statusEvent,
+      ts,
+      payload: { ...statusEvent.payload, run: rebaseRun(statusEvent.payload.run, offset, rebaseVerdict) },
+    } as unknown as StarlingEvent;
+  }
+
+  const known = event as KnownStarlingEvent;
+  switch (known.type) {
     case 'run.created': {
-      const run = event.payload.run;
-      return { ...event, ts, payload: { ...event.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
+      const run = known.payload.run;
+      return { ...known, ts, payload: { ...known.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
     }
     case 'run.finished': {
-      const run = event.payload.run;
-      return { ...event, ts, payload: { ...event.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
+      const run = known.payload.run;
+      return { ...known, ts, payload: { ...known.payload, run: rebaseRun(run, offset, rebaseVerdict) } };
     }
     case 'plan.created':
       return {
-        ...event,
+        ...known,
         ts,
         payload: {
-          ...event.payload,
-          plan: { ...event.payload.plan, createdAt: event.payload.plan.createdAt + offset },
+          ...known.payload,
+          plan: { ...known.payload.plan, createdAt: known.payload.plan.createdAt + offset },
         },
       };
     case 'task.status': {
       const rebase = (verdict: AuditVerdict) => ({ ...verdict, ts: verdict.ts + offset });
       return {
-        ...event,
+        ...known,
         ts,
         payload: {
-          ...event.payload,
-          run: rebaseTask(event.payload.run, offset, rebase),
+          ...known.payload,
+          run: rebaseTask(known.payload.run, offset, rebase),
         },
       };
     }
     case 'agent.event':
-      return { ...event, ts, payload: { ...event.payload, ts: event.payload.ts + offset } };
+      return { ...known, ts, payload: { ...known.payload, ts: known.payload.ts + offset } };
     case 'audit.verdict':
-      return { ...event, ts, payload: { ...event.payload, ts: event.payload.ts + offset } };
+      return { ...known, ts, payload: { ...known.payload, ts: known.payload.ts + offset } };
     case 'merge.result':
-      return { ...event, ts, payload: { ...event.payload, ts: event.payload.ts + offset } };
+      return { ...known, ts, payload: { ...known.payload, ts: known.payload.ts + offset } };
     case 'node.joined':
     case 'node.stats': {
-      const node = event.payload.node;
+      const node = known.payload.node;
       return {
-        ...event,
+        ...known,
         ts,
-        payload: { ...event.payload, node: { ...node, lastSeen: node.lastSeen + offset } },
+        payload: { ...known.payload, node: { ...node, lastSeen: node.lastSeen + offset } },
       };
     }
     // Durations live in the payload and must not move; the envelope ts has already been shifted.
@@ -160,10 +174,11 @@ function rebaseEvent(event: StarlingEvent, offset: number): StarlingEvent {
     case 'repomap.ready':
     case 'task.migrated':
     case 'node.left':
-      return { ...event, ts };
+      return { ...known, ts };
     default: {
-      const neverEvent: never = event;
-      return neverEvent;
+      const neverEvent: never = known;
+      void neverEvent;
+      return { ...event, ts };
     }
   }
 }
