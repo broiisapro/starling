@@ -108,7 +108,7 @@ resolve_model() {
 }
 
 # ── L31 rails ────────────────────────────────────────────────────────────────
-opencode_count() { pgrep -f opencode 2>/dev/null | wc -l | tr -d ' '; }
+opencode_count() { { pgrep -f opencode 2>/dev/null || true; } | wc -l | tr -d ' '; }
 
 # Free RAM as macOS counts it: free + inactive + speculative pages (what a model can claim without
 # swapping). `memory_pressure`'s percentage is reported too, for the log, but the gate is GB.
@@ -149,37 +149,23 @@ report_rails() {
 }
 
 # ── project-level opencode config (never the user's global config) ────────────
-# Mirrors tools/fully-open/opencode-ollama.json. `modelID` and `package` are both required by
-# opencode 2.1.2 — see the README before dropping either.
+# Derived from tools/fully-open/opencode-ollama.json, the file check-config.test.ts guards, so the
+# smoke exercises exactly what the unit test approves. `modelID` and `package` are both required by
+# opencode 2.1.2 — see the README before dropping either; a custom OLLAMA_URL rewrites baseURL.
 write_project_config() { # <dir>
   mkdir -p "$1"
-  MODEL_FILE="$MODEL" OLLAMA_V1="$OLLAMA_V1" bun -e '
+  MODEL_FILE="$MODEL" OLLAMA_V1="$OLLAMA_V1" TEMPLATE="$ROOT/tools/fully-open/opencode-ollama.json" bun -e '
+    const template = await Bun.file(process.env.TEMPLATE).json();
     const model = process.env.MODEL_FILE;
-    const config = {
-      $schema: "https://opencode.ai/config.json",
-      model: `ollama/${model}`,
-      providers: {
-        ollama: {
-          name: "Ollama (local)",
-          package: "@opencode/ai/providers/openai-compatible",
-          settings: { baseURL: process.env.OLLAMA_V1, apiKey: "ollama" },
-          models: {
-            [model]: {
-              modelID: model,
-              name: `${model} (local)`,
-              capabilities: {
-                tools: true,
-                temperature: true,
-                input: ["text", "image"],
-                output: ["text"],
-              },
-              limit: { context: 32768, output: 8192 },
-            },
-          },
-        },
-      },
+    const provider = template.providers.ollama;
+    const seed = Object.values(provider.models)[0] ?? {
+      capabilities: { tools: true, temperature: true, input: ["text", "image"], output: ["text"] },
+      limit: { context: 32768, output: 8192 },
     };
-    await Bun.write(`${process.argv[1]}/opencode.json`, `${JSON.stringify(config, null, 2)}\n`);
+    provider.settings = { ...provider.settings, baseURL: process.env.OLLAMA_V1 };
+    provider.models = { [model]: { ...seed, modelID: model, name: `${model} (local)` } };
+    template.model = `ollama/${model}`;
+    await Bun.write(`${process.argv[1]}/opencode.json`, `${JSON.stringify(template, null, 2)}\n`);
   ' "$1"
 }
 
@@ -248,7 +234,7 @@ write_report() {
 # ── main ─────────────────────────────────────────────────────────────────────
 MODEL="$(resolve_model)"
 OLLAMA_V1="$OLLAMA_URL/v1"
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/starling-fully-open.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR%/}/starling-fully-open.XXXXXX")"
 cleanup() {
   if [ "$LOADED" -eq 1 ] && [ "$KEEP_LOADED" -ne 1 ]; then unload_model; fi
 }
@@ -332,11 +318,21 @@ if [ -f "$STARLING_CLI" ] && bun "$STARLING_CLI" run --help 2>&1 | grep -q -- '-
   log "→ starling run --profile local (one task, fresh sky-todo copy)"
   REPO="$WORK/sky-todo"
   cp -R "$SKY_TODO" "$REPO"
+  # A fresh, committed repo: `starling run` needs a base branch and a clean tree.
+  git -C "$REPO" init -q
+  git -C "$REPO" add -A
+  git -C "$REPO" commit -qm "smoke: fresh sky-todo"
   LOADED=1
   OC_START="$(now_ms)"
   if ( cd "$REPO" && STARLING_LLM_PROFILE=local STARLING_LOCAL_MODEL="$MODEL" \
         bun "$STARLING_CLI" run "add a footer stat showing done/total tasks" --repo . --profile local --no-dash ); then
     OC_MS=$(( $(now_ms) - OC_START ))
+    # The harness merges into an integration branch, so "tools worked" means the worktree changed.
+    if [ -f "$REPO/$SMOKE_FILE" ] || [ "$(git -C "$REPO" diff --name-only | wc -l | tr -d ' ')" -gt 0 ]; then
+      WRITTEN="yes"
+    else
+      STATUS="partial"; DETAIL="starling run finished but changed nothing"
+    fi
   else
     STATUS="failed"; DETAIL="starling run --profile local exited non-zero"
   fi

@@ -71,20 +71,37 @@ server"). Findings that shaped this config:
    (singular, with `npm` + `options.baseURL`) is still in the schema marked `deprecated`. The v2
    provider entry has `name`, `env`, `package`, `compatibility`, `settings`, `headers`, `body` and
    `models`; there is **no top-level `options.baseURL`** any more. `settings` is an open bag, so a
-   non-default Ollama URL goes in `providers.ollama.settings.baseURL` — verify with `opencode models`
-   after changing it.
-3. **A model ref is `providerID/modelID`.** The v2 config normalises the string `model` field into
+   non-default Ollama URL goes in `providers.ollama.settings.baseURL`.
+3. **A declared model needs both `modelID` and a provider `package`.** These two are what the
+   investigation bought us; both fail silently-ish if omitted:
+   - without `models.<tag>.modelID`, the entry is ignored — `opencode models` still lists whatever
+     Ollama auto-discovery found, but never the model you declared;
+   - without `providers.ollama.package: "@opencode/ai/providers/openai-compatible"`,
+     `opencode run -m ollama/<tag>` answers
+     `{"type":"error","error":{"type":"provider.no-route","message":"Unsupported package for ollama/…"}}`.
+
+   With both present, the same command resolves the model and dials
+   `providers.ollama.settings.baseURL` (verified against a dead port: `provider.transport` /
+   `ConnectionRefused`, i.e. it was our URL and not a default). The checked-in JSON has exactly
+   those fields; `check-config.test.ts` fails if either goes missing.
+4. **A model ref is `providerID/modelID`.** The v2 config normalises the string `model` field into
    `{ providerID, model }`; Starling stores the string form and splits it on the first `/`.
-4. **Ollama is auto-detected on the default port.** With Ollama running, `opencode models` lists
-   `ollama/qwen3.8:27b-mlx` even with no provider config at all. The checked-in JSON therefore only
-   has to *pin* that provider and the model (and to keep working on a machine where auto-detection
-   is off, e.g. a custom port or a fresh install).
-5. **Tool calls need context.** opencode's own Ollama docs suggest raising `num_ctx` to 16k–32k when
-   a local model is weak at tools. `qwen3.8:27b-mlx` runs with a 32k context in Ollama 0.40.8 on the
-   M5 Pro; the auditor path needs no tools, the worker path does.
-6. **`--standalone` is the safe one-shot.** `opencode run --standalone --auto --format json -m
+5. **Ollama is auto-detected on the default port.** With the daemon running, `opencode models` lists
+   `ollama/qwen3.8:27b-mlx` even with no provider config at all. That is convenient, not sufficient:
+   a pinned `providers.ollama` block is what makes a custom port, a fresh install or a specific
+   context window work. Declaring `models` also **replaces** auto-discovery for that provider, so
+   list every tag a run may need (Starling needs one).
+6. **Tool calls need context.** opencode's own Ollama docs suggest raising `num_ctx` to 16k–32k when
+   a local model is weak at tools. `qwen3.8:27b-mlx` runs with a 32k context on the M5 Pro, so the
+   config declares `limit.context: 32768` (declaring the model's native 256k would let opencode
+   compact far too late and then fail on the Ollama side).
+7. **`--standalone` is the safe one-shot.** `opencode run --standalone --auto --format json -m
    ollama/<tag> "<prompt>"` starts a private server for the call instead of touching the shared
    background service, which is what several parallel agents use.
+
+No model was loaded to learn any of this: the probes above used a throwaway project config pointing
+at a closed port and the `opencode models` / `opencode run` / `opencode debug config` commands.
+
 
 ## Use it
 
