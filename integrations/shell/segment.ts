@@ -6,7 +6,7 @@
  *
  * Type-only imports keep this module loadable from anywhere (and cheap for a spawned prompt helper).
  */
-import type { Run, RunStatus, TaskStatus } from '../../packages/core/src/index.ts';
+import type { Run, RunStatus } from '../../packages/core/src/index.ts';
 
 /** Run states that mean "the flock is flying right now" (ARCHITECTURE §6 `Run.status`). */
 export const ACTIVE_RUN_STATUSES = ['mapping', 'planning', 'planned', 'running'] as const;
@@ -94,7 +94,7 @@ export function countTasks(run: Pick<Run, 'tasks'>): TaskCounts {
   const tasks = run.tasks ?? {};
   for (const task of Object.values(tasks)) {
     counts.total += 1;
-    const status: TaskStatus | string = task.status;
+    const status = task.status;
     if ((IN_FLIGHT_TASK_STATUSES as readonly string[]).includes(status)) counts.inFlight += 1;
     else if (status === 'merged') counts.done += 1;
     else if (status === 'failed' || status === 'conflict') counts.failed += 1;
@@ -103,8 +103,7 @@ export function countTasks(run: Pick<Run, 'tasks'>): TaskCounts {
 }
 
 function wrapForStyle(text: string, style: SegmentStyle, colour: string): string {
-  const open = `${colour}`;
-  const on = style === 'zsh' ? `%{${open}%}` : style === 'bash' ? `\\[${open}\\]` : open;
+  const on = style === 'zsh' ? `%{${colour}%}` : style === 'bash' ? `\\[${colour}\\]` : colour;
   const off = style === 'zsh' ? `%{${RESET}%}` : style === 'bash' ? `\\[${RESET}\\]` : RESET;
   return `${on}${text}${off}`;
 }

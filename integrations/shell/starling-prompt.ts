@@ -1,5 +1,8 @@
 #!/usr/bin/env bun
 import { locateCache, readSegment } from './cache.ts';
+import type { FetchLike } from './refresh.ts';
+import type { SegmentStyle } from './segment.ts';
+
 /**
  * `starling-prompt` — the whole prompt helper, in one file.
  *
@@ -13,9 +16,6 @@ import { locateCache, readSegment } from './cache.ts';
  * With `--refresh` it performs exactly one refresh and exits. Always exit 0 on the happy-ish paths:
  * a prompt helper that returns non-zero shows up in `$?` and in people's `starship`-style guards.
  */
-import type { FetchLike } from './refresh.ts';
-import type { SegmentStyle } from './segment.ts';
-
 const DEFAULT_SERVER = 'http://127.0.0.1:7777';
 
 export const USAGE = `starling-prompt — a one-line Starling status for your shell prompt
