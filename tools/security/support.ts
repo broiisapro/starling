@@ -114,6 +114,11 @@ export interface ProbeServerOptions {
   flock?: ServerDeps['flock'];
   replay?: ServerDeps['replay'];
   webDist?: string;
+  /**
+   * Base for the replay allow-list (`fixtures/`, `.starling/`). Epic 41 added `repoRoot` to
+   * `ServerDeps`; probes that replay pass it so the check does not depend on the test runner's cwd.
+   */
+  repoRoot?: string;
 }
 
 /** Bind the real hub app on an ephemeral loopback port, exactly as `startServer` does in production. */
@@ -121,7 +126,9 @@ export function startProbeServer(options: ProbeServerOptions = {}): ProbeHarness
   const store = options.store ?? new MemoryStore();
   const bus = options.bus ?? createEventBus();
   const engine = options.engine ?? fakeEngine();
-  const deps: ServerDeps = {
+  // The assertion lets this harness compile against a `ServerDeps` from before Epic 41 (no
+  // `repoRoot`), where the extra property is simply not read.
+  const deps = {
     engine,
     store,
     bus,
@@ -129,7 +136,8 @@ export function startProbeServer(options: ProbeServerOptions = {}): ProbeHarness
     ...(options.flock === undefined ? {} : { flock: options.flock }),
     ...(options.replay === undefined ? {} : { replay: options.replay }),
     ...(options.webDist === undefined ? {} : { webDist: options.webDist }),
-  };
+    ...(options.repoRoot === undefined ? {} : { repoRoot: options.repoRoot }),
+  } as ServerDeps;
   const handle = startServer(deps, { port: 0, hostname: '127.0.0.1' });
   return {
     url: handle.url,

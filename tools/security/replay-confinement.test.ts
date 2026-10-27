@@ -1,20 +1,20 @@
 /**
  * Probes: `POST /api/replay` — re-publish a recorded JSONL run (ARCHITECTURE §6).
  *
- * Replay is a *publisher*: whatever the file says becomes real events in the store and on the bus. The
- * route takes a filesystem path from the request and the demo server hands it straight to
- * `readFileSync`. That is an unauthenticated, unconfined file read and event-injection primitive on
- * the LAN, not a display feature:
+ * Replay is a *publisher*: whatever the file says becomes real events in the store and on the bus, so
+ * an unconfined replay route is a file-read and event-injection primitive on the LAN, not a display
+ * feature. That is what this file originally demonstrated:
  *
- *  - `path` may be absolute, contain `..`, or be a symlink pointing anywhere the hub process can
- *    read (proven below with a valid recording outside the repo);
- *  - a file that *is* valid JSONL is accepted and its events (a fake `node.joined`, a fake run) are
- *    published to `/api/events`, so a LAN peer can paint anything it likes on the dashboard;
- *  - the error message names the path and the line, which turns the route into an existence oracle
- *    for arbitrary files.
+ *  - `path` could be absolute, contain `..`, or be a symlink pointing anywhere the hub process could
+ *    read (a valid recording outside the repo was accepted);
+ *  - a file that *is* valid JSONL was published to `/api/events`, so a LAN peer could paint a fake
+ *    `node.joined` on the dashboard (see the impact test at the bottom);
+ *  - the error message named the path and the line, an existence oracle for arbitrary files.
  *
- * The two `test.failing` probes expect a confinement check plus authentication. Authentication is the
- * same structural gap as `POST /api/runs` (see the findings table, E-04).
+ * **Epic 41 fixed the confinement half (SEC-04).** Every replay path is now resolved against the
+ * active repo and must `realpath` inside `fixtures/` or `.starling/`, else 403. Those probes are plain
+ * `test(...)` now: they are regression tests, not expectations. Authentication is still missing
+ * (SEC-01, the same structural gap as `POST /api/runs`, E-04), so that one stays `test.failing`.
  */
 
 import { afterAll, describe, expect, test } from 'bun:test';
@@ -23,7 +23,10 @@ import { join } from 'node:path';
 import { loadReplayFile, startReplay } from '../../apps/server/src/index.ts';
 import type { StarlingEvent } from '../../packages/core/src/index.ts';
 import { makeNodeInfo, makeRun } from '../../packages/core/src/testing/index.ts';
-import { FIXTURE_PATH, probeTempDir, removeDir, startProbeServer, wait } from './support.ts';
+import { FIXTURE_PATH, probeTempDir, removeDir, startProbeServer } from './support.ts';
+
+/** The repo root: the allow-list is resolved against it, not against whatever cwd the tests inherit. */
+const ROOT = join(import.meta.dir, '../..');
 
 const outside = await probeTempDir('replay-outside');
 const recording = join(outside, 'valid-recording.jsonl');
@@ -33,6 +36,7 @@ await symlink(recording, link);
 
 // The same wiring `dev.ts` / the Wave 2 engine uses: load, validate, publish.
 const server = startProbeServer({
+  repoRoot: ROOT,
   replay: async (path, speed) => {
     const file = loadReplayFile(path);
     return { runId: startReplay({ file, store: server.store, bus: server.bus, speed, loop: false }).runId };
@@ -60,18 +64,19 @@ describe('replay confinement', () => {
     expect(body.runId.length).toBeGreaterThan(0);
   });
 
-  test.failing('refuses a recording outside the run directory', async () => {
-    // A *valid* JSONL file the hub has no business replaying. Today this is a 202.
+  test('refuses a recording outside the run directory', async () => {
+    // A *valid* JSONL file the hub has no business replaying. Pre-Epic 41 this was a 202 (SEC-04).
     const response = await replay(recording);
     expect(response.status).toBe(403);
   });
 
-  test.failing('refuses a symlink that points outside the run directory', async () => {
+  test('refuses a symlink that points outside the run directory', async () => {
+    // The allow-list `realpath`s the target, so a link under `fixtures/` cannot smuggle in `/etc`.
     const response = await replay(link);
     expect(response.status).toBe(403);
   });
 
-  test.failing('refuses an absolute path to a non-recording', async () => {
+  test('refuses an absolute path to a non-recording', async () => {
     const response = await replay('/etc/passwd');
     expect(response.status).toBe(403);
   });
@@ -83,8 +88,16 @@ describe('replay confinement', () => {
   });
 });
 
-describe('replay is an event-injection primitive (impact, not a separate defect)', () => {
-  test('a hand-written recording publishes arbitrary node events', async () => {
+/**
+ * Impact of what the allow-list prevents (not a separate defect).
+ *
+ * Before Epic 41 this probe wrote a hand-written recording (`run.created` + a fake `node.joined` for
+ * "attacker-laptop") *outside* the repo and expected a 202, then found the forged node on the bus:
+ * a LAN peer could put any perch it liked on the dashboard. Epic 41 refuses the same file at the
+ * route, so the forged event never reaches the store or the bus.
+ */
+describe('replay is not an event-injection primitive from outside the run directory', () => {
+  test('a forged recording outside the allowed directories is refused with 403', async () => {
     const forged: StarlingEvent[] = [
       {
         type: 'run.created',
@@ -105,10 +118,10 @@ describe('replay is an event-injection primitive (impact, not a separate defect)
     await Bun.write(forgedPath, `${forged.map((event) => JSON.stringify(event)).join('\n')}\n`);
 
     const response = await replay(forgedPath);
-    expect(response.status).toBe(202);
-    // Replay publishes the first event synchronously and the rest on a timer.
-    await wait(50);
+    expect(response.status).toBe(403);
+
+    // Nothing from the file was published: no `node.joined` for the attacker's id reached the store.
     const published = server.store.events('*').filter((event) => event.type === 'node.joined');
-    expect(published.some((event) => event.payload.node.id === 'attacker-laptop')).toBe(true);
+    expect(published.some((event) => event.payload.node.id === 'attacker-laptop')).toBe(false);
   });
 });
