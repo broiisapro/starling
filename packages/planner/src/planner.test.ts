@@ -4,7 +4,7 @@ import { FakeClock, isStarlingError } from '@starling/core';
 import { MockLLM, makeGoal } from '@starling/core/testing';
 import { createPlanner } from './planner';
 import { draftOf, loadDraftFixture, loadRepoMapFixture, planOf, task } from './test-fixtures';
-import { validatePlan } from './validate';
+import { PLANNER_MAX_TASKS_LIMIT, validatePlan } from './validate';
 
 const MODEL: ModelRef = { provider: 'deepseek', model: 'deepseek-v4.1-flash' };
 const SHARED = { owns: ['src/ui/styles.css'], reads: [] };
@@ -74,6 +74,25 @@ describe('createPlanner — the happy path', () => {
     expect(plan.tasks[0]?.lane.owns).toEqual(['src/lib/dates.ts']);
     expect(plan.tasks[1]?.dependsOn).toEqual(['t01-dates-fix']);
     expect(plan.tasks[1]?.lane.owns).toEqual(['src/features/Export']);
+  });
+  test('plans a 60-task swarm without a count warning', async () => {
+    const draft = draftOf(
+      Array.from({ length: 60 }, (_, index) =>
+        task(`cap-${index}`, { lane: { owns: [`src/features/f${index}/**`], reads: [] } }),
+      ),
+    );
+    const planner = createPlanner({
+      llm: llmWith([draft]),
+      minTasks: 1,
+      maxTasks: 60,
+    });
+
+    const { plan, issues } = await planner.plan(makeGoal(), loadRepoMapFixture());
+
+    expect(plan.tasks).toHaveLength(60);
+    expect(plan.tasks[0]?.key).toBe('t01-cap-0');
+    expect(plan.tasks.at(-1)?.key).toBe('t60-cap-59');
+    expect(issues).toEqual([]);
   });
 });
 
@@ -211,12 +230,19 @@ describe('createPlanner — failure modes', () => {
     }
   });
 
-  test('rejects maxTasks outside 2..12', () => {
+  test('rejects maxTasks outside 2..100', () => {
     const llm = llmWith([]);
     expect(() => createPlanner({ llm, maxTasks: 1 })).toThrow(/maxTasks/);
-    expect(() => createPlanner({ llm, maxTasks: 13 })).toThrow(/maxTasks/);
+    expect(() => createPlanner({ llm, maxTasks: 101 })).toThrow(/maxTasks/);
     expect(() => createPlanner({ llm, minTasks: 0 })).toThrow(/minTasks/);
     expect(() => createPlanner({ llm, minTasks: 9, maxTasks: 3 })).toThrow(/minTasks/);
+  });
+
+  test('accepts swarm-sized bounds up to the exported hard limit', () => {
+    const llm = llmWith([]);
+    expect(() => createPlanner({ llm, maxTasks: 60 })).not.toThrow();
+    expect(() => createPlanner({ llm, maxTasks: PLANNER_MAX_TASKS_LIMIT })).not.toThrow();
+    expect(PLANNER_MAX_TASKS_LIMIT).toBe(100);
   });
 });
 
