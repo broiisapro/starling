@@ -1,6 +1,6 @@
 ## Epic 32 Handback — Web: flock panel
 
-**Status:** Complete. Branch `epic/32-web-flock` @ `549728a` (+ docs commit). Closes #26.
+**Status:** Complete. Branch `epic/32-web-flock` @ `66582b2` (feature tip; docs/verification commits follow). Closes #26.
 
 **Delivered:**
 
@@ -48,9 +48,9 @@
 
 - `bun install`: `Checked 162 installs across 221 packages (no changes) [14.00ms]`
 - `bun test apps/web/src/features/flock`:
-  `34 pass, 0 fail, 130 expect() calls, Ran 34 tests across 3 files. [1.82s]`
+  `34 pass, 0 fail, 131 expect() calls, Ran 34 tests across 3 files. [1.71s]`
 - `bun run test` (root):
-  `221 pass, 0 fail, 918 expect() calls, Ran 221 tests across 40 files. [1.84s]`
+  `221 pass, 0 fail, 919 expect() calls, Ran 221 tests across 40 files. [1.85s]`
 - `bun run typecheck`: exit 0 (all 18 workspaces).
 - `biome check apps/web/src/features/flock`: `Checked 27 files ... No fixes applied.`
 - `bun run check`: **fails only on pre-existing, out-of-lane formatting** on `main`:
