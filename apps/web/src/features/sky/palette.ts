@@ -29,6 +29,18 @@ export const SKY_COLORS = {
   roostRim: 'rgba(170, 205, 255, 0.38)',
   label: '#a8bcd8',
   halo: 'rgba(255, 255, 255, 0.20)',
+  /** Big readable roost plates (Epic 47): dark glass behind projector-sized type. */
+  plate: 'rgba(5, 10, 22, 0.84)',
+  plateRim: 'rgba(170, 205, 255, 0.30)',
+  roostName: '#e6efff',
+  roostGauge: '#93a8c4',
+  crown: '#ffd479',
+  glow: 'rgba(120, 220, 255, 0.55)',
+  spark: '#ffe6a6',
+  toast: 'rgba(6, 12, 24, 0.88)',
+  toastRim: 'rgba(160, 196, 255, 0.34)',
+  toastText: '#e6efff',
+  shimmer: 'rgba(160, 255, 210, 0.85)',
 } as const;
 
 // ── iridescence ──────────────────────────────────────────────────────────────────────────────────

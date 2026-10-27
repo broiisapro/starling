@@ -28,5 +28,8 @@ if (at === 'mid') {
 const mount = document.getElementById('root');
 if (mount) {
   const calm = params.get('calm') === '1';
-  createRoot(mount).render(<Playground events={events} initialIndex={index} initialCalm={calm} />);
+  const stress = params.get('stress') === '1';
+  createRoot(mount).render(
+    <Playground events={events} initialIndex={index} initialCalm={calm} initialStress={stress} />,
+  );
 }

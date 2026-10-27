@@ -477,8 +477,10 @@ describe('hit testing and reduced motion', () => {
         const x = sim.birds.x[base + j] ?? 0;
         const y = sim.birds.y[base + j] ?? 0;
         if (flock.status === 'pending') {
-          expect(y).toBeGreaterThan(640); // perched on the bottom roost
-          expect(y).toBeLessThan(700);
+          const roost = sim.roosts.find((candidate) => candidate.nodeId === flock.nodeId);
+          const perchY = (roost?.y ?? sim.height - 26) - 8;
+          expect(y).toBeGreaterThan(perchY - 30); // perched on the bottom roost
+          expect(y).toBeLessThan(sim.height);
         } else if (flock.status === 'merged') {
           expect(Math.abs(y - (sim.wire.yAt(x) - 5))).toBeLessThan(12);
         } else {
