@@ -62,8 +62,8 @@ every task before it can land, and routes the cheap high-volume work to a model 
 ## Quickstart
 
 **Prerequisites:** [Bun](https://bun.sh) 1.4.4 (1.3+ works), Git 2.38+, and
-[opencode](https://opencode.ai) if you want real agent sessions. Ollama is optional — it powers the local
-auditor. Windows is not supported yet.
+[opencode](https://opencode.ai) if you want real agent sessions. Ollama powers the default local auditor;
+without it, point `models.auditor` at a provider you do have. Windows is not supported yet.
 
 Starling is not on npm yet. Run it from a checkout:
 
@@ -103,7 +103,7 @@ bun run starling init
 # ✔ wrote starling.config.yaml  profile opencode-go
 ```
 
-Then plan — read-only, no agents, no tokens spent on worktrees:
+Then plan — read-only: no agents, no worktrees, no spend.
 
 ```bash
 bun run starling plan "add CSV export and fix the overdue date bug" --repo examples/sky-todo
@@ -127,8 +127,9 @@ TASK           TITLE                              DEPENDS      OWNS             
 Dry-run the whole engine, then launch it:
 
 ```bash
-bun run starling run "add CSV export" --repo examples/sky-todo --dry-run
-bun run starling run "add CSV export" --repo examples/sky-todo --max-parallel 8 --record run.jsonl
+bun run starling run "add CSV export and fix the overdue date bug" --repo examples/sky-todo --dry-run
+bun run starling run "add CSV export and fix the overdue date bug" --repo examples/sky-todo \
+  --max-parallel 8 --record run.jsonl
 ```
 
 ```text
