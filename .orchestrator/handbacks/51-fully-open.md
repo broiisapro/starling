@@ -33,10 +33,11 @@ Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushin
   profile and runs as a CLI, and `smoke.sh` for Epic 72 (`--dry-run` plan, L31 quiet window,
   throwaway project config derived from the checked-in JSON, one tool-requiring task, tokens/s,
   `keep_alive: 0`, exit 4 when the model answered but used no tool).
-- Tests: 101 in `packages/llm` (98 pass / 3 live-skip), 12 in `tools/fully-open` — covering profile
-  routing, unknown-profile rejection, non-mutation, mixed fallback (daemon down, model missing, TTL
-  re-probe, preflight, `skipLocalProbe`), probe timeouts/garbage/HTTP errors, recommendation
-  precedence and missing/malformed files, host detection, and config drift.
+- Tests: 103 in `packages/llm` (100 pass / 3 live-skip), 12 in `tools/fully-open` — covering profile
+  routing, unknown-profile rejection, non-mutation, provider existence for every profile, the
+  worker↔opencode `ollama` id, mixed fallback (daemon down, model missing, TTL re-probe, preflight,
+  `skipLocalProbe`), probe timeouts/garbage/HTTP errors, recommendation precedence and
+  missing/malformed files, host detection, and config drift.
 
 **Key design decisions:**
 
@@ -59,7 +60,7 @@ Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushin
 **Verification (exact commands + results):**
 
 - `bun install` (worktree): `Checked 162 installs across 221 packages (no changes)` — clean.
-- `bun test packages/llm`: `98 pass, 3 skip, 0 fail, 335 expect() calls; Ran 101 tests across 11 files`.
+- `bun test packages/llm`: `100 pass, 3 skip, 0 fail, 363 expect() calls; Ran 103 tests across 11 files`.
 - `bun test tools/fully-open`: `12 pass, 0 fail, 25 expect() calls; Ran 12 tests across 1 file`.
 - `bash -n tools/fully-open/smoke.sh` → exit 0. `tools/fully-open/smoke.sh --dry-run` → prints the
   8-step plan, the resolved tag (`qwen3.8:27b-mlx`), the recommendation path and the live rail
@@ -68,7 +69,7 @@ Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushin
 - `bun tools/fully-open/check-config.ts --file <generated> --model qwen3.8:27b-mlx` → `ok`: the config
   `smoke.sh` derives from the checked-in template passes the same checks as the template itself.
 - `bun run test` (root):
-  - packages/apps/cli/server/skills/integrations/tools/evals: `1410 pass, 4 skip, 0 fail, 6443 expect() calls; Ran 1414 tests across 166 files`
+  - packages/apps/cli/server/skills/integrations/tools/evals: `1412 pass, 4 skip, 0 fail, 6471 expect() calls; Ran 1416 tests across 166 files`
   - apps/web: `426 pass, 0 fail, 3527 expect() calls; Ran 426 tests across 39 files`
 - `bun run check`: exit 0 — `biome check .` clean on 715 files, `tsc --noEmit` clean for every workspace.
 - **No Ollama was touched by this session** (no `ollama` command, no request to `127.0.0.1:11434`, no
