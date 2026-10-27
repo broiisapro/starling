@@ -47,9 +47,15 @@ One other task also owns a conflicted file. Both behaviours must survive the res
 
 **Out of scope:** Fuzzy matching or highlighting
 
+**Definition of done**
+
+1. bun test passes
+2. Typing filters on every keystroke
+3. Escape clears the query
+
 ## Rules
 
-- Preserve both behaviours. Never drop one side’s work to make the conflict disappear.
+- Preserve both behaviours. Keep both sets of tests. Never drop one side’s work to make the conflict disappear.
 - Do not delete or weaken either side's tests. If two tests genuinely contradict each other, keep the stronger one and explain the choice in \`notes\`.
 - Keep the change minimal: resolve the markers in \`src/features/search/index.ts\`, and avoid refactoring while you are there.
 - Your lane is \`src/features/help/**\`. A true conflict resolution may need one line in a sibling's file; keep it as small as possible and list every out-of-lane file in \`notes\`.

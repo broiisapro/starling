@@ -34,6 +34,16 @@ describe('createPromptCompiler', () => {
     expect(worker(ctx)).toContain('# Starling worker — csv-export');
   });
 
+  test('the resolver extras are optional: a plain port implementation still type-checks', () => {
+    const plain: PromptCompiler = {
+      worker: () => 'w',
+      fixer: () => 'f',
+      resolver: () => 'r',
+    };
+    // The port's two-argument signature is unchanged; the compiler's third argument is additive.
+    expect(plain.resolver(ctx, helpOverlayConflict())).toBe('r');
+  });
+
   test('leaks no JavaScript artefacts into any prompt', () => {
     const prompts = [
       createPromptCompiler().worker(ctx),

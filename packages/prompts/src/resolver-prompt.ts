@@ -1,13 +1,32 @@
 /**
- * The resolver prompt: handed to the task's agent when the merge queue reports a conflict.
- * It names both intents (its own task and every sibling whose lane touches a conflicted file)
- * and the rules that stop a model from "resolving" by deleting one side.
+ * The resolver prompt: handed to a fresh resolver session when the merge queue reports a conflict.
+ * It names both intents (the task being merged and every sibling whose lane touches a conflicted
+ * file), shows the trimmed conflict hunks the merger captured, and sets the rules that stop a model
+ * from "resolving" by deleting one side.
  */
 import type { MergeResult, Plan, PromptContext, TaskSpec } from '@starling/core';
 import { matchesAny, StarlingError } from '@starling/core';
 import type { ResolvedPromptOptions } from './options';
 import { finishLineSection, testCommandFor } from './sections';
-import { bullets, code, joinSections, numbered, plural } from './text';
+import { bullets, clamp, code, joinSections, numbered, plural } from './text';
+
+/**
+ * Additive extras for the resolver prompt.
+ *
+ * The core `PromptCompiler` port (ARCHITECTURE §6, LOCKED) takes two arguments. The merger builds
+ * this third argument from the conflicted working tree it just committed, and passes it only when
+ * the injected compiler accepts it — a compiler that ignores extras still type-checks and works.
+ */
+export interface ResolverPromptExtras {
+  /**
+   * Trimmed conflict hunks, already formatted by the caller. Each entry starts with a
+   * `--- <path>` header followed by the marker block, so a file with two conflicts stays readable.
+   */
+  hunks?: string[];
+}
+
+/** Cap on the rendered hunks: enough to recognise both sides, not enough to blow the budget. */
+export const DEFAULT_MAX_HUNK_CHARS = 6_000;
 
 /**
  * Sibling tasks whose lane owns a conflicted file. This is how the resolver learns "both intents"
@@ -30,6 +49,24 @@ function filesBlock(conflict: MergeResult): string {
     '## Conflicted files',
     bullets(conflict.conflictedFiles.map(code)),
     conflict.detail ? `**Merger detail:** ${conflict.detail}` : undefined,
+  ]);
+}
+
+/**
+ * The trimmed marker blocks the merger committed on the resolve branch.
+ *
+ * Without them the model has to run `git diff` blind before it knows what the two sides disagree
+ * about; with them the prompt already shows which lines to reconcile. The full files are always
+ * still in the worktree, and the block says so.
+ */
+function hunksBlock(extras: ResolverPromptExtras): string {
+  const hunks = (extras.hunks ?? []).map((hunk) => hunk.trim()).filter((hunk) => hunk.length > 0);
+  if (hunks.length === 0) return '';
+  const body = clamp(hunks.join('\n'), DEFAULT_MAX_HUNK_CHARS);
+  return joinSections([
+    '## Conflict hunks (trimmed)',
+    'These are shortened excerpts of the marker blocks, `--- <path>` starts a file. Read the full files in your worktree before you edit them; the excerpts are here so you can see both sides at a glance.',
+    ['```text', body, '```'].join('\n'),
   ]);
 }
 
@@ -62,7 +99,7 @@ function otherSideBlock(ctx: PromptContext, conflict: MergeResult): string {
   return joinSections([
     '## The other side',
     otherSideIntro(others.length),
-    ...others.map((task) => intentBlock(task, `### ${code(task.key)} · ${task.title}`, false, false)),
+    ...others.map((task) => intentBlock(task, `### ${code(task.key)} · ${task.title}`, false, true)),
   ]);
 }
 
@@ -79,7 +116,7 @@ function rulesBlock(ctx: PromptContext, conflict: MergeResult): string {
   return joinSections([
     '## Rules',
     bullets([
-      'Preserve both behaviours. Never drop one side’s work to make the conflict disappear.',
+      'Preserve both behaviours. Keep both sets of tests. Never drop one side’s work to make the conflict disappear.',
       "Do not delete or weaken either side's tests. If two tests genuinely contradict each other, keep the stronger one and explain the choice in `notes`.",
       `Keep the change minimal: resolve the markers in ${files || 'the conflicted files'}, and avoid refactoring while you are there.`,
       `Your lane is ${owns}. A true conflict resolution may need one line in a sibling's file; keep it as small as possible and list every out-of-lane file in \`notes\`.`,
@@ -96,6 +133,7 @@ export function buildResolverPrompt(
   ctx: PromptContext,
   conflict: MergeResult,
   options: ResolvedPromptOptions,
+  extras: ResolverPromptExtras = {},
 ): string {
   if (conflict.taskKey !== ctx.task.key) {
     throw new StarlingError(
@@ -112,6 +150,7 @@ export function buildResolverPrompt(
       ? `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides keep working.`
       : `Merging ${code(ctx.branch)} into the integration branch conflicted in ${count} ${plural(count, 'file', 'files')}. Resolve it so both sides' behaviour survives: this is real engineering, not marker deletion. Your work is already committed on the branch.`,
     filesBlock(conflict),
+    hunksBlock(extras),
     intentBlock(ctx.task, "## Your task's intent", true, true),
     otherSideBlock(ctx, conflict),
     rulesBlock(ctx, conflict),
