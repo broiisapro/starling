@@ -12,12 +12,18 @@ import {
 import { DEFAULT_ROUTE, initialSpeed, parseRoute } from './route';
 import { isDemoSpeed, otherSpeeds, parseDemoSpeed } from './speed';
 import {
+  HUB_BADGE,
   isTerminalStatus,
+  NODE_STATUS_COLORS,
+  PERCH_BADGE,
   STATUS_COLORS,
+  statusChip,
   statusLabel,
   statusPalette,
+  statusSurface,
   TASK_STATUSES,
   TERMINAL_STATUSES,
+  taskTone,
 } from './status';
 import type { ThemeStorage } from './theme';
 import {
@@ -69,6 +75,31 @@ describe('status palette', () => {
     expect(TERMINAL_STATUSES).toEqual(['merged', 'failed', 'conflict', 'cancelled']);
     expect(isTerminalStatus('merged')).toBe(true);
     expect(isTerminalStatus('fixing')).toBe(false);
+  });
+
+  test('derives the chip, card surface and task tone from the same entry', () => {
+    for (const status of TASK_STATUSES) {
+      const palette = STATUS_COLORS[status];
+      const chip = statusChip(status);
+      expect(chip).toContain(palette.border);
+      expect(chip).toContain(palette.bg);
+      expect(chip).toContain(palette.text);
+      expect(statusSurface(status)).toContain(palette.border);
+      expect(taskTone(status)).toEqual({ dot: palette.dot, text: palette.text });
+    }
+  });
+
+  test('has a node palette for every roost status, distinct from the task palette', () => {
+    expect(Object.keys(NODE_STATUS_COLORS).sort()).toEqual(['busy', 'offline', 'online']);
+    for (const tone of Object.values(NODE_STATUS_COLORS)) {
+      expect(tone.label.length).toBeGreaterThan(0);
+      expect(tone.dot).toStartWith('bg-');
+      expect(tone.card).toContain('border');
+    }
+    const dots = Object.values(NODE_STATUS_COLORS).map((tone) => tone.dot);
+    expect(new Set(dots).size).toBe(dots.length);
+    expect(HUB_BADGE).toContain('border');
+    expect(PERCH_BADGE).toContain('border');
   });
 });
 

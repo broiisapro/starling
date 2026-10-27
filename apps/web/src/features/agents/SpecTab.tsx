@@ -68,7 +68,17 @@ export function SpecTab({ task, verdict }: { task?: TaskSpec; verdict?: AuditVer
                 data-checked={entry.done ? 'true' : 'false'}
                 className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-emerald-500"
               />
-              <span className={entry.done ? 'text-slate-200' : 'text-slate-400'}>{entry.item}</span>
+              <span className={entry.done ? 'text-slate-200' : 'text-slate-400'}>
+                {entry.item}
+                {entry.evidence ? (
+                  <span
+                    className="mt-0.5 block text-[10px] leading-relaxed text-slate-500"
+                    data-testid="dod-item-evidence"
+                  >
+                    {entry.evidence}
+                  </span>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>

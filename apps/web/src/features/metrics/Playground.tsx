@@ -1,21 +1,19 @@
-import type { StarlingEvent } from '@starling/core';
-import { StarlingEventSchema } from '@starling/core';
 import { useMemo, useState } from 'react';
 
 // The recorded launch-day run, inlined by Vite (`?raw`). Same file the shell's demo mode replays.
 import raw from '../../../../../fixtures/runs/sky-todo-launch-day.jsonl?raw';
 
+import { parseEventLines } from '../../lib/events';
 import { MetricsPanel } from './MetricsPanel';
 import { replayMetrics } from './replay';
 
-const EVENTS: StarlingEvent[] = raw
-  .trim()
-  .split('\n')
-  .map((line) => StarlingEventSchema.parse(JSON.parse(line)));
+// Local envelope guard, not core's zod schema: a runtime import from `@starling/core` would pull
+// its config loader (and `node:fs`) into the browser bundle. See `src/lib/events.ts`.
+const EVENTS = parseEventLines(raw).events;
 
 /**
- * Fixture-driven playground for the metrics panel. Not wired into the dashboard shell (Epic 23 owns
- * routing); run `bun run dev:web` and mount `<Playground />` from `src/main.tsx` to poke at it.
+ * Fixture-driven playground for the metrics panel. The shell mounts it full-screen from
+ * `?playground=metrics` (dev and demo backup), so it never has to touch the store.
  */
 export function Playground() {
   const [index, setIndex] = useState(EVENTS.length - 1);

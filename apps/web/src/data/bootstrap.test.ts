@@ -81,7 +81,9 @@ describe('data bootstrap', () => {
     expect(result.mode).toBe('demo');
     expect(probed).toBe(false);
     expect(target.connections).toContain('demo');
-    expect(target.ingested[0]).toEqual(first);
+    // Rebased to "now" (see rebaseEvents), so identity survives but the recording's date does not.
+    expect(target.ingested[0]?.type).toBe(first.type);
+    expect(target.ingested[0]?.runId).toBe(first.runId);
     result.stop();
   });
 
@@ -120,7 +122,11 @@ describe('data bootstrap', () => {
   test('demo mode can be stopped without leaving timers behind', async () => {
     const target = sink();
     const result = await startSkyData({ demo: true, sink: target, speed: 16 });
-    expect(target.ingested[0]).toEqual(first);
+    const ingested = target.ingested[0];
+    // The recording is rebased to "now" (see rebaseEvents), so compare identity, not timestamps.
+    expect(ingested?.type).toBe(first.type);
+    expect(ingested?.runId).toBe(first.runId);
+    expect(Math.abs((ingested?.ts ?? 0) - Date.now())).toBeLessThan(5_000);
     result.stop();
   });
 });

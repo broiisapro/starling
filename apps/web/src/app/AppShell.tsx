@@ -5,6 +5,7 @@ import { currentRoute, initialSpeed } from '../lib/route';
 import type { DemoSpeed } from '../lib/speed';
 import { applyTheme, readTheme, type Theme, toggleTheme } from '../lib/theme';
 import { Layout } from './Layout';
+import { PlaygroundHost } from './PlaygroundHost';
 
 /**
  * Boots the shell: theme, route, data source and the store.
@@ -14,6 +15,7 @@ import { Layout } from './Layout';
  * - otherwise probe `/api/health`; a real server means live SSE, anything else means demo.
  *
  * Speed changes restart the data layer from a clean store so the replay is deterministic.
+ * `?playground=<feature>` bypasses the shell entirely: those pages bring their own fixture.
  */
 export function AppShell() {
   const state = useSky();
@@ -36,7 +38,10 @@ export function AppShell() {
     (globalThis as { __STARLING_SKY__?: typeof useSky }).__STARLING_SKY__ = useSky;
   }, []);
 
+  const playground = route.playground;
+
   useEffect(() => {
+    if (playground !== undefined) return;
     let cancelled = false;
     let stop: (() => void) | undefined;
 
@@ -56,7 +61,7 @@ export function AppShell() {
       cancelled = true;
       stop?.();
     };
-  }, [route.demo, speed]);
+  }, [route.demo, speed, playground]);
 
   // Deep link: ?run=<id> or #/runs/<id> selects a run once its events have arrived.
   useEffect(() => {
@@ -69,6 +74,8 @@ export function AppShell() {
     setSpeed(next);
   };
 
+  if (playground !== undefined) return <PlaygroundHost name={playground} />;
+
   return (
     <Layout
       state={state}
@@ -78,6 +85,7 @@ export function AppShell() {
       onToggleTheme={() => setTheme(toggleTheme(theme))}
       onSelectRun={(runId) => useSky.getState().setActiveRun(runId)}
       onCloseDrawer={() => useSky.getState().selectTask()}
+      onSelectTask={(key) => useSky.getState().selectTask(key)}
     />
   );
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { demoEvents } from '../data/demo';
+import { demoEvents, rebaseEvents } from '../data/demo';
 import { applyEvents, createInitialState, type SkyState } from '../data/reducer';
 import type { DemoSpeed } from '../lib/speed';
 import { ensureDom } from '../lib/test-dom';
@@ -10,7 +10,7 @@ const { cleanup, fireEvent, render, screen } = await import('@testing-library/re
 
 afterEach(cleanup);
 
-const events = demoEvents();
+const events = rebaseEvents(demoEvents(), 1_800_000_000_000);
 const RUN_ID = events[0]?.runId ?? 'run';
 const baseState: SkyState = { ...applyEvents(createInitialState(), events), connection: 'demo' };
 
@@ -23,13 +23,14 @@ function renderLayout(state: SkyState = baseState, overrides: Partial<LayoutProp
     onToggleTheme: mock(() => {}),
     onSelectRun: mock((_runId: string) => {}),
     onCloseDrawer: mock(() => {}),
+    onSelectTask: mock((_key: string) => {}),
     ...overrides,
   };
   return { ...render(<Layout {...props} />), props };
 }
 
 describe('Layout regions', () => {
-  test('renders the top bar, all five regions and both strip panels', () => {
+  test('mounts every wired panel in its region', () => {
     const { container } = renderLayout();
     expect(screen.getByText('Starling')).toBeDefined();
     expect(screen.getByRole('heading', { name: 'The sky' })).toBeDefined();
@@ -38,12 +39,14 @@ describe('Layout regions', () => {
       expect(container.querySelector(`[data-region="${region}"]`)).not.toBeNull();
     }
 
-    expect(container.querySelector('[data-region-placeholder="sky"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="dag"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="flock"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="drawer"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="queue"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="metrics"]')).not.toBeNull();
+    // The six feature panels, not placeholders.
+    expect(container.querySelector('[data-testid="flock-panel"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="sky-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="dag-canvas"]')).not.toBeNull();
+    expect(container.querySelector('[data-starling-queue]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="metrics-panel"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-region-placeholder]')).toHaveLength(0);
+
     expect(screen.getByText('7/7 landed')).toBeDefined();
   });
 
@@ -82,28 +85,85 @@ describe('Layout regions', () => {
     expect(
       screen.getByRole('button', { name: 'Expand the flock region' }).getAttribute('aria-expanded'),
     ).toBe('false');
-    expect(container.querySelector('[data-region-placeholder="flock"]')).toBeNull();
+    expect(container.querySelector('[data-testid="flock-panel"]')).toBeNull();
     expect(screen.getByText(/Flock ·/)).toBeDefined();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand the flock region' }));
-    expect(container.querySelector('[data-region-placeholder="flock"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="flock-panel"]')).not.toBeNull();
   });
 
   test('switches the centre region between the sky and the flight plan', () => {
-    renderLayout();
-    const dagWrapper = screen.getByText(/The flight plan/).closest('[hidden]') as HTMLElement | null;
-    expect(dagWrapper?.hasAttribute('hidden')).toBe(true);
+    const { container } = renderLayout();
+    expect(screen.getByRole('heading', { name: 'The sky' })).toBeDefined();
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Flight plan' }));
-    const dagAfter = screen.getByText(/The flight plan/).closest('[hidden]') as HTMLElement | null;
-    expect(dagAfter).toBeNull();
+    fireEvent.click(screen.getByRole('tab', { name: 'DAG' }));
+    expect(screen.getByRole('heading', { name: 'Flight plan' })).toBeDefined();
+    expect(container.querySelector('[data-view="sky"]')?.getAttribute('data-active')).toBe('false');
+    expect(container.querySelector('[data-view="dag"]')?.getAttribute('data-active')).toBe('true');
+    // Both stay mounted, so the Sky keeps its flocks and React Flow keeps its measured size.
+    expect(container.querySelector('[data-testid="sky-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="dag-canvas"]')).not.toBeNull();
   });
 
-  test('shows the selected task in the drawer and closes it', () => {
-    const { props } = renderLayout({ ...baseState, selectedTask: 'theme' });
-    expect(screen.getByText('theme')).toBeDefined();
-    fireEvent.click(screen.getByRole('button', { name: 'Close the agent drawer' }));
+  test('keys 1 and 2 switch the centre view', () => {
+    renderLayout();
+    fireEvent.keyDown(document, { key: '2' });
+    expect(screen.getByRole('heading', { name: 'Flight plan' })).toBeDefined();
+    fireEvent.keyDown(document, { key: '1' });
+    expect(screen.getByRole('heading', { name: 'The sky' })).toBeDefined();
+  });
+
+  test('opens the drawer for the selected task and closes it', () => {
+    const { container, props } = renderLayout({ ...baseState, selectedTask: 'theme' });
+    expect(container.querySelector('[data-region="drawer"]')).not.toBeNull();
+    const drawer = container.querySelector('[data-testid="agent-drawer"]');
+    expect(drawer).not.toBeNull();
+    expect(drawer?.textContent).toContain('theme');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close agent drawer' }));
     expect(props.onCloseDrawer).toHaveBeenCalledTimes(1);
+  });
+
+  test('Escape closes the drawer through the shell', () => {
+    const { props } = renderLayout({ ...baseState, selectedTask: 'theme' });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(props.onCloseDrawer).toHaveBeenCalled();
+  });
+
+  test('keeps the drawer closed until a task is selected', () => {
+    const { container } = renderLayout();
+    expect(container.querySelector('[data-testid="agent-drawer"]')).toBeNull();
+  });
+
+  test('collapses and expands the bottom strip, from the button and from `b`', () => {
+    renderLayout();
+    expect(screen.getByRole('heading', { name: 'Landing strip' })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse the bottom strip' }));
+    expect(screen.queryByRole('heading', { name: 'Landing strip' })).toBeNull();
+    expect(screen.getByRole('button', { name: /landed/ })).toBeDefined();
+
+    fireEvent.keyDown(document, { key: 'b' });
+    expect(screen.getByRole('heading', { name: 'Landing strip' })).toBeDefined();
+  });
+
+  test('`?` opens the keyboard help and Escape closes it', () => {
+    renderLayout();
+    expect(screen.queryByTestId('keyboard-help')).toBeNull();
+
+    fireEvent.keyDown(document, { key: '?' });
+    expect(screen.getByTestId('keyboard-help')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Keyboard shortcuts' })).toBeDefined();
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByTestId('keyboard-help')).toBeNull();
+  });
+
+  test('ignores shortcuts while a text field has focus', () => {
+    renderLayout();
+    const picker = screen.getByLabelText('Active run');
+    fireEvent.keyDown(picker, { key: '2' });
+    expect(screen.getByRole('heading', { name: 'The sky' })).toBeDefined();
   });
 
   test('renders a useful empty state before the first run', () => {
@@ -111,6 +171,8 @@ describe('Layout regions', () => {
     expect(screen.getByText('No runs yet')).toBeDefined();
     expect(screen.getByText(/No run yet/)).toBeDefined();
     expect(container.querySelector('[data-region="sky"]')).not.toBeNull();
-    expect(container.querySelector('[data-region-placeholder="sky"]')).not.toBeNull();
+    // The panels still mount; they just have nothing to draw.
+    expect(container.querySelector('[data-testid="sky-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="flock-panel"]')).not.toBeNull();
   });
 });

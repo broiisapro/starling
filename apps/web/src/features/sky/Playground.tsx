@@ -1,7 +1,7 @@
 import type { StarlingEvent } from '@starling/core';
 import type { ChangeEvent, CSSProperties } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FALLBACK_STATUS_COLORS, TASK_STATUSES } from './palette';
+import { statusColor, TASK_STATUSES } from './palette';
 import { buildFrame, indexAtTs, nextBeat, parseEventJsonl, statusCounts } from './replay';
 import { SkyView } from './SkyView';
 
@@ -219,8 +219,8 @@ export function Playground({
       <footer style={FOOTER_STYLE}>
         <div style={CHIP_ROW}>
           {TASK_STATUSES.filter((status) => counts[status] > 0).map((status) => (
-            <span key={status} style={{ ...CHIP, borderColor: FALLBACK_STATUS_COLORS[status] }}>
-              <span style={{ ...DOT, background: FALLBACK_STATUS_COLORS[status] }} />
+            <span key={status} style={{ ...CHIP, borderColor: statusColor(status) }}>
+              <span style={{ ...DOT, background: statusColor(status) }} />
               {status} {counts[status]}
             </span>
           ))}

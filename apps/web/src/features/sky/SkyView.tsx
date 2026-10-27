@@ -1,7 +1,7 @@
 import type { CSSProperties, KeyboardEvent, PointerEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SkyViewProps } from './handshake';
-import { FALLBACK_STATUS_COLORS } from './palette';
+import { statusColor } from './palette';
 import { createSkyRenderer, type RenderOptions, type SkyRenderer } from './render';
 import { describeSky } from './replay';
 import { createSky, type SkyInput, type SkySimulation } from './sim';
@@ -232,7 +232,7 @@ export function SkyView(props: SkyViewProps) {
         <div style={{ ...TOOLTIP_STYLE, left: Math.min(hover.x + 14, 260), top: Math.max(8, hover.y - 54) }}>
           <div style={TOOLTIP_TITLE}>{hoveredSpec?.title ?? hover.key}</div>
           <div style={TOOLTIP_LINE}>
-            <span style={{ color: FALLBACK_STATUS_COLORS[hoveredTask.status] }}>{hoveredTask.status}</span>
+            <span style={{ color: statusColor(hoveredTask.status) }}>{hoveredTask.status}</span>
             {hoveredNode ? <span style={TOOLTIP_MUTED}>· {hoveredNode.name}</span> : null}
             <span style={TOOLTIP_MUTED}>
               · attempt {hoveredTask.attempts} · {hover.key}

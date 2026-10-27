@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { useState } from 'react';
 import { STATUS_COLORS, TASK_STATUSES } from '../lib/status';
 import { ensureDom } from '../lib/test-dom';
-import { Badge, EmptyState, Kbd, Panel, Stat, StatusDot, Tabs, Tooltip } from './index';
+import { Badge, EmptyState, ErrorBoundary, Kbd, Panel, Stat, StatusDot, Tabs, Tooltip } from './index';
 
 ensureDom();
 const { cleanup, fireEvent, render, screen } = await import('@testing-library/react');
@@ -143,5 +143,52 @@ describe('Tooltip', () => {
     expect(screen.getByRole('tooltip').textContent).toBe('Land it on the wire');
     fireEvent.blur(screen.getByRole('button', { name: 'go' }));
     expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
+function Boom({ explode }: { explode: boolean }) {
+  if (explode) throw new Error('wing fell off');
+  return <p>flying</p>;
+}
+
+describe('ErrorBoundary', () => {
+  test('renders children when nothing throws', () => {
+    render(
+      <ErrorBoundary name="sky">
+        <Boom explode={false} />
+      </ErrorBoundary>,
+    );
+    expect(screen.getByText('flying')).toBeDefined();
+  });
+
+  test('catches a crash and renders the custom fallback', () => {
+    // React logs the caught error; keep the test output readable.
+    const original = console.error;
+    console.error = () => {};
+    try {
+      render(
+        <ErrorBoundary name="sky" fallback={(error) => <p>turbulence: {error.message}</p>}>
+          <Boom explode />
+        </ErrorBoundary>,
+      );
+    } finally {
+      console.error = original;
+    }
+    expect(screen.getByText('turbulence: wing fell off')).toBeDefined();
+  });
+
+  test('defaults to an alert when no fallback is given', () => {
+    const original = console.error;
+    console.error = () => {};
+    try {
+      render(
+        <ErrorBoundary name="queue">
+          <Boom explode />
+        </ErrorBoundary>,
+      );
+    } finally {
+      console.error = original;
+    }
+    expect(screen.getByRole('alert').textContent).toContain('queue panel hit turbulence');
   });
 });
