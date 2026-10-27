@@ -22,7 +22,7 @@ import type { AuditVerdict } from '../lib/core';
 import { RESULTS_DIR } from '../lib/paths';
 import { formatTable } from '../lib/table';
 import type { AuditorCase } from './case';
-import { findAuditorCase, loadAuditorCases } from './cases';
+import { allAuditorCases, findAuditorCase, loadAuditorCases, loadHeldOutAuditorCases } from './cases';
 import { makeAuditInputFor } from './input';
 import { type AuditorScore, scoreAuditor } from './score';
 import { cleanupCaseWorktrees } from './worktree';
@@ -116,13 +116,8 @@ export function parseRealArgs(argv: string[]): RealEvalOptions {
 }
 
 export function casesForSet(set: CaseSet, caseName?: string): AuditorCase[] {
-  const all = loadAuditorCases();
   const pool =
-    set === 'seeded'
-      ? all.filter((entry) => !entry.heldOut)
-      : set === 'heldout'
-        ? all.filter((entry) => entry.heldOut)
-        : all;
+    set === 'seeded' ? loadAuditorCases() : set === 'heldout' ? loadHeldOutAuditorCases() : allAuditorCases();
   return caseName === undefined ? pool : [findAuditorCase(pool, caseName)];
 }
 

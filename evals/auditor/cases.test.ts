@@ -1,24 +1,32 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuditorCase } from './case';
 import {
+  allAuditorCases,
   assertAuditorCaseConsistent,
   heldOutAuditorCases,
   loadAuditorCases,
+  loadHeldOutAuditorCases,
   seededAuditorCases,
 } from './cases';
 
-const cases = loadAuditorCases();
+const cases = allAuditorCases();
 
 describe('auditor cases', () => {
-  test('twelve seeded cases plus four held-out cases load with unique names', () => {
-    expect(cases.length).toBe(16);
-    expect(seededAuditorCases(cases).length).toBe(12);
-    expect(heldOutAuditorCases(cases).length).toBe(4);
+  test('twelve tuning cases and four held-out cases load from separate directories', () => {
+    expect(loadAuditorCases()).toHaveLength(12);
+    expect(seededAuditorCases()).toHaveLength(12);
+    expect(loadHeldOutAuditorCases()).toHaveLength(4);
+    expect(heldOutAuditorCases(loadHeldOutAuditorCases())).toHaveLength(4);
+    expect(cases).toHaveLength(16);
     expect(new Set(cases.map((entry) => entry.name)).size).toBe(cases.length);
   });
 
+  test('the tuning set never contains a held-out case, so a prompt change cannot fit them', () => {
+    expect(loadAuditorCases().some((entry) => entry.heldOut)).toBe(false);
+  });
+
   test('held-out cases are named heldout- so a reader can spot them', () => {
-    for (const entry of heldOutAuditorCases(cases)) {
+    for (const entry of loadHeldOutAuditorCases()) {
       expect(entry.name.startsWith('heldout-')).toBe(true);
     }
   });

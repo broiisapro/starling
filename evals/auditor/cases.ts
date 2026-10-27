@@ -6,8 +6,17 @@ import { type AuditorCase, AuditorCaseSchema } from './case';
 
 export const AUDITOR_CASES_DIR = join(import.meta.dir, 'cases');
 
-/** Load every `*.json` auditor case, sorted by name, and enforce answer-key invariants. */
-export function loadAuditorCases(dir: string = AUDITOR_CASES_DIR): AuditorCase[] {
+/**
+ * The four generalisation cases live in their own directory on purpose (Epic 44).
+ *
+ * `cases.ts` is the *tuning* set: it is what `bun evals/run.ts auditor` scores and what a prompt
+ * change is measured against. A held-out case is only useful if nobody tunes on it, and a directory
+ * it is not in is a stronger guarantee than a boolean field a reader can miss. `run-real.ts --set
+ * heldout` is the only thing that loads this.
+ */
+export const AUDITOR_HELDOUT_DIR = join(import.meta.dir, 'cases-heldout');
+
+function readCases(dir: string): AuditorCase[] {
   const files = readdirSync(dir)
     .filter((file) => file.endsWith('.json'))
     .sort();
@@ -21,17 +30,46 @@ export function loadAuditorCases(dir: string = AUDITOR_CASES_DIR): AuditorCase[]
   });
 }
 
-/** The twelve seeded cases (the tuning set). */
+/** Load every `*.json` case in a directory, sorted by name, and enforce answer-key invariants. */
+export function loadAuditorCases(dir: string = AUDITOR_CASES_DIR): AuditorCase[] {
+  return readCases(dir);
+}
+
+/** The tuning set, the cases a prompt change is measured against. */
 export function seededAuditorCases(cases: AuditorCase[] = loadAuditorCases()): AuditorCase[] {
   return cases.filter((testCase) => !testCase.heldOut);
 }
 
-/**
- * The held-out cases, added before tuning and reported separately: they exist to catch a prompt that
- * memorised the seeded twelve (Epic 44).
- */
-export function heldOutAuditorCases(cases: AuditorCase[] = loadAuditorCases()): AuditorCase[] {
+/** The four held-out cases: written before tuning and never scored alongside it. */
+export function loadHeldOutAuditorCases(dir: string = AUDITOR_HELDOUT_DIR): AuditorCase[] {
+  const cases = readCases(dir);
+  for (const testCase of cases) {
+    if (!testCase.heldOut) {
+      throw new StarlingError(
+        'INVALID_ARGUMENT',
+        `auditor case ${testCase.name} is in the held-out directory but is not flagged heldOut`,
+      );
+    }
+  }
+  return cases;
+}
+
+/** Filter a combined list (the seeded loader's list never contains held-out cases). */
+export function heldOutAuditorCases(cases: AuditorCase[]): AuditorCase[] {
   return cases.filter((testCase) => testCase.heldOut);
+}
+
+/** Every case, tuning first, with duplicate names rejected so a copy-paste slip cannot hide. */
+export function allAuditorCases(): AuditorCase[] {
+  const cases = [...loadAuditorCases(), ...loadHeldOutAuditorCases()];
+  const names = new Set<string>();
+  for (const testCase of cases) {
+    if (names.has(testCase.name)) {
+      throw new StarlingError('INVALID_ARGUMENT', `Duplicate auditor case name "${testCase.name}"`);
+    }
+    names.add(testCase.name);
+  }
+  return cases;
 }
 
 export function findAuditorCase(cases: AuditorCase[], name: string): AuditorCase {

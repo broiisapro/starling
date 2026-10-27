@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuditVerdict } from '../lib/core';
 import type { AuditorCase } from './case';
-import { loadAuditorCases } from './cases';
+import { allAuditorCases } from './cases';
 import { referenceVerdict } from './reference';
 import { scoreAuditor } from './score';
 
-const cases = loadAuditorCases();
+// Every case, tuned and held out: the scorer is answer-key arithmetic, not a tuning measurement.
+const cases = allAuditorCases();
 
 interface Scored {
   testCase: AuditorCase;
