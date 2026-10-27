@@ -19,12 +19,23 @@
  * it is a small cross-cutting change, not a one-liner.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
-import { makeHubHarness, PROBE_CODE, startProbeServer } from './support.ts';
+import { makeRun } from '../../packages/core/src/testing/index.ts';
+import { fakeEngine, makeHubHarness, PROBE_CODE, startProbeServer } from './support.ts';
 
 const harness = await makeHubHarness();
 const server = startProbeServer({ flock: harness.hub });
 
+// A second server whose engine already knows a run, so cancel/abort reach the engine instead of 404.
+const seededRun = makeRun({ id: '01probe-seeded-run-000000000' });
+const seededEngine = {
+  ...fakeEngine(),
+  getRun: (runId: string) => (runId === seededRun.id ? seededRun : undefined),
+  listRuns: () => [seededRun],
+};
+const seeded = startProbeServer({ engine: seededEngine });
+
 afterAll(async () => {
+  seeded.stop();
   server.stop();
   await harness.close();
 });
@@ -52,6 +63,11 @@ describe('hub route authentication', () => {
   test.failing('refuses the all-events stream without the flock token', async () => {
     const response = await fetch(`${server.url}/api/events`);
     await response.body?.cancel();
+    expect(response.status).toBe(401);
+  });
+
+  test.failing('refuses to cancel a run without the flock token', async () => {
+    const response = await fetch(`${seeded.url}/api/runs/${seededRun.id}/cancel`, { method: 'POST' });
     expect(response.status).toBe(401);
   });
 
