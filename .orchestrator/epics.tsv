@@ -25,6 +25,8 @@ nn	slug	title	wave	machine	lane	depends
 30	flock	Flock core: nodes, registry, scheduler, discovery	1	mbp	packages/flock	00
 31	perch	Perch daemon	1	mbp	packages/perch	00
 32	web-flock	Web: flock panel	1	air	apps/web/src/features/flock	00
+33	c1-core-consolidation	C1: core consolidation, contract requests, root health	c1	mbp	root, packages/core, handshake mirrors	W1
+34	c1-web-wiring	C1: wire the dashboard together	c1	mbp	apps/web shell + features wiring	W1
 40	integration-captain	Integration captain: real end-to-end	2	mbp	cross-package	C1
 41	live-dashboard	Server-engine live + web on real SSE	2	air	apps/server, apps/web/src/data	C1
 42	flock-e2e	Flock end-to-end (loopback + two laptops)	2	mbp	packages/flock, packages/perch	C1
