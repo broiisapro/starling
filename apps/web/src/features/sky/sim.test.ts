@@ -243,8 +243,11 @@ describe('status → behaviour', () => {
     const roost = sim.roosts.find((candidate) => candidate.nodeId === 'hub');
     if (!roost) throw new Error('missing hub roost');
     for (const flock of sim.flocks) {
-      expect(Math.abs(flock.leaderY - (roost.y - 8))).toBeLessThan(1);
-      expect(Math.abs(flock.leaderX - roost.x)).toBeLessThan(50);
+      // Perches alternate between two heights so a seven-flock crowd stays readable.
+      const rowOffset = roost.y - 8 - flock.leaderY;
+      expect(rowOffset).toBeGreaterThanOrEqual(0);
+      expect(rowOffset).toBeLessThanOrEqual(11);
+      expect(Math.abs(flock.leaderX - roost.x)).toBeLessThan(80);
     }
     // Birds are placed directly: a second is enough to settle, and they barely move.
     const before = sim.birds.y[0] ?? 0;

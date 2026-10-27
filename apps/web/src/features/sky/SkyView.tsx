@@ -130,6 +130,15 @@ export function SkyView(props: SkyViewProps) {
     dirtyRef.current = true;
   }, [input, calm]);
 
+  // Hover / selection change the overlay, which the calm (no-loop) renderer only redraws on demand.
+  // A ref comparison during render is cheaper than an effect and keeps the loop free of extra deps.
+  const overlayStamp = `${hover?.key ?? ''}|${selectedTask ?? ''}|${hover ? hover.x : 0}`;
+  const overlayStampRef = useRef(overlayStamp);
+  if (overlayStampRef.current !== overlayStamp) {
+    overlayStampRef.current = overlayStamp;
+    dirtyRef.current = true;
+  }
+
   // ── interaction ───────────────────────────────────────────────────────────────────────────────
   const toSky = useCallback((event: PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();

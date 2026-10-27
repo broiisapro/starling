@@ -20,17 +20,25 @@ export interface PlaygroundProps {
   src?: string;
   initialIndex?: number;
   autoPlay?: boolean;
+  /** Start with the calm (reduced-motion) layout, for screenshots and accessibility checks. */
+  initialCalm?: boolean;
 }
 
 export const DEFAULT_FIXTURE_URL = '/fixtures/runs/sky-todo-launch-day.jsonl';
 
-export function Playground({ events, src, initialIndex = 0, autoPlay = false }: PlaygroundProps) {
+export function Playground({
+  events,
+  src,
+  initialIndex = 0,
+  autoPlay = false,
+  initialCalm = false,
+}: PlaygroundProps) {
   const [loaded, setLoaded] = useState<StarlingEvent[] | null>(events ? [...events] : null);
   const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(initialIndex);
   const [playing, setPlaying] = useState(autoPlay);
   const [speed, setSpeed] = useState(4);
-  const [calm, setCalm] = useState(false);
+  const [calm, setCalm] = useState(initialCalm);
   const [selected, setSelected] = useState<string | undefined>();
   // Remounting SkyView on a manual scrub resets the sim, so scrubbing backwards is exact.
   const [epoch, setEpoch] = useState(0);
@@ -288,7 +296,7 @@ const SELECT_STYLE: CSSProperties = {
 const RANGE_STYLE: CSSProperties = { width: '100%', accentColor: '#4fc3ff' };
 
 const SKY_BOX: CSSProperties = {
-  height: 480,
+  height: 'calc(100vh - 230px)',
   minHeight: 320,
   borderRadius: 10,
   overflow: 'hidden',
