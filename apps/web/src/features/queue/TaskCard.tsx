@@ -26,6 +26,11 @@ export function TaskCard({ card, from, now, onSelect }: TaskCardProps) {
   const elapsed = taskElapsedMs(card.run, now);
   const detail = card.problem?.detail;
   const detailId = `starling-queue-detail-${card.taskKey}`;
+  // Cards are deliberately compact, so hover spells out what the truncation hides: the task title,
+  // then any failed-merge detail.
+  const tooltip = [card.title === card.taskKey ? undefined : card.title, detail]
+    .filter((part): part is string => part !== undefined)
+    .join(' — ');
   const attempts = card.run.attempts;
   const hasStarted = card.run.startedAt !== undefined;
   const hasFooter =
@@ -53,7 +58,7 @@ export function TaskCard({ card, from, now, onSelect }: TaskCardProps) {
       data-column={card.column}
       style={{ '--starling-from-x': `${offset}px` } as CSSProperties}
       onClick={() => onSelect(card.taskKey)}
-      title={detail}
+      title={tooltip === '' ? undefined : tooltip}
       aria-describedby={detail === undefined ? undefined : detailId}
       aria-label={ariaLabel}
       className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-left transition-colors hover:border-sky-300/40 hover:bg-white/[0.08] focus-visible:border-sky-300/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/40"

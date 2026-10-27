@@ -199,7 +199,8 @@ test('a failure detail is exposed as a tooltip and to screen readers', async () 
   const view = await mount(<MergeQueue plan={plan} tasks={tasks} merges={merges} onSelectTask={() => {}} />);
   try {
     const card = cardFor(view.container, 'theme');
-    expect(card?.getAttribute('title')).toBe('bun test: 2 fail in dates.test.ts');
+    expect(card?.getAttribute('title')).toContain('Dark mode with a toggle');
+    expect(card?.getAttribute('title')).toContain('bun test: 2 fail in dates.test.ts');
     const describedBy = card?.getAttribute('aria-describedby');
     expect(describedBy).not.toBeNull();
     expect(view.container.querySelector(`#${describedBy ?? 'missing'}`)?.textContent).toBe(
