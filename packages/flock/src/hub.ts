@@ -142,10 +142,20 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
 
     async register(input) {
       const nodeId = input.info.id;
-      const existing = options.registry.get(nodeId);
-      if (existing !== undefined) {
+      const stored = options.registry.list().find((candidate) => candidate.id === nodeId);
+      if (stored !== undefined && stored.url === input.url) {
         options.registry.touch(nodeId, { ...input.info, url: input.url, lastSeen: options.clock.now() });
         return { nodeId };
+      }
+      if (stored !== undefined) {
+        // Same perch, new address (a restart bound a different port): the old RemoteNode points at a
+        // dead URL, so replace it instead of touching it.
+        options.registry.remove(nodeId, 're-registered at a new url');
+        const previous = remoteNodes.get(nodeId);
+        if (previous !== undefined && 'close' in previous && typeof previous.close === 'function') {
+          previous.close();
+        }
+        remoteNodes.delete(nodeId);
       }
 
       const node = createRemoteNode({
@@ -172,9 +182,10 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
     },
 
     heartbeat(input) {
+      const stored = options.registry.list().find((candidate) => candidate.id === input.nodeId);
       const known = options.registry.touch(input.nodeId, {
         ...input.info,
-        url: input.info.url,
+        url: input.info.url ?? stored?.url,
         lastSeen: options.clock.now(),
       });
       if (known !== undefined) return;

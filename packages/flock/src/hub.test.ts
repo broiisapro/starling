@@ -86,6 +86,28 @@ describe('FlockHub', () => {
     await hub.close();
   });
 
+  test('re-registering a perch at a new URL replaces the stale RemoteNode', async () => {
+    const { clock, registry, events, code } = fixture();
+    const hub = createFlockHub({
+      registry,
+      hubUrl: 'http://hub:7777',
+      code,
+      bundleDir: await tempDir(),
+      clock,
+    });
+    const info = makeNodeInfo({ id: 'air', kind: 'remote', name: 'M2 Air', lastSeen: 0 });
+
+    await hub.register({ url: 'http://10.0.0.5:7778', info });
+    const firstNode = registry.get('air');
+    await hub.register({ url: 'http://10.0.0.6:7778', info });
+
+    expect(registry.list()).toHaveLength(1);
+    expect(registry.list()[0]?.url).toBe('http://10.0.0.6:7778');
+    expect(registry.get('air')).not.toBe(firstNode);
+    expect(events.filter((event) => event.type === 'left')[0]?.reason).toBe('re-registered at a new url');
+    await hub.close();
+  });
+
   test('a heartbeat for an unknown node re-registers it when it says where it lives', async () => {
     const { clock, registry, code } = fixture();
     const hub = createFlockHub({
