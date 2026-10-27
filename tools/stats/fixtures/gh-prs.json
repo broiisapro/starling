@@ -1,0 +1,22 @@
+[
+  {
+    "number": 2,
+    "title": "epic(10): LLM router",
+    "url": "https://github.com/example/starling/pull/2",
+    "mergedAt": "2026-10-27T15:20:00Z",
+    "headRefName": "epic/10-llm",
+    "additions": 210,
+    "deletions": 12,
+    "changedFiles": 4
+  },
+  {
+    "number": 1,
+    "title": "epic(00): foundation",
+    "url": "https://github.com/example/starling/pull/1",
+    "mergedAt": "2026-10-27T14:45:00Z",
+    "headRefName": "epic/00-foundation",
+    "additions": 120,
+    "deletions": 4,
+    "changedFiles": 3
+  }
+]
