@@ -1,0 +1,91 @@
+/*
+ * Tailwind v4 theme tokens — "dusk sky".
+ *
+ * This lives in a `.pcss` file on purpose: the repo's root Biome config runs with
+ * `css.parser.tailwindDirectives` disabled, so `@theme` in a `.css` file fails `bun run check`.
+ * Biome ignores `.pcss`, Vite/Tailwind still processes it, and `src/index.css` imports it first.
+ * Root-config fix is filed as a CONTRACT REQUEST in the Epic 23 handback.
+ */
+
+@theme {
+  /* ── dusk sky palette ─────────────────────────────────────────────────────── */
+  --color-dusk-950: #04060f;
+  --color-dusk-900: #070b1c;
+  --color-dusk-850: #0a1028;
+  --color-dusk-800: #0e1633;
+  --color-dusk-700: #16204a;
+  --color-dusk-600: #1f2b63;
+  --color-violet-900: #241746;
+  --color-violet-700: #3b266e;
+  --color-violet-500: #7c5cff;
+  --color-amber-horizon: #f2a65a;
+  --color-amber-soft: #ffd9a0;
+
+  /* ── starling iridescence ─────────────────────────────────────────────────── */
+  --color-irid-teal: #3fe0c5;
+  --color-irid-purple: #b18cff;
+  --color-irid-green: #9be36d;
+  --color-irid-blue: #63d2ff;
+  --color-irid-rose: #ff8fb1;
+
+  /* ── status colours (mirrored in src/lib/status.ts for canvas + features) ─── */
+  --color-status-pending: #94a3b8;
+  --color-status-ready: #63d2ff;
+  --color-status-running: #3fe0c5;
+  --color-status-auditing: #fbbf24;
+  --color-status-fixing: #fb923c;
+  --color-status-merging: #b18cff;
+  --color-status-merged: #4ade80;
+  --color-status-failed: #f87171;
+  --color-status-conflict: #fb7185;
+  --color-status-cancelled: #7c869c;
+
+  /* ── type scale ───────────────────────────────────────────────────────────── */
+  --font-sans: "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-hero: 2.75rem;
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.03em;
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.02em;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.35;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.55;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1.45;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1.4;
+  --text-micro--letter-spacing: 0.06em;
+
+  /* ── spacing / rhythm ─────────────────────────────────────────────────────── */
+  --spacing-region: 0.75rem;
+  --spacing-panel: 1rem;
+  --spacing-gutter: 0.5rem;
+  --radius-panel: 0.875rem;
+  --radius-pill: 999px;
+  --shadow-panel: 0 18px 48px -28px rgb(0 0 0 / 0.9);
+  --shadow-glow: 0 0 28px -6px color-mix(in oklab, var(--color-irid-teal) 55%, transparent);
+
+  /* ── motion ───────────────────────────────────────────────────────────────── */
+  --ease-flock: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Semantic tokens switch at runtime; `@theme inline` makes them available as bg-surface-1 etc. */
+@theme inline {
+  --color-surface-0: var(--surface-0);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-panel: var(--panel);
+  --color-panel-strong: var(--panel-strong);
+  --color-hairline: var(--hairline);
+  --color-hairline-strong: var(--hairline-strong);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-4: var(--ink-4);
+  --color-focus: var(--focus-ring);
+}

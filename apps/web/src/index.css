@@ -1,1 +1,181 @@
 @import "tailwindcss";
+@import "./lib/tokens.pcss";
+
+/*
+ * Starling design system — "dusk sky".
+ *
+ * The dashboard should feel like watching a murmuration at dusk: a deep navy sky that warms into
+ * a violet band and an amber horizon, with starling-iridescent teal / purple / green accents.
+ * Theme tokens (palette, type scale, spacing) live in `src/lib/tokens.pcss`; the semantic surfaces
+ * below flip with `data-theme="light"` on <html>.
+ *
+ * Dark is the default (the projector room is dark).
+ */
+
+:root {
+  color-scheme: dark;
+  --surface-0: #04060f;
+  --surface-1: #070b1c;
+  --surface-2: #0b1229;
+  --surface-3: #111a3a;
+  --panel: color-mix(in oklab, #0b1229 82%, transparent);
+  --panel-strong: #0d1530;
+  --hairline: color-mix(in oklab, #b9c6ff 14%, transparent);
+  --hairline-strong: color-mix(in oklab, #b9c6ff 24%, transparent);
+  --ink-1: #f2f5ff;
+  --ink-2: #c3cbe6;
+  --ink-3: #8d97b8;
+  --ink-4: #646f91;
+  --focus-ring: #3fe0c5;
+  --sky-indigo: #0a1030;
+  --sky-violet: #2a1a52;
+  --horizon: #f2a65a;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --surface-0: #f5f2ec;
+  --surface-1: #fbf8f3;
+  --surface-2: #f1ece3;
+  --surface-3: #e6ded1;
+  --panel: color-mix(in oklab, #fffdf9 86%, transparent);
+  --panel-strong: #fffdf9;
+  --hairline: color-mix(in oklab, #2b2440 14%, transparent);
+  --hairline-strong: color-mix(in oklab, #2b2440 26%, transparent);
+  --ink-1: #1d1930;
+  --ink-2: #403a56;
+  --ink-3: #655e7b;
+  --ink-4: #8b839e;
+  --focus-ring: #6f4bd8;
+  --sky-indigo: #efe9ff;
+  --sky-violet: #f7e8d8;
+  --horizon: #d98236;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--hairline);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    background-color: var(--surface-0);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100%;
+    overflow: hidden;
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.55;
+    color: var(--ink-1);
+    background-color: var(--surface-0);
+    background-image:
+      radial-gradient(
+        120% 80% at 50% 118%,
+        color-mix(in oklab, var(--horizon) 26%, transparent) 0%,
+        transparent 58%
+      ),
+      radial-gradient(90% 70% at 82% -10%, color-mix(in oklab, #7c5cff 30%, transparent) 0%, transparent 62%),
+      radial-gradient(100% 90% at 8% -20%, color-mix(in oklab, #1f4fff 22%, transparent) 0%, transparent 60%),
+      linear-gradient(180deg, var(--sky-indigo) 0%, var(--sky-violet) 68%, var(--surface-1) 100%);
+    background-attachment: fixed;
+    font-feature-settings: "cv11", "ss01";
+    text-rendering: optimizeLegibility;
+  }
+
+  [data-theme="light"] body {
+    background-image:
+      radial-gradient(
+        110% 80% at 50% 118%,
+        color-mix(in oklab, var(--horizon) 30%, transparent) 0%,
+        transparent 60%
+      ),
+      radial-gradient(90% 70% at 82% -10%, color-mix(in oklab, #b18cff 34%, transparent) 0%, transparent 64%),
+      linear-gradient(180deg, var(--surface-1) 0%, var(--surface-0) 100%);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-irid-teal) 35%, transparent);
+    color: var(--ink-1);
+  }
+
+  /* Thin, quiet scrollbars: the sky should stay the loudest thing on screen. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--ink-4) 45%, transparent) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: color-mix(in oklab, var(--ink-4) 45%, transparent);
+  }
+}
+
+@layer utilities {
+  .sky-field {
+    background-image:
+      radial-gradient(
+        60% 50% at 18% 12%,
+        color-mix(in oklab, var(--color-irid-teal) 16%, transparent) 0%,
+        transparent 60%
+      ),
+      radial-gradient(
+        55% 40% at 78% 80%,
+        color-mix(in oklab, var(--horizon) 20%, transparent) 0%,
+        transparent 65%
+      ),
+      linear-gradient(160deg, color-mix(in oklab, var(--sky-indigo) 75%, transparent), transparent 70%);
+  }
+
+  .iridescent-text {
+    background-image: linear-gradient(
+      100deg,
+      var(--color-irid-teal) 0%,
+      var(--color-irid-blue) 28%,
+      var(--color-irid-purple) 58%,
+      var(--color-irid-green) 88%
+    );
+    background-clip: text;
+    color: transparent;
+  }
+
+  .hairline {
+    border: 1px solid var(--hairline);
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .motion-safe-only {
+      animation: none;
+      transition: none;
+    }
+  }
+}
