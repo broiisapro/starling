@@ -197,3 +197,36 @@
     }
   }
 }
+
+/*
+ * Third-party chrome overrides — deliberately **unlayered**.
+ *
+ * React Flow's base stylesheet is imported unlayered (from `main.tsx`), and unlayered rules beat
+ * anything in `@layer base`. So the DAG's white zoom buttons and attribution chip are repainted with
+ * our dusk tokens here rather than in the feature lane: the graph is Epic 25's, the chrome is the
+ * shell's.
+ */
+.react-flow__controls-button {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--hairline);
+  color: var(--ink-2);
+}
+
+.react-flow__controls-button:hover {
+  background: var(--surface-3);
+  color: var(--ink-1);
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor;
+}
+
+.react-flow__attribution {
+  background: color-mix(in oklab, var(--surface-1) 80%, transparent);
+  color: var(--ink-4);
+  border-radius: 4px 0 0;
+}
+
+.react-flow__attribution a {
+  color: var(--ink-4);
+}

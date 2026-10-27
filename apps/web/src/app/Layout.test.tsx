@@ -98,9 +98,11 @@ describe('Layout regions', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'DAG' }));
     expect(screen.getByRole('heading', { name: 'Flight plan' })).toBeDefined();
-    const skyWrap = container.querySelector('[data-testid="sky-view"]')?.closest('[hidden]');
-    expect(skyWrap).not.toBeNull();
-    expect(container.querySelector('[data-testid="dag-canvas"]')?.closest('[hidden]')).toBeNull();
+    expect(container.querySelector('[data-view="sky"]')?.getAttribute('data-active')).toBe('false');
+    expect(container.querySelector('[data-view="dag"]')?.getAttribute('data-active')).toBe('true');
+    // Both stay mounted, so the Sky keeps its flocks and React Flow keeps its measured size.
+    expect(container.querySelector('[data-testid="sky-view"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="dag-canvas"]')).not.toBeNull();
   });
 
   test('keys 1 and 2 switch the centre view', () => {

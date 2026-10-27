@@ -1,6 +1,8 @@
 import { lazy, Suspense } from 'react';
 import { EmptyState } from '../components';
 import { demoEvents } from '../data/demo';
+import { Playground as FlockPlayground } from '../features/flock';
+import { Playground as SkyPlayground } from '../features/sky';
 import type { PlaygroundName } from '../lib/route';
 
 /**
@@ -10,9 +12,9 @@ import type { PlaygroundName } from '../lib/route';
  * can be shown on its own from the recorded run. They are lazy-loaded so the dashboard bundle does
  * not carry six playgrounds (and six copies of the fixture) for a URL nobody on stage types.
  */
-const SkyPlayground = lazy(() =>
-  import('../features/sky/Playground').then((module) => ({ default: module.Playground })),
-);
+// `sky` and `flock` are imported statically: their feature barrels already export `Playground`
+// (and the shell imports those barrels), so a lazy import would only warn about an ineffective
+// split. The other four are genuinely lazy — their barrels do not carry the playground.
 const DagPlayground = lazy(() => import('../features/dag/Playground'));
 const AgentsPlayground = lazy(() => import('../features/agents/Playground'));
 const QueuePlayground = lazy(() =>
@@ -20,9 +22,6 @@ const QueuePlayground = lazy(() =>
 );
 const MetricsPlayground = lazy(() =>
   import('../features/metrics/Playground').then((module) => ({ default: module.Playground })),
-);
-const FlockPlayground = lazy(() =>
-  import('../features/flock/Playground').then((module) => ({ default: module.Playground })),
 );
 
 const TITLES: Record<PlaygroundName, string> = {

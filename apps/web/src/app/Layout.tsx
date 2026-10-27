@@ -212,7 +212,13 @@ export function Layout({
             <div id="flock-region-body" className="h-full overflow-y-auto overscroll-contain p-1.5">
               {flockOpen ? (
                 <ErrorBoundary name="flock" resetKey={state.activeRunId}>
-                  <FlockPanel {...flock} />
+                  {/*
+                    The rail is ~15rem wide: the compact panel's one-row strip scrolls sideways there,
+                    so the shell stacks its roosts vertically instead. Nothing inside the feature moves.
+                  */}
+                  <div className="[&_[data-testid='compact-flock']]:flex-col [&_[data-testid='compact-flock']>li]:w-full">
+                    <FlockPanel {...flock} />
+                  </div>
                 </ErrorBoundary>
               ) : (
                 <div className="flex h-full flex-col items-center gap-3 pt-3">
@@ -243,7 +249,22 @@ export function Layout({
             }
             bodyClassName="relative"
           >
-            <div hidden={view !== 'sky'} className="h-full">
+            {/*
+              Both views stay mounted (switching is instant, the Sky keeps its flocks, and React Flow
+              keeps its measured size). The inactive one is only hidden visually: `display: none`
+              would hand React Flow a zero-sized container and break its fit-to-view, and the Sky
+              would stop painting birds mid-frame. `inert` keeps it out of the tab order and the
+              accessibility tree.
+            */}
+            <div
+              data-view="sky"
+              data-active={view === 'sky' ? 'true' : 'false'}
+              aria-hidden={view !== 'sky'}
+              inert={view !== 'sky'}
+              className={
+                view === 'sky' ? 'relative h-full' : 'pointer-events-none absolute inset-0 h-full opacity-0'
+              }
+            >
               <ErrorBoundary
                 name="sky"
                 resetKey={state.activeRunId}
@@ -252,7 +273,15 @@ export function Layout({
                 <SkyView {...sky} reducedMotion={reducedMotion} />
               </ErrorBoundary>
             </div>
-            <div hidden={view !== 'dag'} className="h-full">
+            <div
+              data-view="dag"
+              data-active={view === 'dag' ? 'true' : 'false'}
+              aria-hidden={view !== 'dag'}
+              inert={view !== 'dag'}
+              className={
+                view === 'dag' ? 'relative h-full' : 'pointer-events-none absolute inset-0 h-full opacity-0'
+              }
+            >
               <ErrorBoundary
                 name="dag"
                 resetKey={state.activeRunId}
@@ -293,7 +322,7 @@ export function Layout({
         data-region="strip"
         className={cn(
           'shrink-0 gap-2 px-2 pb-2',
-          stripOpen ? 'grid h-40 grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]' : 'flex h-10 flex-col',
+          stripOpen ? 'grid h-48 grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]' : 'flex h-10 flex-col',
         )}
       >
         {stripOpen ? (
