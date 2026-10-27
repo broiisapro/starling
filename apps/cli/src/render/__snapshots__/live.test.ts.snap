@@ -1,0 +1,33 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderLive renders one line per task, a footer and costs (non-TTY snapshot) 1`] = `
+"Starling  ·  000000  ·  running  ·  1:02
+goal  Add dark mode, live search and a help overlay
+plan  3 tasks · 1 dep edges · deepseek-v4.1-flash
+flock 2 nodes · 2 online · 11 free session slots
+
+STATUS     TASK    NODE    ATT  TIME  LAST ACTION
+✔ merged   theme   hub       1  0:30  merged mock-theme-0000
+◐ running  search  m2-air    1  0:30  read src/store/todos.ts
+· pending  help    —         0  0.0s  waiting for dependencies
+
+✔ 1 merged  ·  ✘ 0 failed  ·  ◐ 1 active  ·  queue 1
+  █████░░░░░░░░░ 33%  1 merge   api $0.012  ·  local $0  ·  saved $0.004
+  MacBook Air joined the flock"
+`;
+
+exports[`renderLive colours status names on a TTY 1`] = `
+"\x1B[1mStarling\x1B[22m  \x1B[2m·\x1B[22m  000000  \x1B[2m·\x1B[22m  \x1B[36mrunning\x1B[39m  \x1B[2m·\x1B[22m  1:02
+\x1B[2mgoal\x1B[22m  Add dark mode, live search and a help overlay
+\x1B[2mplan\x1B[22m  3 tasks · 1 dep edges · deepseek-v4.1-flash
+\x1B[2mflock\x1B[22m 2 nodes · 2 online · 11 free session slots
+
+STATUS     TASK    NODE    ATT  TIME  LAST ACTION
+\x1B[32m✔ merged\x1B[39m   theme   hub       1  0:30  \x1B[2mmerged mock-theme-0000\x1B[22m
+\x1B[36m◐ running\x1B[39m  search  m2-air    1  0:30  \x1B[2mread src/store/todos.ts\x1B[22m
+\x1B[90m· pending\x1B[39m  help    \x1B[2m—\x1B[22m         0  0.0s  \x1B[2mwaiting for dependencies\x1B[22m
+
+\x1B[32m✔ 1 merged\x1B[39m\x1B[2m  ·  \x1B[22m\x1B[2m✘ 0 failed\x1B[22m\x1B[2m  ·  \x1B[22m\x1B[36m◐ 1 active\x1B[39m\x1B[2m  ·  \x1B[22m\x1B[2mqueue 1\x1B[22m
+  \x1B[2m█████░░░░░░░░░ 33%\x1B[22m  \x1B[2m1 merge\x1B[22m   \x1B[2mapi\x1B[22m $0.012\x1B[2m  ·  \x1B[22m\x1B[2mlocal\x1B[22m $0\x1B[2m  ·  \x1B[22m\x1B[2msaved\x1B[22m $0.004
+\x1B[2m  MacBook Air joined the flock\x1B[22m"
+`;
