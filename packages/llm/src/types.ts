@@ -6,6 +6,7 @@ import type {
   Clock,
   EventBus,
   LLM,
+  LLMCallOptions,
   LLMRequest,
   LLMResponse,
   StarlingConfig,
@@ -39,11 +40,11 @@ export interface OpencodeCompletionClient {
   complete(req: OpencodeCompletionRequest): Promise<OpencodeCompletionResult>;
 }
 
-/** Per-call overrides. The `LLM` port has no room for these, so `LLMClient` adds an optional arg. */
-export interface CallOptions {
-  signal?: AbortSignal;
-  timeoutMs?: number;
-}
+/**
+ * Per-call overrides. Since C1 the `LLM` port owns this shape (`LLMCallOptions`), so the router
+ * satisfies the port directly; the alias stays for existing imports.
+ */
+export type CallOptions = LLMCallOptions;
 
 export interface RetryOptions {
   /** Total attempts, including the first one. */
@@ -71,10 +72,10 @@ export interface LLMOptions {
 }
 
 /**
- * `LLM` plus optional per-call controls.
+ * `LLM` with the per-call controls spelled out.
  *
- * `LLMClient` is assignable to `LLM`, so the engine can keep depending on the port while the CLI,
- * tests and the runner can pass an `AbortSignal` or a shorter timeout.
+ * The port already declares them (C1), so `LLMClient` is a straight re-statement — the engine can
+ * keep depending on the port while the CLI, tests and the runner pass an `AbortSignal` or a timeout.
  */
 export interface LLMClient extends LLM {
   complete(req: LLMRequest, opts?: CallOptions): Promise<LLMResponse>;

@@ -1,11 +1,6 @@
-// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.
-import type { NodeInfo, Run, StarlingEvent } from '@starling/core';
-
-export interface SkyViewProps {
-  run?: Run;
-  nodes: NodeInfo[];
-  recent: StarlingEvent[];
-  selectedTask?: string;
-  onSelectTask(key: string): void;
-  reducedMotion?: boolean;
-}
+/**
+ * The §8 handshake moved into `@starling/core` at checkpoint C1 (`packages/core/src/handshake.ts`).
+ *
+ * This file stays as a one-line re-export so every existing import keeps working.
+ */
+export type { SkyViewProps } from '@starling/core';

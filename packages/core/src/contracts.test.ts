@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   AgentEventSchema,
+  AuditCheckSchema,
   AuditVerdictSchema,
   GoalSchema,
   LaneSchema,
@@ -188,5 +189,49 @@ describe('contracts', () => {
     };
     expect(AgentEventSchema.parse(event).data.path).toBe('src/main.ts');
     expect(AgentEventSchema.safeParse({ ...event, kind: 'telepathy' }).success).toBe(false);
+  });
+});
+
+describe('audit contracts (C1 additions)', () => {
+  test('AuditCheckSchema carries an optional integer durationMs', () => {
+    const base = { name: 'tests', ok: true, detail: 'exit 0' };
+    expect(AuditCheckSchema.parse(base)).toEqual(base);
+    expect(AuditCheckSchema.parse({ ...base, durationMs: 0 }).durationMs).toBe(0);
+    expect(AuditCheckSchema.parse({ ...base, durationMs: 1234 }).durationMs).toBe(1234);
+    expect(AuditCheckSchema.safeParse({ ...base, durationMs: -1 }).success).toBe(false);
+    expect(AuditCheckSchema.safeParse({ ...base, durationMs: 1.5 }).success).toBe(false);
+  });
+
+  test('AuditVerdictSchema carries optional per-item DoD judgments', () => {
+    const verdict = makeAuditVerdict();
+    expect(AuditVerdictSchema.parse(verdict).dod).toBeUndefined();
+    const withDod = AuditVerdictSchema.parse({
+      ...verdict,
+      dod: [
+        { item: 'CSV export works', met: true, evidence: 'src/csv.ts:12' },
+        { item: 'tests pass', met: false },
+      ],
+    });
+    expect(withDod.dod).toEqual([
+      { item: 'CSV export works', met: true, evidence: 'src/csv.ts:12' },
+      { item: 'tests pass', met: false },
+    ]);
+    expect(AuditVerdictSchema.safeParse({ ...verdict, dod: [{ item: 'x' }] }).success).toBe(false);
+  });
+
+  test('a recorded audit.verdict event still validates with the new fields', () => {
+    const verdict = makeAuditVerdict();
+    const event = {
+      type: 'audit.verdict',
+      runId: 'run-1',
+      ts: BASE_TS,
+      payload: {
+        ...verdict,
+        checks: verdict.checks.map((check, index) => ({ ...check, durationMs: index })),
+        dod: [{ item: 'done', met: true }],
+      },
+    };
+    const parsed = StarlingEventSchema.parse(event);
+    expect(parsed.type).toBe('audit.verdict');
   });
 });

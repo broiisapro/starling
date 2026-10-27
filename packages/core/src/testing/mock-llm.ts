@@ -1,7 +1,7 @@
 import type { ZodType } from 'zod';
 import type { ModelRef } from '../contracts';
 import { StarlingError } from '../errors';
-import type { LLM, LLMRequest, LLMResponse } from '../ports';
+import type { LLM, LLMCallOptions, LLMRequest, LLMResponse } from '../ports';
 
 export type MockLLMResponder = (req: LLMRequest) => Partial<LLMResponse> | Promise<Partial<LLMResponse>>;
 
@@ -43,7 +43,11 @@ export class MockLLM implements LLM {
     this.#responses.push(...responses);
   }
 
-  async complete(req: LLMRequest): Promise<LLMResponse> {
+  /**
+   * `opts` is accepted and ignored: a mock is instantaneous, so there is nothing to cancel. It keeps
+   * `MockLLM` assignable to the port now that `complete` takes per-call controls.
+   */
+  async complete(req: LLMRequest, _opts?: LLMCallOptions): Promise<LLMResponse> {
     this.calls.push(req);
     const scripted = this.#responses.shift() ?? (this.#responder ? await this.#responder(req) : undefined);
     if (scripted === undefined) {
@@ -61,8 +65,8 @@ export class MockLLM implements LLM {
     };
   }
 
-  async completeJson<T>(req: LLMRequest, schema: ZodType<T>): Promise<LLMResponse<T>> {
-    const res = await this.complete(req);
+  async completeJson<T>(req: LLMRequest, schema: ZodType<T>, opts?: LLMCallOptions): Promise<LLMResponse<T>> {
+    const res = await this.complete(req, opts);
     let candidate: unknown = res.parsed;
     if (candidate === undefined) {
       try {

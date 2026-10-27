@@ -3,19 +3,20 @@ import { isStarlingError, StarlingError } from '@starling/core';
 import { GitHubError, isGitHubError } from './errors';
 
 describe('GitHubError', () => {
-  test('is a StarlingError carrying the GitHub code in details', () => {
+  test('is a StarlingError whose code is the GitHub code', () => {
     const err = new GitHubError('GH_AUTH', 'log in first');
     expect(err).toBeInstanceOf(StarlingError);
     expect(err.name).toBe('GitHubError');
     expect(isStarlingError(err)).toBe(true);
     expect(err.githubCode).toBe('GH_AUTH');
+    expect(err.code).toBe('GH_AUTH');
+    expect(isStarlingError(err, 'GH_AUTH')).toBe(true);
     expect(err.details?.githubCode).toBe('GH_AUTH');
-    expect(err.code).toBe('EXEC_FAILED');
   });
 
-  test('keeps caller details and promotes repo failures to CONFIG_INVALID', () => {
+  test('keeps caller details and the GH_REPO code', () => {
     const err = new GitHubError('GH_REPO', 'no repo', { details: { argv: 'gh repo view' } });
-    expect(err.code).toBe('CONFIG_INVALID');
+    expect(err.code).toBe('GH_REPO');
     expect(err.details).toEqual({ argv: 'gh repo view', githubCode: 'GH_REPO' });
   });
 

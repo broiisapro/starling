@@ -46,10 +46,10 @@ describe('computeRunMetrics', () => {
       local: true,
     });
     const metrics = computeRunMetrics(runWith(), ledger, 2000);
-    expect(metrics.apiCostUsd).toBeCloseTo(0.88, 6);
+    expect(metrics.apiCostUsd).toBeCloseTo(1.5, 6);
     expect(metrics.localCallCount).toBe(1);
     expect(metrics.localUsage).toEqual({ input: 1_000_000, output: 1_000_000, cached: 0 });
-    expect(metrics.estSavedUsd).toBeCloseTo(0.88, 6);
+    expect(metrics.estSavedUsd).toBeCloseTo(1.5, 6);
   });
 
   test('recordCall uses an explicit cost when the caller has one', () => {

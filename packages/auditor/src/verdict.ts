@@ -4,9 +4,13 @@ import { describeCommand, tailText } from './commands';
 import type { LaneCheckResult } from './lane';
 import type { AuditorLlmVerdict } from './types';
 
-/** `AuditCheck` has no duration field, so every detail ends with a millisecond trailer. */
+/**
+ * One audit check. The duration rides in its own field (`AuditCheck.durationMs`, added in C1) rather
+ * than being appended to `detail`, so the human-readable text stays parseable and the UI can chart
+ * the slow check directly.
+ */
 export function makeCheck(name: string, ok: boolean, detail: string, durationMs: number): AuditCheck {
-  return { name, ok, detail: `${detail} (${Math.max(0, Math.round(durationMs))} ms)` };
+  return { name, ok, detail, durationMs: Math.max(0, Math.round(durationMs)) };
 }
 
 export function laneDetail(result: LaneCheckResult, owns: readonly string[]): string {

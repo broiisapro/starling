@@ -224,6 +224,15 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
     ts: opts.clock.now(),
   };
   if (fixInstructions !== undefined) verdict.fixInstructions = fixInstructions;
+  if (llmVerdict !== undefined) {
+    // The reviewer's per-item DoD judgments, verbatim, so the drawer can show which requirement
+    // failed without re-reading the prompt. Empty evidence is dropped rather than stored as "".
+    verdict.dod = llmVerdict.dod.map((entry) =>
+      entry.evidence.trim() === ''
+        ? { item: entry.item, met: entry.met }
+        : { item: entry.item, met: entry.met, evidence: entry.evidence },
+    );
+  }
   return verdict;
 }
 

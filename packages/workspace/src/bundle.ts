@@ -9,25 +9,20 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
-import type { Clock } from '@starling/core';
+import type { Clock, BundleOps as CoreBundleOps } from '@starling/core';
 import { StarlingError, systemClock } from '@starling/core';
 import type { Git } from './git';
 import { gitFailure } from './git';
 import { bundlePathFor, sanitizeBranch, shortRef } from './paths';
 import { refExists, resolveRepo } from './repo';
 
-/** Bundle transport used by `packages/flock` and `packages/perch`. Not part of the Workspace port. */
-export interface BundleOps {
-  /**
-   * Write a bundle of `ref` and return its absolute path. With `base`, the bundle is the thin
-   * `base..ref` range, which is what a perch sends back after a task.
-   */
-  createBundle(repo: string, ref: string, opts?: { base?: string; outPath?: string }): Promise<string>;
-  /** Clone a bundle into `dir` and check out `ref` as a local branch. */
-  cloneFromBundle(bundlePath: string, dir: string, ref: string): Promise<{ path: string; branch: string }>;
-  /** Fetch `ref` from a bundle into the local branch `intoBranch`, forcing the update. */
-  fetchBundle(repo: string, bundlePath: string, ref: string, intoBranch: string): Promise<void>;
-}
+/**
+ * Bundle transport used by `packages/flock` and `packages/perch`.
+ *
+ * The shape lives in core since checkpoint C1 (`BundleOps`), so the flock and perch copies are
+ * aliases of this one; this module owns the git-CLI implementation.
+ */
+export type BundleOps = CoreBundleOps;
 
 export interface BundleOpsOptions {
   git: Git;

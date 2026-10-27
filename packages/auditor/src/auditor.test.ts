@@ -40,7 +40,10 @@ describe('createAuditor — passing work', () => {
       'llm-review',
     ]);
     expect(verdict.checks.every((check) => check.ok)).toBe(true);
-    expect(verdict.checks.every((check) => / \(\d+ ms\)$/.test(check.detail))).toBe(true);
+    // C1: the duration is its own field now, so `detail` is exactly what the check has to say.
+    expect(verdict.checks.every((check) => check.detail.includes(' ms)') === false)).toBe(true);
+    expect(verdict.checks.every((check) => Number.isInteger(check.durationMs))).toBe(true);
+    expect(verdict.checks.every((check) => (check.durationMs ?? -1) >= 0)).toBe(true);
     expect(verdict.summary).toContain('RFC 4180');
   });
 
@@ -281,6 +284,44 @@ describe('createAuditor — reviewer verdict', () => {
     expect(verdict.fixInstructions).toContain('Definition of done not met');
     expect(verdict.fixInstructions).toContain('A round-trip test covers commas, quotes and newlines');
     expect(verdict.fixInstructions).toContain('no test file in the diff');
+    // C1: the per-item judgments land on the verdict itself, so the drawer can show them.
+    expect(verdict.dod).toEqual([
+      { item: 'bun test passes', met: true, evidence: '12 pass' },
+      {
+        item: 'A round-trip test covers commas, quotes and newlines',
+        met: false,
+        evidence: 'no test file in the diff',
+      },
+      { item: 'The button is disabled when the list is empty', met: true, evidence: 'initExportButton' },
+    ]);
+  });
+
+  test('drops empty evidence instead of storing an empty string', async () => {
+    const verdict = await createAuditor({
+      llm: new MockLLM({
+        responses: [
+          llmJson(
+            passingVerdict({
+              dod: [
+                { item: 'bun test passes', met: true, evidence: '   ' },
+                { item: 'docs updated', met: true, evidence: 'docs/epic-99.md' },
+              ],
+            }),
+          ),
+        ],
+      }),
+      exec: fakeExec(() => okOutput()).fn,
+    }).audit(makeAuditInput());
+
+    expect(verdict.dod).toEqual([
+      { item: 'bun test passes', met: true },
+      { item: 'docs updated', met: true, evidence: 'docs/epic-99.md' },
+    ]);
+  });
+
+  test('a deterministic audit sets no dod, because nobody judged it', async () => {
+    const verdict = await createAuditor({ exec: fakeExec(() => okOutput()).fn }).audit(makeAuditInput());
+    expect(verdict.dod).toBeUndefined();
   });
 
   test('an unavailable reviewer is skipped and the verdict stays deterministic', async () => {

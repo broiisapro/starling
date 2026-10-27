@@ -1,4 +1,12 @@
-import type { Clock, ExecOptions, ExecResult, MergeResult, Merger, TaskRun } from '@starling/core';
+import type {
+  Clock,
+  ExecOptions,
+  ExecResult,
+  MergePreflight,
+  MergeResult,
+  Merger,
+  TaskRun,
+} from '@starling/core';
 
 /** The exact `exec` shape from core, injectable so tests and the engine can fake process spawns. */
 export type ExecFn = (cmd: string[], opts: ExecOptions) => Promise<ExecResult>;
@@ -45,17 +53,16 @@ export interface MergeQueue {
 /**
  * Conflict prediction produced by `git merge-tree --write-tree --name-only`.
  *
+ * The four judgment fields are core's `MergePreflight` (the engine reads exactly those through the
+ * optional `Merger.preflight` port method); the ids are added so the result can be logged or shown.
+ *
  * `alreadyMerged` means the engine can skip the merge entirely; `clean` means merge-tree found no
  * conflicts (the real merge can still fail on a dirty worktree or failing tests).
  */
-export interface PreflightResult {
+export interface PreflightResult extends MergePreflight {
   repo: string;
   integrationBranch: string;
   branch: string;
-  clean: boolean;
-  conflictedFiles: string[];
-  alreadyMerged: boolean;
-  detail: string;
 }
 
 export interface MergerOptions {

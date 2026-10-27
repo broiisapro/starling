@@ -1,4 +1,4 @@
-import type { EventBus, StarlingConfig, StarlingErrorCode, Store } from '@starling/core';
+import type { EventBus, StarlingConfig, Store } from '@starling/core';
 import { createEventBus, StarlingError } from '@starling/core';
 import { MemoryStore } from '@starling/core/testing';
 import type { EngineApi, FlockHub } from './handshake';
@@ -30,9 +30,8 @@ export interface Composition {
  */
 export function compose(config: StarlingConfig, options: ComposeOptions): Composition {
   if (options.mode === 'real') {
-    // The StarlingError code union has no NOT_WIRED yet — see the CONTRACT REQUEST in the handback.
     throw new StarlingError(
-      NOT_WIRED,
+      'NOT_WIRED',
       'real wiring lands in epic 40 — run with the mock composition for now',
       {
         details: { mode: options.mode },
@@ -58,6 +57,3 @@ export function compose(config: StarlingConfig, options: ComposeOptions): Compos
 
   return { engine, flock, store, bus };
 }
-
-/** See the CONTRACT REQUEST in `.orchestrator/handbacks/22-cli.md`. */
-const NOT_WIRED = 'NOT_WIRED' as StarlingErrorCode;

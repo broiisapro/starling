@@ -1,24 +1,21 @@
-// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.
-//
-// Only the block this package produces and parses is mirrored here. The rest of §8 (EngineApi,
-// FlockHub, the web feature props) belongs to other packages and lands in core at C1 with the
-// other mirrors. Until then this file is the single source of truth for the worker handback
-// shape, and the zod schema below is the runtime half of the same contract.
+/**
+ * The worker handback block (ARCHITECTURE §8). The shape moved into `@starling/core` at checkpoint
+ * C1; this file keeps the runtime half — the zod schema and the markers — plus a re-export of the
+ * type, so nothing downstream changes.
+ */
+import type { WorkerHandback } from '@starling/core';
 import { z } from 'zod';
 
-export interface WorkerHandback {
-  status: 'complete' | 'partial';
-  summary: string;
-  filesChanged: string[];
-  testsAdded: string[];
-  notes?: string;
-}
+export type { WorkerHandback };
 
 /**
  * Runtime validator for what a worker prints. Extra keys are ignored rather than rejected: a
  * chatty model that adds `"durationMin"` should not lose an otherwise valid handback.
+ *
+ * Declared against the core type so the two cannot drift: if `WorkerHandback` gains a required
+ * field, this schema stops type-checking until it is taught the same field.
  */
-export const WorkerHandbackSchema = z.object({
+export const WorkerHandbackSchema: z.ZodType<WorkerHandback> = z.object({
   status: z.enum(['complete', 'partial']),
   summary: z.string(),
   filesChanged: z.array(z.string()),

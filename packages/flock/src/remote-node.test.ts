@@ -262,7 +262,7 @@ describe('RemoteNode against a fake perch', () => {
     }
   });
 
-  test('a rejected join code is INVALID_ARGUMENT, not a retryable outage', async () => {
+  test('a rejected join code is NODE_AUTH, not a retryable outage', async () => {
     const perch = startFakePerch();
     const node = createRemoteNode({
       url: perch.url,
@@ -272,7 +272,7 @@ describe('RemoteNode against a fake perch', () => {
     try {
       const error = await node.startTask(taskOpts).catch((err: unknown) => err);
       expect(error).toBeInstanceOf(StarlingError);
-      expect((error as StarlingError).code).toBe('INVALID_ARGUMENT');
+      expect((error as StarlingError).code).toBe('NODE_AUTH');
       expect((error as StarlingError).message).toContain('rejected the join code');
     } finally {
       node.close();
@@ -374,7 +374,7 @@ describe('RemoteNode against a fake perch', () => {
     try {
       await Bun.sleep(80);
       expect(perch.calls.sseAttempts).toBe(1);
-      expect(node.lastEventError()?.code).toBe('INVALID_ARGUMENT');
+      expect(node.lastEventError()?.code).toBe('NODE_AUTH');
     } finally {
       unsubscribe();
       node.close();

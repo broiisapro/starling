@@ -33,12 +33,19 @@ function instructionsInput(overrides: Partial<FixInstructionInput> = {}): FixIns
 }
 
 describe('makeCheck', () => {
-  test('appends the duration trailer AuditCheck cannot express', () => {
+  test('records the duration in its own field, leaving detail alone', () => {
     expect(makeCheck('tests', true, 'exit 0', 12.4)).toEqual({
       name: 'tests',
       ok: true,
-      detail: 'exit 0 (12 ms)',
+      detail: 'exit 0',
+      durationMs: 12,
     });
+  });
+
+  test('never reports a negative or fractional duration', () => {
+    const check = makeCheck('lane', true, 'ok', -5);
+    expect(check.durationMs).toBe(0);
+    expect(Number.isInteger(check.durationMs)).toBe(true);
   });
 });
 

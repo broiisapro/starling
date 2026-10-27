@@ -20,11 +20,11 @@ function tokenHeaders(token: string | undefined): Record<string, string> {
   return token === undefined ? {} : { [FLOCK_TOKEN_HEADER]: token };
 }
 
-/** Map a non-2xx response onto the two codes that matter to the flock. */
+/** Map a non-2xx response onto the three codes that matter to the flock. */
 function statusError(status: number, what: string, body: string): StarlingError {
   const detail = body.trim().slice(0, 300);
   if (status === 401 || status === 403) {
-    return new StarlingError('INVALID_ARGUMENT', `${what}: the perch rejected the join code (${status})`, {
+    return new StarlingError('NODE_AUTH', `${what}: the perch rejected the join code (${status})`, {
       details: { status, body: detail },
     });
   }
@@ -47,7 +47,7 @@ function networkError(err: unknown, what: string): StarlingError {
  * One HTTP request with a deadline and uniform error mapping.
  *
  * Every network failure becomes `NODE_OFFLINE` so the engine can reschedule; a 401/403 is
- * `INVALID_ARGUMENT` because the join code is wrong and retrying forever would never help.
+ * `NODE_AUTH` because the join code is wrong and retrying forever would never help.
  */
 export async function request(url: string, init: RequestInit, opts: HttpOptions = {}): Promise<Response> {
   const fetchFn = opts.fetch ?? fetch;
@@ -227,7 +227,7 @@ export function subscribeSse(opts: SseOptions): SseSubscription {
         opts.onError?.(mapped);
         // A rejected join code never starts working on its own: stop instead of hammering the perch
         // every reconnectMs forever. Network failures do retry.
-        if (mapped.code === 'INVALID_ARGUMENT') break;
+        if (mapped.code === 'NODE_AUTH') break;
       }
       if (closed) break;
       await sleep(reconnectMs, controller.signal);

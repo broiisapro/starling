@@ -1,11 +1,12 @@
-import type { Clock, ExecutionNode, NodeInfo, NodeRegistry } from '@starling/core';
+import type { Clock, ExecutionNode, NodeInfo, NodeRegistry, NodeRegistryEvent } from '@starling/core';
 
-/** A registry notification. `reason` is set for `left` so the engine can tell a timeout from a goodbye. */
-export interface FlockRegistryEvent {
-  type: 'joined' | 'left' | 'stats';
-  node: NodeInfo;
-  reason?: string;
-}
+/**
+ * A registry notification.
+ *
+ * The shape is core's `NodeRegistryEvent` since checkpoint C1 (`reason` is set for `left` so the
+ * engine can tell a timeout from a goodbye); the alias stays so existing imports keep working.
+ */
+export type FlockRegistryEvent = NodeRegistryEvent;
 
 /** The writable side of the registry. `FlockHub` and the engine's dispatcher need these. */
 export interface FlockRegistry extends NodeRegistry {

@@ -17,14 +17,8 @@ export interface GitVersion {
 /** First git release with `merge-tree --write-tree`. */
 export const MIN_MERGE_TREE_VERSION: GitVersion = { major: 2, minor: 38, patch: 0 };
 
-/**
- * Error code for "git is too old".
- *
- * `StarlingErrorCode` (ARCHITECTURE §6, frozen) has no `GIT_TOO_OLD` member yet, so the code is
- * widened locally rather than weakening the check. Filed as a CONTRACT REQUEST in the epic handback:
- * add `'GIT_TOO_OLD'` to the union in `packages/core/src/errors.ts`.
- */
-export const GIT_TOO_OLD_CODE = 'GIT_TOO_OLD' as StarlingErrorCode;
+/** Error code for "git is too old". A first-class `StarlingErrorCode` since checkpoint C1. */
+export const GIT_TOO_OLD_CODE = 'GIT_TOO_OLD' as const satisfies StarlingErrorCode;
 
 /** Parse the first `git version X.Y[.Z]` line, tolerating vendor suffixes. */
 export function parseGitVersion(output: string): GitVersion | undefined {

@@ -76,7 +76,7 @@ describe('cost helpers', () => {
   test('pricing falls back to the model after the providerID slash', () => {
     const model = { provider: 'opencode', model: 'opencode-go/deepseek-v4.1-flash' };
     expect(pricingKeys(model)).toContain('deepseek-v4.1-flash');
-    expect(costOf(model, { input: 1_000_000, output: 0, cached: 0 }, false)).toBeCloseTo(0.28, 8);
+    expect(costOf(model, { input: 1_000_000, output: 0, cached: 0 }, false)).toBeCloseTo(0.3, 8);
     expect(costOf(model, { input: 1_000_000, output: 0, cached: 0 }, true)).toBe(0);
   });
 

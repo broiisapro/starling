@@ -102,8 +102,8 @@ describe('metrics', () => {
       output: 1_000_000,
       cached: 500_000,
     });
-    // 0.5M uncached * $0.28 + 0.5M cached * $0.003 + 1M output * $0.60
-    expect(cost).toBeCloseTo(0.14 + 0.0015 + 0.6, 6);
+    // 0.5M uncached * $0.30 + 0.5M cached * $0.006 + 1M output * $1.20 (DeepSeek peak rates)
+    expect(cost).toBeCloseTo(0.15 + 0.003 + 1.2, 6);
   });
 
   test('unknown models are free rather than crashing the meter', () => {
@@ -114,7 +114,7 @@ describe('metrics', () => {
     const pricing = PRICING['qwen3.6:35b-a3b'];
     expect(pricing?.outputPerM).toBe(0);
     const saved = estimateSavedUsd({ input: 1_000_000, output: 1_000_000, cached: 0 });
-    expect(saved).toBeCloseTo(0.88, 6);
+    expect(saved).toBeCloseTo(1.5, 6);
     expect(DEFAULT_SAVED_MODEL).toBe('deepseek-v4.1-flash');
   });
 

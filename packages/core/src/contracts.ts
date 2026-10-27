@@ -133,8 +133,22 @@ export const AuditCheckSchema = z.object({
   name: z.string(),
   ok: z.boolean(),
   detail: z.string(),
+  /**
+   * How long the check took, in milliseconds. Optional so old recorded runs (and hand-written
+   * verdicts) stay valid; the auditor always sets it. It used to be appended to `detail` as
+   * ` (12 ms)`, which made the human-readable text unparseable.
+   */
+  durationMs: z.number().int().nonnegative().optional(),
 });
 export type AuditCheck = z.infer<typeof AuditCheckSchema>;
+
+/** One definition-of-done item and the reviewer's judgment of it. */
+export const AuditDodItemSchema = z.object({
+  item: z.string(),
+  met: z.boolean(),
+  evidence: z.string().optional(),
+});
+export type AuditDodItem = z.infer<typeof AuditDodItemSchema>;
 
 export const AuditVerdictSchema = z.object({
   taskKey: z.string(),
@@ -144,6 +158,8 @@ export const AuditVerdictSchema = z.object({
   laneViolations: z.array(z.string()),
   summary: z.string(),
   fixInstructions: z.string().optional(),
+  /** The reviewer's per-item DoD judgments, when a reviewer model was consulted. */
+  dod: z.array(AuditDodItemSchema).optional(),
   model: ModelRefSchema,
   ts: z.number(),
 });

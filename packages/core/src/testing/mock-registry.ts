@@ -1,9 +1,10 @@
 import type { NodeInfo } from '../contracts';
-import type { ExecutionNode, NodeRegistry } from '../ports';
+import type { ExecutionNode, NodeRegistry, NodeRegistryEvent } from '../ports';
 import { makeNodeInfo } from './factories';
 import type { MockNode } from './mock-node';
 
-export type MockRegistryEvent = { type: 'joined' | 'left' | 'stats'; node: NodeInfo };
+/** Kept as an alias so existing test imports keep working; the shape is core's. */
+export type MockRegistryEvent = NodeRegistryEvent;
 
 /**
  * `NodeRegistry` double: an ordered map of nodes with `joined` / `left` / `stats` notifications.
@@ -28,11 +29,11 @@ export class MockRegistry implements NodeRegistry {
     return this.add(node, makeNodeInfo({ id: node.id, kind: 'remote', name: node.id, ...overrides }));
   }
 
-  remove(id: string, _reason = 'left the flock'): void {
+  remove(id: string, reason = 'left the flock'): void {
     const entry = this.#nodes.get(id);
     if (entry === undefined) return;
     this.#nodes.delete(id);
-    this.#notify({ type: 'left', node: { ...entry.info, status: 'offline', activeSessions: 0 } });
+    this.#notify({ type: 'left', node: { ...entry.info, status: 'offline', activeSessions: 0 }, reason });
   }
 
   update(info: NodeInfo): void {

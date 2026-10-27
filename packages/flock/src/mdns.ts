@@ -6,32 +6,16 @@
  * `bonjour-service` for real runs. The manual `starling perch --hub ... --code ...` path never needs
  * mDNS, so multicast being blocked on a locked-down wifi degrades to typing a code, not failing.
  */
+import type { DiscoveredPerch, MdnsAdvertiseOptions, MdnsAdvertiser, MdnsBrowser } from '@starling/core';
 import Bonjour from 'bonjour-service';
 
 /** The mDNS service type both sides agree on. */
 export const STARLING_SERVICE_TYPE = 'starling';
 export const STARLING_SERVICE_PROTOCOL = 'tcp';
 
-export interface DiscoveredPerch {
-  /** Advertised service name, e.g. "Moksh's MacBook Air". */
-  name: string;
-  /** Reachable host (IPv4 address when mDNS gave us one, otherwise the `.local` hostname). */
-  host: string;
-  port: number;
-  /** TXT records as strings, e.g. `{ role: 'perch', node: '<ulid>' }`. */
-  txt: Record<string, string>;
-}
-
-export interface MdnsBrowser {
-  /** Start browsing; `onFound` fires for each advertised perch. Returns a stop function. */
-  browse(onFound: (perch: DiscoveredPerch) => void): () => void;
-  close(): void;
-}
-
-export interface MdnsAdvertiser {
-  advertise(service: { name: string; port: number; txt?: Record<string, string> }): void;
-  stop(): void;
-}
+// `DiscoveredPerch`, `MdnsBrowser` and `MdnsAdvertiser` are core ports since checkpoint C1; these
+// aliases keep the package's public surface unchanged.
+export type { DiscoveredPerch, MdnsAdvertiser, MdnsBrowser };
 
 /** `http://host:port`, with brackets for IPv6 literals. */
 export function perchUrl(perch: Pick<DiscoveredPerch, 'host' | 'port'>): string {
@@ -96,7 +80,7 @@ export function createBonjourAdvertiser(opts: { type?: string } = {}): MdnsAdver
   let published: ReturnType<Bonjour['publish']> | undefined;
 
   return {
-    advertise(service) {
+    advertise(service: MdnsAdvertiseOptions) {
       published?.stop();
       published = bonjour.publish({
         name: service.name,

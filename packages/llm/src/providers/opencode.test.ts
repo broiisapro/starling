@@ -2,6 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import { StarlingError } from '@starling/core';
 import { createOpencodeCompletionClient } from './opencode.ts';
 
+/**
+ * Bun's native fetch.
+ *
+ * These tests drive a real `Bun.serve` fake over real HTTP, so they must not go through whatever
+ * test file ran first: `apps/web`'s happy-dom `GlobalRegistrator` swaps the global `fetch` for a
+ * browser emulation that rejects Bun's responses ("Duplicate Content-Length"). The router always
+ * accepts an explicit fetch, so the test hands one over instead of trusting the global.
+ */
+const NATIVE_FETCH: typeof fetch = Bun.fetch;
+
 interface OcRequest {
   method: string;
   path: string;
@@ -81,7 +91,11 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
   test('creates, generates, reads usage and deletes in order', async () => {
     const server = startFakeOpencode(happyPath);
     try {
-      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl, password: 'pw' });
+      const client = createOpencodeCompletionClient({
+        baseUrl: server.baseUrl,
+        password: 'pw',
+        fetch: NATIVE_FETCH,
+      });
       const result = await client.complete(REQUEST);
 
       expect(result.text).toBe('generated text');
@@ -106,7 +120,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
   test('omits auth when no password is configured', async () => {
     const server = startFakeOpencode(happyPath);
     try {
-      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl });
+      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl, fetch: NATIVE_FETCH });
       await client.complete(REQUEST);
       expect(server.requests[0]?.authorization).toBeNull();
     } finally {
@@ -122,6 +136,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
         title: 'probe',
         agent: 'plan',
         directory: '/tmp/work',
+        fetch: NATIVE_FETCH,
       });
       await client.complete(REQUEST);
       expect(server.requests[0]?.body.title).toBe('probe');
@@ -139,7 +154,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
       return { status: 204 };
     });
     try {
-      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl });
+      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl, fetch: NATIVE_FETCH });
       let error: unknown;
       try {
         await client.complete(REQUEST);
@@ -160,7 +175,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
   test('rejects a session without an id and does not attempt a generate', async () => {
     const server = startFakeOpencode(() => ({ body: { data: {} } }));
     try {
-      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl });
+      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl, fetch: NATIVE_FETCH });
       await expect(client.complete(REQUEST)).rejects.toThrow(/session id/);
       expect(server.requests).toHaveLength(1);
     } finally {
@@ -176,7 +191,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
       return { status: 204 };
     });
     try {
-      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl });
+      const client = createOpencodeCompletionClient({ baseUrl: server.baseUrl, fetch: NATIVE_FETCH });
       await expect(client.complete(REQUEST)).rejects.toThrow(/token usage/);
       expect(server.requests.at(-1)?.method).toBe('DELETE');
     } finally {
@@ -193,6 +208,7 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
       const client = createOpencodeCompletionClient({
         baseUrl: server.baseUrl,
         onCleanupError: (err) => errors.push(err),
+        fetch: NATIVE_FETCH,
       });
       const result = await client.complete(REQUEST);
       expect(result.text).toBe('generated text');

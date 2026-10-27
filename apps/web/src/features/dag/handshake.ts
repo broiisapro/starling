@@ -1,9 +1,6 @@
-// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.
-import type { Plan, TaskRun } from '@starling/core';
-
-export interface DagViewProps {
-  plan?: Plan;
-  tasks: Record<string, TaskRun>;
-  selectedTask?: string;
-  onSelectTask(key: string): void;
-}
+/**
+ * The §8 handshake moved into `@starling/core` at checkpoint C1 (`packages/core/src/handshake.ts`).
+ *
+ * This file stays as a one-line re-export so every existing import keeps working.
+ */
+export type { DagViewProps } from '@starling/core';
