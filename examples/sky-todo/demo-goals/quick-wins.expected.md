@@ -17,9 +17,11 @@ three folders, zero shared writes.
 ## Why the lanes are disjoint
 
 Each task adds a new folder with one `index.ts`. Discovery is a Vite glob, so no
-shared registration line exists. `title-count` and `tag-count` read the store;
-`today` reads `formatShort` from `src/lib/dates.ts`; none of them writes a shared
-file.
+shared registration line exists. The three folders already exist with a
+`.gitkeep` (`src/features/title-count/`, `today/`, `tag-count/`), so the lane is
+visible in the repo before the run starts — a planner reading the tree can see
+where each task belongs. `title-count` and `tag-count` read the store; `today`
+reads `formatShort` from `src/lib/dates.ts`; none of them writes a shared file.
 
 ## Details
 

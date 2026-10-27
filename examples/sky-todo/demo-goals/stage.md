@@ -1,0 +1,1 @@
+Add dark mode with a persisted toggle, live search filtering, CSV export with tests for quoting and commas, keyboard shortcuts (n = new, / = search, ? = help), completion stats in the footer, and today's date in the header.

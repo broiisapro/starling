@@ -13,7 +13,7 @@ can be planned into parallel, non-overlapping tasks.
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun test           # 68 tests, happy-dom for the DOM ones
+bun test           # unit tests, happy-dom for the DOM ones
 bunx tsc --noEmit
 bun run build      # dist/
 ```
@@ -74,6 +74,7 @@ export default defineFeature({
 | --------------------------- | ----- | ------------------------------------------------- |
 | `demo-goals/launch-day.md`  | 7     | The main 3-minute demo                           |
 | `demo-goals/launch-day-xl.md` | 10  | Flock mode: enough parallel work for two laptops |
+| `demo-goals/stage.md`       | 6     | The 8-minute stage beat: six agents, one audit failure |
 | `demo-goals/quick-wins.md`  | 3     | Smoke test, ~2 minutes                           |
 | `demo-goals/conflict-bait.md` | 2   | Lane-overlap warning + conflict resolver         |
 | `demo-goals/will-fail-audit.md` | 1 | Auditor catches a missing test                   |
@@ -105,13 +106,18 @@ point coding agents at it).
 ## Resetting a demo
 
 ```bash
-bash ../scripts/make-demo-repo.sh
+bash ../scripts/make-demo-repo.sh                 # sky-todo into $TMPDIR, timestamped
+bash ../scripts/make-demo-repo.sh sky-todo ./demo # sky-todo into ./demo
 ```
 
-Copies this project (without the answer key and expected-goal files) into
-`$TMPDIR/sky-todo-<timestamp>`, runs `git init -b main`, `bun install` and commits
-the baseline. Print the path, `cd` there and run Starling against it. Re-run the
-script with the same path to get a clean repo again.
+Copies this project (without the answer key and expected-goal files) into a fresh
+directory, runs `git init -b main`, `bun install`, verifies the baseline with
+`bun test` and commits one commit. It prints the repo path on the last line.
+Re-run it with the same path to get a clean repo again.
+
+The same script builds the Python demo target:
+`bash ../scripts/make-demo-repo.sh py-ledger`. See
+[`examples/README.md`](../README.md) for both targets side by side.
 
 ## License
 
