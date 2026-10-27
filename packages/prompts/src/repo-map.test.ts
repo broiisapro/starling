@@ -94,7 +94,7 @@ describe('renderRepoMap', () => {
 
   test('renders a plain file list when no lane is given', () => {
     const noLane = renderRepoMap(map, { maxChars: 6000 });
-    expect(noLane.text).toContain('Files:');
+    expect(noLane.text).toContain('Files (18):');
     expect(noLane.text).not.toContain('In your lane');
   });
 
