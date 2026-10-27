@@ -17,9 +17,26 @@ export interface FakePromptContext {
 
 export type FakePromptHandler = (ctx: FakePromptContext) => void | Promise<void>;
 
+/** What a fake answers on `POST /api/experimental/generate`. */
+export interface FakeStatelessContext {
+  prompt: string;
+  model?: { providerID?: string; id?: string };
+  directory?: string;
+  headers: Record<string, string>;
+}
+
+/**
+ * Return `undefined` to answer 404, exactly like a server built before the route existed.
+ * `{ status }` answers that status with an error envelope; `{ text }` answers 200.
+ */
+export type FakeStatelessHandler = (
+  ctx: FakeStatelessContext,
+) => { status?: number; text?: string } | undefined;
+
 export interface FakeServerOptions {
   password?: string;
   onPrompt?: FakePromptHandler;
+  onGenerateStateless?: FakeStatelessHandler;
 }
 
 export interface RecordedRequest {
@@ -237,6 +254,30 @@ export function createFakeOpencodeServer(options: FakeServerOptions = {}): FakeO
         const data: Record<string, { type: 'running' }> = {};
         for (const id of active) data[id] = { type: 'running' };
         return json({ data });
+      }
+
+      if (url.pathname === '/api/experimental/generate' && req.method === 'POST') {
+        const input = (body ?? {}) as {
+          prompt?: string;
+          model?: { providerID?: string; id?: string };
+        };
+        const answer = options.onGenerateStateless?.({
+          prompt: input.prompt ?? '',
+          ...(input.model === undefined ? {} : { model: input.model }),
+          ...(headers['x-opencode-directory'] === undefined
+            ? {}
+            : { directory: headers['x-opencode-directory'] }),
+          headers,
+        });
+        if (answer === undefined) {
+          return json({ _tag: 'NotFound', message: 'no fake route for POST /api/experimental/generate' }, 404);
+        }
+        const status = answer.status ?? 200;
+        if (status !== 200) {
+          return json({ _tag: 'GenerateError', message: 'the fake refused' }, status);
+        }
+        // A body with no `text` field at all is a different animal from `text: ''`.
+        return json(answer.text === undefined ? { data: {} } : { data: { text: answer.text } });
       }
 
       if (url.pathname === '/api/session' && req.method === 'POST') {
