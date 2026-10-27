@@ -36,6 +36,8 @@ export default defineFeature({
 | `store`    | Todo store: `all()`, `add()`, `update()`, `toggle()`, `remove()`, `clearDone()`, `replaceAll()`, `subscribe()`. |
 | `slots`    | Slot registry — register renderable items (below).                          |
 | `commands` | Named UI intents so features can trigger each other without importing each other. |
+| `filters`  | View filters — hide rows without touching the store (search, tag chips).    |
+| `refresh`  | Re-renders the list and every slot; call it after changing local state.     |
 
 `register()` runs once at boot, before the first paint.
 
@@ -78,6 +80,19 @@ Examples: a search feature registers `search:focus`; help registers `help:open`;
 shortcuts runs `todo:new`, `search:focus` and `help:open` on `n`, `/`, `?`.
 
 Registering a name twice throws — pick a namespaced name (`<feature>:<action>`).
+
+## Filters
+
+A filter hides rows from the view without changing stored data. All filters are
+ANDed; counts in the footer still describe the whole list.
+
+```ts
+const off = ctx.filters.add((todo) => todo.title.toLowerCase().includes(query))
+ctx.refresh() // after the query changes
+// off() removes the filter
+```
+
+Search and tag chips are built this way, so neither feature edits the renderer.
 
 ## Styles
 

@@ -2,6 +2,7 @@ import { createCommandBus, type CommandBus } from './lib/commands'
 import { loadTodos, saveTodos, type StorageLike } from './store/persist'
 import { createTodoStore, type TodoStore } from './store/todos'
 import { createSlotRegistry, type SlotRegistry } from './ui/slots'
+import { createFilterRegistry, type FilterRegistry } from './ui/filters'
 import { mountApp, type AppHandle } from './ui/render'
 import { bootFeatures } from './features'
 import type { FeatureRegistry } from './features/registry'
@@ -15,6 +16,7 @@ export interface BootOptions {
 export interface SkyTodoApp {
   store: TodoStore
   slots: SlotRegistry
+  filters: FilterRegistry
   commands: CommandBus
   app: AppHandle
   registry: FeatureRegistry
@@ -44,9 +46,18 @@ export function bootApp(root: HTMLElement, options: BootOptions = {}): SkyTodoAp
   const store = createTodoStore(loaded.todos, options.clock ? { now: options.clock } : {})
   const slots = createSlotRegistry()
   const commands = createCommandBus()
+  const filters = createFilterRegistry()
 
-  const app = mountApp(root, { store, slots, commands })
-  const registry = bootFeatures({ doc: root.ownerDocument, root, store, slots, commands })
+  const app = mountApp(root, { store, slots, commands, filters })
+  const registry = bootFeatures({
+    doc: root.ownerDocument,
+    root,
+    store,
+    slots,
+    commands,
+    filters,
+    refresh: () => app.refresh(),
+  })
   app.refresh()
 
   const unsubscribe = storage
@@ -62,6 +73,7 @@ export function bootApp(root: HTMLElement, options: BootOptions = {}): SkyTodoAp
   const handle: SkyTodoApp = {
     store,
     slots,
+    filters,
     commands,
     app,
     registry,

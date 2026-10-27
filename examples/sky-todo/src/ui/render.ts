@@ -1,12 +1,14 @@
 import type { CommandBus } from '../lib/commands'
 import type { Todo, TodoStore } from '../store/todos'
 import { createEl } from './dom'
+import type { FilterRegistry } from './filters'
 import type { SlotHost, SlotRegistry } from './slots'
 
 export interface MountOptions {
   store: TodoStore
   slots: SlotRegistry
   commands: CommandBus
+  filters: FilterRegistry
 }
 
 export interface AppHandle {
@@ -19,7 +21,7 @@ export interface AppHandle {
 
 export function mountApp(root: HTMLElement, options: MountOptions): AppHandle {
   const doc = root.ownerDocument
-  const { store, slots, commands } = options
+  const { store, slots, commands, filters } = options
 
   const input = createEl(doc, 'input', {
     className: 'new-todo',
@@ -147,10 +149,11 @@ export function mountApp(root: HTMLElement, options: MountOptions): AppHandle {
   }
 
   function refresh(): void {
-    const todos = store.all()
-    list.replaceChildren(...todos.map(renderItem))
-    empty.hidden = todos.length > 0
-    const open = todos.filter((todo) => !todo.done).length
+    const all = store.all()
+    const visible = filters.apply(all)
+    list.replaceChildren(...visible.map(renderItem))
+    empty.hidden = visible.length > 0
+    const open = all.filter((todo) => !todo.done).length
     remaining.textContent = open === 1 ? '1 task left' : `${open} tasks left`
     slots.render('header-right', headerSlot, host())
     slots.render('toolbar', toolbarSlot, host())

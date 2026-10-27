@@ -1,5 +1,6 @@
 import type { CommandBus } from '../lib/commands'
 import type { TodoStore } from '../store/todos'
+import type { FilterRegistry } from '../ui/filters'
 import type { SlotRegistry } from '../ui/slots'
 
 export interface FeatureContext {
@@ -9,6 +10,9 @@ export interface FeatureContext {
   store: TodoStore
   slots: SlotRegistry
   commands: CommandBus
+  filters: FilterRegistry
+  /** Re-renders the list and slots (call after changing feature-local state). */
+  refresh(): void
 }
 
 export interface FeatureModule {
