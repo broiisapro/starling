@@ -1,11 +1,7 @@
-// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.
-export interface WorkerHandback {
-  status: 'complete' | 'partial';
-  summary: string;
-  filesChanged: string[];
-  testsAdded: string[];
-  notes?: string;
-}
+// The §8 worker handback moved into @starling/core at checkpoint C1; the parser lives on here.
+import type { WorkerHandback } from '@starling/core';
+
+export type { WorkerHandback };
 
 const HANDBACK_RE = /<<<STARLING_HANDBACK\r?\n([\s\S]*?)\r?\n?STARLING_HANDBACK>>>/;
 
