@@ -1,0 +1,1 @@
+Add a `py-ledger version` command that prints the app version, a `py-ledger count` command that prints how many transactions are in the ledger, and a `py-ledger categories` command that lists every category in use with its transaction count.

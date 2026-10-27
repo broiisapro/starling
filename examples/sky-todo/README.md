@@ -13,7 +13,7 @@ can be planned into parallel, non-overlapping tasks.
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun test           # 68 tests, happy-dom for the DOM ones
+bun test           # unit tests, happy-dom for the DOM ones
 bunx tsc --noEmit
 bun run build      # dist/
 ```
@@ -36,7 +36,7 @@ src/features/README.md    the slot API — read this before writing a feature
 src/features/item-count/  the reference feature (one footer slot item + CSS)
 src/features/<name>/      empty folders reserved for the demo features
 demo-goals/               ready-to-run goals + *.expected.md answer keys
-.starling-answers/        seeded-bug answer key (never copied into a demo repo)
+.starling-answers/        seeded-bug and stage-run answer keys (never copied into a demo repo)
 ```
 
 ## Features are folders
@@ -74,6 +74,7 @@ export default defineFeature({
 | --------------------------- | ----- | ------------------------------------------------- |
 | `demo-goals/launch-day.md`  | 7     | The main 3-minute demo                           |
 | `demo-goals/launch-day-xl.md` | 10  | Flock mode: enough parallel work for two laptops |
+| `demo-goals/stage.md`       | 6     | The 8-minute stage beat: six agents, one audit failure |
 | `demo-goals/quick-wins.md`  | 3     | Smoke test, ~2 minutes                           |
 | `demo-goals/conflict-bait.md` | 2   | Lane-overlap warning + conflict resolver         |
 | `demo-goals/will-fail-audit.md` | 1 | Auditor catches a missing test                   |
@@ -87,6 +88,12 @@ starling run "$(cat demo-goals/launch-day.md)" --repo .
 The sibling `*.expected.md` files are the answer keys for evals: ideal task
 keys, lanes, dependencies and why the lanes are disjoint. They are excluded from
 demo repos by `examples/scripts/make-demo-repo.sh`.
+
+`stage`'s decomposition lives in
+[`.starling-answers/stage.expected.md`](.starling-answers/stage.expected.md)
+instead of next to the other keys: `evals/planner/cases.test.ts` requires one
+planner case per `demo-goals/*.expected.md`, and the stage case belongs to the
+planner-evals lane. Both folders are stripped from demo repos.
 
 ## Seeded bugs
 
@@ -105,13 +112,18 @@ point coding agents at it).
 ## Resetting a demo
 
 ```bash
-bash ../scripts/make-demo-repo.sh
+bash ../scripts/make-demo-repo.sh                 # sky-todo into $TMPDIR, timestamped
+bash ../scripts/make-demo-repo.sh sky-todo ./demo # sky-todo into ./demo
 ```
 
-Copies this project (without the answer key and expected-goal files) into
-`$TMPDIR/sky-todo-<timestamp>`, runs `git init -b main`, `bun install` and commits
-the baseline. Print the path, `cd` there and run Starling against it. Re-run the
-script with the same path to get a clean repo again.
+Copies this project (without the answer key and expected-goal files) into a fresh
+directory, runs `git init -b main`, `bun install`, verifies the baseline with
+`bun test` and commits one commit. It prints the repo path on the last line.
+Re-run it with the same path to get a clean repo again.
+
+The same script builds the Python demo target:
+`bash ../scripts/make-demo-repo.sh py-ledger`. See
+[`examples/README.md`](../README.md) for both targets side by side.
 
 ## License
 

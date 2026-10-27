@@ -1,0 +1,1 @@
+Two bugs are hiding in the ledger: amounts such as 0.29, 19.99 and -0.29 are stored a cent off, and the monthly report merges the same month from different years into one row. Find both, fix them, and add regression tests that fail on the current code.
