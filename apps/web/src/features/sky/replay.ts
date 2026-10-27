@@ -6,13 +6,7 @@
  * from scratch, so scrubbing backwards is as correct as playing forwards and no state leaks between
  * runs. It is O(events) per call, which is nothing for a 252-event fixture.
  */
-import {
-  type NodeInfo,
-  type Run,
-  type StarlingEvent,
-  StarlingEventSchema,
-  type TaskStatus,
-} from '@starling/core';
+import type { NodeInfo, Run, StarlingEvent, TaskStatus } from '@starling/core';
 import { TASK_STATUSES } from './palette';
 
 /** The sim looks this far back for agent activity and migrations. */
@@ -26,6 +20,44 @@ export interface SkyFrame {
   ts: number;
 }
 
+const EVENT_TYPES: ReadonlySet<string> = new Set([
+  'run.created',
+  'repomap.ready',
+  'plan.created',
+  'task.status',
+  'agent.event',
+  'audit.verdict',
+  'merge.result',
+  'metrics',
+  'log',
+  'node.joined',
+  'node.left',
+  'node.stats',
+  'task.migrated',
+  'run.finished',
+]);
+
+/**
+ * Structural guard for one decoded event.
+ *
+ * We deliberately do **not** import `StarlingEventSchema` here: `@starling/core`'s barrel pulls in
+ * `config.ts` (and therefore `node:fs`), which Vite cannot bundle for the browser. A local envelope
+ * check keeps the Sky browser-safe; the deep payload validation belongs in the data layer / server.
+ * Filed as a CONTRACT REQUEST in the Epic 24 handback (a browser-safe core subpath).
+ */
+function isStarlingEvent(value: unknown): value is StarlingEvent {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as { type?: unknown; runId?: unknown; ts?: unknown; payload?: unknown };
+  return (
+    typeof candidate.type === 'string' &&
+    EVENT_TYPES.has(candidate.type) &&
+    typeof candidate.runId === 'string' &&
+    typeof candidate.ts === 'number' &&
+    typeof candidate.payload === 'object' &&
+    candidate.payload !== null
+  );
+}
+
 /** Parse event JSONL, skipping blank and malformed lines rather than throwing a whole demo away. */
 export function parseEventJsonl(text: string): StarlingEvent[] {
   const events: StarlingEvent[] = [];
@@ -33,8 +65,8 @@ export function parseEventJsonl(text: string): StarlingEvent[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
-      const parsed = StarlingEventSchema.safeParse(JSON.parse(trimmed));
-      if (parsed.success) events.push(parsed.data);
+      const parsed: unknown = JSON.parse(trimmed);
+      if (isStarlingEvent(parsed)) events.push(parsed);
     } catch {
       // A truncated recording tail is not a reason to lose the first 200 events.
     }
