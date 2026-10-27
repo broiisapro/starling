@@ -111,6 +111,25 @@ describe('scorePlan', () => {
     expect(deps.detail).toContain('spurious 1');
   });
 
+  test('a serialisation edge between overlapping lanes is not treated as a feature dependency', () => {
+    const { plan } = fixture('sky-todo-quick-wins');
+    const tasks = cloneTasks(plan).map((task) =>
+      task.key === 'today'
+        ? {
+            ...task,
+            dependsOn: ['title-count'],
+            lane: { ...task.lane, owns: ['src/features/title-count/**'] },
+          }
+        : task,
+    );
+    const score = rescore('sky-todo-quick-wins', tasks);
+    const deps = check(score, 'dependencies');
+    expect(deps.ok).toBe(true);
+    expect(deps.detail).toContain('spurious 0');
+    // Serialising the pair also means the validator no longer sees a concurrent overlap.
+    expect(check(score, 'validator').ok).toBe(true);
+  });
+
   test('owning a forbidden shared file fails lane precision', () => {
     const { plan } = fixture('sky-todo-launch-day');
     const tasks = cloneTasks(plan).map((task) =>

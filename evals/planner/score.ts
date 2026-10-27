@@ -1,5 +1,5 @@
 import type { Plan, RepoMap, TaskSpec } from '../lib/core';
-import { matchesAny } from '../lib/core';
+import { globsOverlap, matchesAny } from '../lib/core';
 import type { PlannerCase } from './case';
 import { validatePlan } from './validate';
 
@@ -158,7 +158,19 @@ function checkDependencies(
   const mappedEdges = edges.filter(
     (edge) => (taskFeatures.get(edge.from)?.size ?? 0) > 0 && (taskFeatures.get(edge.to)?.size ?? 0) > 0,
   );
+  /**
+   * An edge is not a "spurious feature dependency" when the two tasks' lanes overlap: that edge is
+   * the deterministic repair's serialisation of two tasks that cannot safely run concurrently (see
+   * `repairPlan` step 5 and the carryover note in docs/epic-48-planner-quality.md). Penalising it
+   * would punish the planner twice for one decision — once for the overlap, once for the fix — and
+   * would push the prompt towards more tasks instead of better lanes.
+   */
   const spurious = mappedEdges.filter((edge) => {
+    const from = byKey.get(edge.from);
+    const to = byKey.get(edge.to);
+    if (from !== undefined && to !== undefined && globsOverlap(from.lane.owns, to.lane.owns).length > 0) {
+      return false;
+    }
     const fromFeatures = taskFeatures.get(edge.from) ?? new Set<string>();
     const toFeatures = taskFeatures.get(edge.to) ?? new Set<string>();
     return !testCase.requiredDeps.some(
