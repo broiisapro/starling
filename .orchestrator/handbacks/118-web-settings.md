@@ -1,6 +1,6 @@
 ## Epic 118 Handback — Web: settings drawer (typed, persisted, safe)
 
-**Status:** Complete. Branch `epic/118-web-settings` @ `56fb42c` (docs + this handback on top).
+**Status:** Complete. Branch `epic/118-web-settings` @ `6171dbe` (code head; docs and this handback on top).
 **Delivered:**
 
 - `apps/web/src/features/settings/schema.ts` — `StarlingSettings` (v1), `DEFAULT_SETTINGS` (`dark`,
@@ -50,9 +50,10 @@
 - `cd apps/web && bun test src/features/settings`: **86 pass / 0 fail**, 230 `expect()` calls, 6 files.
 - `bunx tsc --noEmit -p apps/web`: clean (no output).
 - `bunx biome check apps/web/src/features/settings`: `Checked 20 files … No fixes applied`.
-- `bash .orchestrator/bin/heavy.sh bun run test` (root): packages **1938 pass / 4 skip / 0 fail**
-  (`Ran 1942 tests across 223 files`) and web **667 pass / 0 fail** (`Ran 667 tests across 66 files`).
-- `bash .orchestrator/bin/heavy.sh bun run check`: `Checked 995 files … No fixes applied`; per-workspace
+- `bash .orchestrator/bin/heavy.sh bun run test` (root, after rebasing on `origin/main` @ `bea040e`):
+  packages **1974 pass / 5 skip / 0 fail** (`Ran 1979 tests across 227 files`) and web **667 pass /
+  0 fail** (`Ran 667 tests across 66 files`).
+- `bash .orchestrator/bin/heavy.sh bun run check`: `Checked 1011 files … No fixes applied`; per-workspace
   `tsc --noEmit` loop completed with no errors.
 - DoD 4 is a test: `storage.test.ts` writes `{"version":1,"theme":"neon","sound":"yes","density":"compact"}`,
   then asserts `theme === 'dark'`, `sound === false`, `density === 'compact'`, `demoSpeed === 1`.
