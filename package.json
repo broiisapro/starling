@@ -11,7 +11,9 @@
     "apps/*"
   ],
   "scripts": {
-    "test": "bun test packages apps skills integrations tools evals",
+    "test": "bun run test:packages && bun run test:web",
+    "test:packages": "echo '── bun test: packages apps/server apps/cli skills integrations tools evals ──' && bun test packages apps/server apps/cli skills integrations tools evals",
+    "test:web": "echo '── bun test: apps/web (separate process — happy-dom owns the global fetch) ──' && cd apps/web && bun test",
     "check": "biome check . && bun run typecheck",
     "typecheck": "for d in packages/* apps/*; do tsc --noEmit -p \"$d/tsconfig.json\" || exit 1; done",
     "format": "biome check --write .",

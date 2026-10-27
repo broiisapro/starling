@@ -136,9 +136,11 @@ test('the agents sparkline is an accessible SVG with a title and description', a
 test('the elapsed clock ticks between samples while the stream is fresh', async () => {
   const startedAt = Date.now();
   const liveMetrics: RunMetrics = { ...finalMetrics, elapsedMs: 1_000, agentsActive: 2, tasksMerged: 1 };
+  // The newest sample is 50 ms old on purpose: interpolation is `reported + (now - lastSampleTs)`,
+  // and a sample stamped with `Date.now()` at render time can be 0 ms old, which is not "ticking".
   const history: MetricsSample[] = [
     { ts: startedAt - 2_000, metrics: { ...liveMetrics, elapsedMs: 0 } },
-    { ts: startedAt, metrics: liveMetrics },
+    { ts: startedAt - 50, metrics: liveMetrics },
   ];
   const view = await mount(<MetricsPanel metrics={liveMetrics} history={history} />);
   try {
