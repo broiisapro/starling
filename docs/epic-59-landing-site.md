@@ -113,6 +113,26 @@ With `prefers-reduced-motion: reduce` it simulates 420 steps once and draws a si
 - **Repo URL.** Hrefs and the `og:image` point at `github.com/broiisapro/starling`; if the repo moves,
   update `index.html` (single place).
 
+## FIX REQUESTS (lanes I don't own)
+
+The full, copy-pasteable workflow and root-script diff are in
+`.orchestrator/handbacks/59-landing-site.md`.
+
+1. **Epic 52 — deploy to GitHub Pages.** Add `.github/workflows/pages.yml` that builds `site/dist`
+   on pushes to `main` touching `site/**`, uploads it with `actions/upload-pages-artifact@v3` and
+   deploys with `actions/deploy-pages@v4` (exact YAML in the handback). Relative asset URLs already
+   work under the `/starling/` project path.
+2. **Epic 52 — run the site in CI.** Add a `site` job to `ci.yml`: Bun 1.4.4,
+   `bun install --frozen-lockfile`, `bun run --cwd site typecheck`, `bun run --cwd site test`,
+   `bun run --cwd site build`. `site/` sits outside the Bun workspace, so the root commands do not
+   cover it.
+3. **Root-script owner (E00/integrator)** — optional local parity: add `test:site` and
+   `typecheck:site` scripts and chain them from `test`/`check`. The exact JSON is in the handback.
+4. **Epic 68 — write `site/data/stats.json`.** Canonical shape is
+   `{ generatedAt, source, totals: { epics, prs, tests, agents, laptops, commits } }`; aliases and
+   per-wave arrays are accepted. No page rebuild is needed.
+5. **Epic 60 — link the page and screenshot** from the README (`site/`, `site/screens/hero.png`).
+
 ## Deviations from plan
 
 - **Google Fonts were skipped entirely** although allowed. The page reads well on the system stack

@@ -1,6 +1,6 @@
 ## Epic 59 Handback — Landing page for judges
 
-**Status:** Complete. Branch `epic/59-landing-site` @ `27ea528`.
+**Status:** Complete. Branch `epic/59-landing-site`; PR #105.
 
 **Delivered:**
 - `site/` — a static one-page landing site, bundled by Bun with no framework and no external
@@ -77,6 +77,10 @@
   note layout. No horizontal scroll at 390 px.
 - Biome a11y checks on the HTML/CSS are clean (semantic legend list, labelled copy buttons,
   `aria-hidden` decorative SVGs, skip link, landmarks).
+- **Re-verified after the resume:** `bun install` → `Checked 162 installs across 221 packages (no
+  changes)`; `bun run --cwd site test` → `21 pass, 0 fail`; root `bun run test` →
+  `1359 pass, 4 skip, 0 fail` + `426 pass, 0 fail`; `bun run check` → `Checked 723 files`, tsc clean;
+  build → `61.7 KB total`; Chromium at 390/768/1440 px → no horizontal scroll.
 
 **Dependencies added:** none. (Site uses Bun built-ins; screenshot tooling was the machine's
 Playwright CLI and a local pngquant install, neither added to the repo.)
