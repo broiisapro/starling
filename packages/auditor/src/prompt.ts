@@ -103,7 +103,7 @@ ${bullets(task.outOfScope, 'nothing stated')}
 ## Definition of done
 
 One \`dod\` entry is required for each item below, in this order:
-${numbered(task.definitionOfDone)}
+${task.definitionOfDone.length === 0 ? '(none — judge the deliverables above)' : numbered(task.definitionOfDone)}
 
 ## Repository decisions that apply to every task
 
