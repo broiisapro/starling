@@ -61,8 +61,8 @@
 - `bun install` (worktree root): `Checked 133 installs across 192 packages (no changes)`.
 - `bun test apps/web/src/features/queue apps/web/src/features/metrics`: **125 pass / 0 fail**, 411
   expect() calls, 8 files.
-- `bun run test` (root, all workspaces): **311 pass / 0 fail**,
-  `Ran 311 tests across 45 files. [333.00ms]`.
+- `bun run test` (root, all workspaces): **312 pass / 0 fail**,
+  `Ran 312 tests across 45 files. [282.00ms]`.
 - `bun run typecheck` (all 18 workspaces): clean, no output.
 - `bunx biome check apps/web/src/features/queue apps/web/src/features/metrics docs/epic-26-web-queue-metrics.md`:
   `Checked 29 files … No fixes applied`.
