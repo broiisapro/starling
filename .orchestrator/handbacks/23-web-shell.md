@@ -124,3 +124,5 @@ happy-dom, @testing-library/react).
   unless `connection === 'demo'`.
 - **`SkyState.events` includes `runId: '*'` events**, so `SkyViewProps.recent` receives flock events
   too. Documented in the reducer/docs; feature epics should ignore types they don't render.
+
+Closes #17
