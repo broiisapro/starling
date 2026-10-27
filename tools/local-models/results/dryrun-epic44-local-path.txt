@@ -1,0 +1,66 @@
+# Epic 44 — local-model path, verified offline (no Ollama, no model load)
+# date: 2026-10-27T20:14:32Z  host: Mokshs-MacBook-Pro-2.local
+
+$ bun tools/local-models/bench.ts --profile mbp --models qwen3.8:27b-mlx,qwen3.8:27b-mlx-lazy --think off --dry-run
+🐦 local-model bench — 12 cases × 2 · profile mbp · DRY RUN against a fake Ollama (no model is loaded)
+   ollama 0.0.0-fake at http://127.0.0.1:59316
+   rails: 0 opencode process(es), 12 GB free (needs 6 GB)
+   qwen3.8:27b-mlx: cold · free RAM 12 GB · 12 cases × 2
+   qwen3.8:27b-mlx-lazy: cold · free RAM 12 GB · 12 cases × 2
+
+| model | status | correct | json | TTFT | latency | tok/s | resident | free RAM |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| qwen3.8:27b-mlx | ok | 12/12 (100%) | 100% | 1 ms | 1 ms | 22370.61 | 7.5 GB | 12 → 12 GB |
+| qwen3.8:27b-mlx-lazy | ok | 6/12 (50%) | 100% | 1 ms | 1 ms | 14911.91 | 3 GB | 12 → 12 GB |
+
+   (dry run: latency, tok/s and RAM come from the fake — placeholders, not measurements)
+
+misses:
+   qwen3.8:27b-mlx: no misses
+   qwen3.8:27b-mlx-lazy: missed 6/12
+     · csv-export-no-tests: verdict pass=true, expected false; did not mention test
+     · lane-violation: verdict pass=true, expected false; did not mention lane
+     · partial-dod: verdict pass=true, expected false; did not mention empty
+     · tests-failing: verdict pass=true, expected false; did not mention fail
+     · … and 2 more
+
+| profile | role | model | accuracy | latency | resident |
+| --- | --- | --- | --- | --- | --- |
+| mbp | auditor | qwen3.8:27b-mlx | 100% | 1.04 ms | 7.5 GB |
+| mbp | summarizer | qwen3.8:27b-mlx | 100% | 1.04 ms | 7.5 GB |
+| air | auditor | qwen3.8:27b-mlx | 100% | 1.04 ms | 7.5 GB |
+| air | summarizer | qwen3.8:27b-mlx | 100% | 1.04 ms | 7.5 GB |
+
+{"mbp":{"auditor":"qwen3.8:27b-mlx","summarizer":"qwen3.8:27b-mlx"},"air":{"auditor":"qwen3.8:27b-mlx","summarizer":"qwen3.8:27b-mlx"}}
+
+   dry run: nothing written. Re-run without --dry-run on a quiet machine.
+
+# The bench writes nothing in dry-run mode (by design). To prove the file-based
+# bench -> recommend -> model-choice handoff, the same dry-run numbers are written to a
+# temporary results directory (placeholder numbers from the fake, not measurements) and
+# recommend.ts runs against it:
+$ bun tools/local-models/recommend.ts --results <tmp> --out <tmp>/recommendation.json
+| profile | role | model | accuracy | latency | resident |
+| --- | --- | --- | --- | --- | --- |
+| mbp | auditor | qwen3.8:27b-mlx | 100% | 2 ms | 7.5 GB |
+| mbp | summarizer | qwen3.8:27b-mlx | 100% | 2 ms | 7.5 GB |
+| air | auditor | qwen3.8:27b-mlx | 100% | 2 ms | 7.5 GB |
+| air | summarizer | qwen3.8:27b-mlx | 100% | 2 ms | 7.5 GB |
+
+wrote /var/folders/sw/x2p80y0x4pxccjn1fg2gq6740000gn/T/tmp.RW8Ru0jqLE/recommendation.json
+
+# The auditor then resolves its model from that file (STARLING_AUDITOR_MODEL unset):
+$ bun -e "chooseAuditorModel({ profile, cwd: '<repo with recommendation.json>' })"
+{"profile":"local","ramGb":32,"auditor":{"provider":"ollama","model":"qwen3.8:27b-mlx"},"worker":{"provider":"ollama","model":"qwen3.6:35b-a3b"},"local":true,"warning":null}
+{"profile":"local","ramGb":16,"auditor":{"provider":"ollama","model":"qwen3.8:27b-mlx"},"worker":{"provider":"ollama","model":"qwen3.6:35b-a3b"},"local":true,"warning":null}
+{"profile":"opencode","ramGb":32,"auditor":{"provider":"opencode","model":"opencode-go/deepseek-v4.1-flash"},"worker":{"provider":"opencode","model":"opencode-go/deepseek-v4.1-flash"},"local":false,"warning":"auditor profile \"mixed\" fell back to the opencode profile: ollama/qwen3.8:27b-mlx is not reachable or not pulled (`ollama ps` / `ollama list`). Audits will use the opencode server until it is."}
+
+# Caveat found while verifying (Epic 72 must handle it): `recommend.ts` reads every bench-*.json in
+# one directory and does not filter by the run's `profile` field, so a model measured on the 32 GB
+# laptop can win the 16 GB laptop's budget if its resident size also fits. Run the bench and
+# recommend.ts per laptop, with only that laptop's results in the directory.
+#
+# The demo default is "mixed": workers stay on DeepSeek and the auditor goes local only when Ollama
+# answers AND the recommended tag is pulled. With the probe reporting reachable:
+$ STARLING_AUDITOR_PROFILE=mixed bun -e "chooseAuditorModel({ profile: 'mixed', probe: async () => true })"
+{"profile":"mixed","auditor":{"provider":"ollama","model":"qwen3.8:27b-mlx"},"worker":{"provider":"deepseek","model":"deepseek-v4.1-flash"},"planner":{"provider":"deepseek","model":"deepseek-v4.1-flash"},"local":true,"warning":null}

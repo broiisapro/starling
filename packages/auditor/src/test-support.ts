@@ -59,10 +59,50 @@ index 0000000..1a2b3c4
 +export function initExportButton(): void {}
 `;
 
+export const EXPORT_TEST_PATCH = `diff --git a/src/features/export/index.test.ts b/src/features/export/index.test.ts
+new file mode 100644
+index 0000000..5d6e7f8
+--- /dev/null
++++ b/src/features/export/index.test.ts
+@@ -0,0 +1,12 @@
++import { describe, expect, test } from 'bun:test';
++import { exportCsv } from './index';
++
++describe('exportCsv', () => {
++  test('quotes a title with a comma', () => {
++    expect(exportCsv([{ id: '1', title: 'a,b' }])).toContain('"a,b"');
++  });
++
++  test('escapes an embedded quote', () => {
++    expect(exportCsv([{ id: '1', title: 'say "hi"' }])).toContain('"say ""hi"""');
++  });
++});
++`;
+
 export function csvDiff(overrides: Partial<DiffSummary> = {}): DiffSummary {
   return {
     files: [{ path: 'src/features/export/index.ts', added: 14, removed: 0 }],
     patch: EXPORT_PATCH,
+    truncated: false,
+    ...overrides,
+  };
+}
+
+/**
+ * The same diff **with** the colocated test file the DoD asks for.
+ *
+ * This is the default for `makeAuditInput`: the csv-export DoD explicitly requires a round-trip test,
+ * so a code-only diff is now a deterministic `missing-tests` failure (Epic 44) and cannot stand in
+ * for "passing work". Tests that specifically want the code-only diff pass `csvDiff()` instead.
+ */
+export function csvDiffWithTests(overrides: Partial<DiffSummary> = {}): DiffSummary {
+  return {
+    files: [
+      { path: 'src/features/export/index.ts', added: 14, removed: 0 },
+      { path: 'src/features/export/index.test.ts', added: 12, removed: 0 },
+    ],
+    patch: `${EXPORT_PATCH}
+${EXPORT_TEST_PATCH}`,
     truncated: false,
     ...overrides,
   };
@@ -119,10 +159,12 @@ export function makeAuditInput(options: AuditInputOptions = {}): AuditInput {
   return {
     ctx,
     run,
-    diff: options.diff ?? csvDiff(),
+    diff: options.diff ?? csvDiffWithTests(),
     changedFiles:
       options.changedFiles ??
-      (options.diff?.files.map((file) => file.path) || ['src/features/export/index.ts']),
+      (options.diff === undefined
+        ? ['src/features/export/index.ts', 'src/features/export/index.test.ts']
+        : options.diff.files.map((file) => file.path)),
     attempt: options.attempt ?? 1,
   };
 }

@@ -1,11 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuditVerdict } from '../lib/core';
 import type { AuditorCase } from './case';
-import { loadAuditorCases } from './cases';
+import { allAuditorCases } from './cases';
 import { referenceVerdict } from './reference';
 import { scoreAuditor } from './score';
 
-const cases = loadAuditorCases();
+// Every case, tuned and held out: the scorer is answer-key arithmetic, not a tuning measurement.
+const cases = allAuditorCases();
 
 interface Scored {
   testCase: AuditorCase;
@@ -40,9 +41,9 @@ describe('scoreAuditor', () => {
     const target = findByCase(list, 'missing-tests-csv-export');
     target.verdict = { ...target.verdict, pass: true, fixInstructions: undefined };
     const score = scoreAuditor(list);
-    expect(score.falsePassRate).toBe(0.125);
-    expect(score.accuracy).toBe(0.917);
-    expect(score.fixQuality).toBe(0.875);
+    expect(score.falsePassRate).toBe(0.091);
+    expect(score.accuracy).toBe(0.938);
+    expect(score.fixQuality).toBe(0.909);
   });
 
   test('a false fail is tracked separately from a false pass', () => {
@@ -54,9 +55,9 @@ describe('scoreAuditor', () => {
       fixInstructions: 'Add tests for the README.',
     };
     const score = scoreAuditor(list);
-    expect(score.falseFailRate).toBe(0.25);
+    expect(score.falseFailRate).toBe(0.2);
     expect(score.falsePassRate).toBe(0);
-    expect(score.accuracy).toBe(0.917);
+    expect(score.accuracy).toBe(0.938);
   });
 
   test('vague fix instructions lower fix quality and name the missing keywords', () => {
@@ -64,7 +65,7 @@ describe('scoreAuditor', () => {
     const target = findByCase(list, 'partial-csv-quoting');
     target.verdict = { ...target.verdict, fixInstructions: 'Please try again.' };
     const score = scoreAuditor(list);
-    expect(score.fixQuality).toBe(0.875);
+    expect(score.fixQuality).toBe(0.909);
     const result = score.results.find((entry) => entry.caseName === 'partial-csv-quoting');
     expect(result?.missingFixKeywords.length).toBe(3);
   });
@@ -74,7 +75,7 @@ describe('scoreAuditor', () => {
     const target = findByCase(list, 'lane-violation-lockfile');
     target.verdict = { ...target.verdict, laneViolations: [] };
     const score = scoreAuditor(list);
-    expect(score.laneDetection).toBe(0.917);
+    expect(score.laneDetection).toBe(0.938);
     const result = score.results.find((entry) => entry.caseName === 'lane-violation-lockfile');
     expect(result?.laneOk).toBe(false);
   });

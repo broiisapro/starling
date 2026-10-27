@@ -1,4 +1,4 @@
-import type { Clock, ExecOptions, ExecResult, LLM } from '@starling/core';
+import type { Clock, EventBus, ExecOptions, ExecResult, LLM } from '@starling/core';
 import { z } from 'zod';
 
 /**
@@ -7,9 +7,18 @@ import { z } from 'zod';
  */
 export type ExecFn = (cmd: string[], opts: ExecOptions) => Promise<ExecResult>;
 
+/**
+ * Reviewer model selection (Epic 44):
+ * - an `LLM` instance — used as given;
+ * - `'auto'` — resolve it from the routing profile (see `model-choice.ts`) on the first audit;
+ * - `'off'` — never call a model, so the verdict is fully deterministic;
+ * - omitted — `'auto'` only when `STARLING_LLM_PROFILE`/`STARLING_AUDITOR_PROFILE` is set, else `'off'`.
+ */
+export type AuditorLlmOption = LLM | 'auto' | 'off';
+
 export interface CreateAuditorOptions {
-  /** Reviewer model (role `auditor`). Without one the verdict is fully deterministic. */
-  llm?: LLM;
+  /** Reviewer model (role `auditor`), or a routing mode. See `AuditorLlmOption`. */
+  llm?: AuditorLlmOption;
   /** Injected command runner; defaults to the core `exec` (ARCHITECTURE L13/L14). */
   exec?: ExecFn;
   /** Injected clock for `AuditVerdict.ts`. */
@@ -20,10 +29,17 @@ export interface CreateAuditorOptions {
   lintBlocking?: boolean;
   /** Diff budget sent to the reviewer. Default 60 000 characters. */
   maxDiffChars?: number;
+  /** Where `'auto'` model selection logs its choice and its fallbacks (`log` events). */
+  bus?: EventBus;
+  /** Override the auditor routing profile (`opencode` | `local` | `mixed`); env wins by default. */
+  profile?: string;
+  /** Env source for profile/model selection; defaults to `process.env`. Injected by tests. */
+  env?: Record<string, string | undefined>;
 }
 
 export interface ResolvedAuditorOptions {
-  llm: LLM | undefined;
+  /** Lazy so `createAuditor()` stays synchronous and offline tests never construct a provider. */
+  llmFor: () => Promise<LLM | undefined>;
   exec: ExecFn;
   clock: Clock;
   commandTimeoutMs: number;

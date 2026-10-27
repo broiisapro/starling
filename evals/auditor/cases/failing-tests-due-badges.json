@@ -21,6 +21,12 @@
     "truncated": false
   },
   "changedFiles": ["src/features/due-dates/index.ts", "src/features/due-dates/index.test.ts"],
+  "suite": {
+    "pass": false,
+    "testName": "a todo due in three days says in 3 days",
+    "actual": "3 days ago",
+    "expected": "in 3 days"
+  },
   "expected": {
     "pass": false,
     "laneViolations": [],

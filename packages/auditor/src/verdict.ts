@@ -1,6 +1,7 @@
 import type { AuditCheck, TaskSpec } from '@starling/core';
 import type { CommandResult } from './commands';
 import { describeCommand, tailText } from './commands';
+import type { MissingTestsSignal } from './diff';
 import type { LaneCheckResult } from './lane';
 import type { AuditorLlmVerdict } from './types';
 
@@ -26,6 +27,18 @@ export function diffDetail(files: number, added: number, removed: number, empty:
   return `diff touches ${files} file(s), +${added}/-${removed} lines`;
 }
 
+/** Human-readable detail for the deterministic missing-tests check (Epic 44). */
+export function missingTestsDetail(signal: MissingTestsSignal): string {
+  const first = signal.items[0];
+  if (first === undefined) return 'the definition of done does not ask for tests';
+  if (!signal.missing) {
+    return `the definition of done asks for tests ("${first}") and a test file changed`;
+  }
+  const files = signal.behaviourFiles.slice(0, 3).join(', ');
+  const more = signal.behaviourFiles.length > 3 ? ` and ${signal.behaviourFiles.length - 3} more` : '';
+  return `the definition of done requires tests ("${first}") but the diff changes ${files}${more} with no test file`;
+}
+
 export function commandDetail(result: CommandResult, label: string): string {
   const status = describeCommand(result);
   return result.ran ? `${label}: ${status}` : `${label}: skipped`;
@@ -35,6 +48,8 @@ export interface FixInstructionInput {
   task: TaskSpec;
   lane: LaneCheckResult;
   emptyDiff: boolean;
+  /** Deterministic missing-tests signal (Epic 44); omitted by older callers. */
+  missingTests?: MissingTestsSignal;
   testCommand?: string;
   tests: CommandResult;
   lintCommand?: string;
@@ -42,6 +57,8 @@ export interface FixInstructionInput {
   lintBlocking: boolean;
   commandTimeoutMs: number;
   llmVerdict?: AuditorLlmVerdict;
+  /** Set when a configured reviewer did not answer: an infrastructure retry, not a code fix. */
+  reviewerFailure?: string;
 }
 
 function stripListMarker(line: string): string {
@@ -110,6 +127,18 @@ export function buildFixInstructions(input: FixInstructionInput): string | undef
     items.push(`The diff is empty. Implement the deliverables and commit them: ${deliverables}.`);
   }
 
+  if (input.missingTests?.missing === true) {
+    const required = input.missingTests.items.map((item) => `"${item}"`).join(', ');
+    const first = input.missingTests.behaviourFiles[0];
+    const hint =
+      first === undefined
+        ? ''
+        : ` Put them next to the code (for \`${first}\`, a colocated \`*.test.ts\` file).`;
+    items.push(
+      `Add the tests the definition of done requires: ${required}. No test file changed.${hint} Then re-run the test command.`,
+    );
+  }
+
   const testsInstruction = commandFailureInstruction(input.testCommand, input.tests, input.commandTimeoutMs);
   if (testsInstruction !== undefined) items.push(testsInstruction);
 
@@ -133,6 +162,12 @@ export function buildFixInstructions(input: FixInstructionInput): string | undef
     }
   }
 
+  if (input.reviewerFailure !== undefined) {
+    items.push(
+      `The audit could not be completed: ${input.reviewerFailure}. This is an infrastructure failure, not a problem with the diff — do not rewrite working code. The audit must be re-run, and it fails while the reviewer is unreachable because un-reviewed work is never merged.`,
+    );
+  }
+
   const unique = dedupe(items);
   if (unique.length === 0) return undefined;
   return unique.map((item, index) => `${index + 1}. ${item}`).join('\n');
@@ -145,6 +180,8 @@ export interface SummaryInput {
   llmSummary?: string;
   llmConsulted: boolean;
   llmSkippedReason?: string;
+  /** A reviewer was configured and did not answer; the audit cannot pass unjudged work. */
+  reviewerFailed?: boolean;
 }
 
 export function buildSummary(input: SummaryInput): string {
@@ -160,6 +197,9 @@ export function buildSummary(input: SummaryInput): string {
   const failed = input.checks.filter((check) => !check.ok).map((check) => check.name);
   const reason = failed.length > 0 ? `failed ${failed.join(', ')}` : 'failed the audit';
   const parts = [`Audit ${reason}.`];
+  if (input.reviewerFailed === true) {
+    parts.push('The reviewer model did not answer, so the diff is un-reviewed and cannot pass.');
+  }
   if (input.laneViolations.length > 0) {
     parts.push(`${input.laneViolations.length} lane violation(s).`);
   }

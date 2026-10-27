@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@starling/core": "workspace:*",
+    "@starling/llm": "workspace:*",
     "picomatch": "4.0.7",
     "zod": "4.6.7"
   },

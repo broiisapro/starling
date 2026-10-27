@@ -1,5 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { diffSignals, isBehaviourPath, isTestPath, prioritiseDiff, signalsFor, splitDiff } from './diff.ts';
+import {
+  diffSignals,
+  dodTestRequirements,
+  isBehaviourPath,
+  isTestPath,
+  missingTestsSignal,
+  prioritiseDiff,
+  signalsFor,
+  splitDiff,
+} from './diff.ts';
 import { csvDiff, EXPORT_PATCH } from './test-support.ts';
 
 const STYLES_BLOCK = `diff --git a/src/ui/styles.css b/src/ui/styles.css
@@ -141,5 +150,61 @@ describe('prioritiseDiff', () => {
     expect(result.truncated).toBe(true);
     expect(result.omittedFiles).toContain('src/features/help/index.ts');
     expect(result.omittedFiles).toContain('src/ui/styles.css');
+  });
+});
+
+describe('missingTestsSignal — the deterministic false-pass guard (Epic 44)', () => {
+  test('a DoD item that asks for coverage counts; "bun test passes" does not', () => {
+    expect(
+      dodTestRequirements([
+        'bun test passes',
+        'Tests cover a title with a comma and one with an embedded quote',
+        'Existing tests still pass',
+        'The suite is green',
+        'Colocated tests cover the restore and the disabled state',
+        'No runtime behaviour changes',
+      ]),
+    ).toEqual([
+      'Tests cover a title with a comma and one with an embedded quote',
+      'Colocated tests cover the restore and the disabled state',
+    ]);
+  });
+
+  test('fires when the DoD asks for tests, source changed and no test file did', () => {
+    const signal = missingTestsSignal(
+      ['Tests cover comma and quote', 'bun test passes'],
+      ['src/features/export/index.ts'],
+    );
+    expect(signal.missing).toBe(true);
+    expect(signal.behaviourFiles).toEqual(['src/features/export/index.ts']);
+    expect(signal.items).toEqual(['Tests cover comma and quote']);
+  });
+
+  test('stays silent when a test file changed', () => {
+    const signal = missingTestsSignal(
+      ['Tests cover comma and quote'],
+      ['src/features/export/index.ts', 'src/features/export/index.test.ts'],
+    );
+    expect(signal.missing).toBe(false);
+    expect(signal.items).toHaveLength(1);
+  });
+
+  test('stays silent for a test-only task: there is no source change to cover', () => {
+    const signal = missingTestsSignal(
+      ['A regression test fails on the old implementation'],
+      ['src/lib/dates.test.ts'],
+    );
+    expect(signal.missing).toBe(false);
+    expect(signal.behaviourFiles).toEqual([]);
+  });
+
+  test('stays silent for a type-only or docs-only task, whose DoD asks for no tests', () => {
+    expect(
+      missingTestsSignal(
+        ['StatsRow is derived from the shared Todo type', 'bun test passes'],
+        ['src/features/stats/types.ts'],
+      ).missing,
+    ).toBe(false);
+    expect(missingTestsSignal(['README lists the slots'], ['src/features/README.md']).missing).toBe(false);
   });
 });

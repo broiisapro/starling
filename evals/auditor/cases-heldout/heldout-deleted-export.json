@@ -1,0 +1,34 @@
+{
+  "name": "heldout-deleted-export",
+  "title": "A shared date helper was deleted while 'simplifying' (held out)",
+  "heldOut": true,
+  "task": {
+    "key": "dates-simplify",
+    "title": "Simplify the date helpers without changing their output",
+    "goal": "Collapse the duplicated date formatting branches. Every exported helper keeps its signature and output.",
+    "deliverables": ["formatShort keeps its exact output", "No exported helper is removed"],
+    "outOfScope": ["Renaming exports", "Changing the store"],
+    "definitionOfDone": [
+      "formatShort returns the same strings as before",
+      "Every previously exported helper is still exported",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/lib/dates.ts"], "reads": ["src/store/todos.ts"] },
+    "estimateMin": 15
+  },
+  "diff": {
+    "files": [{ "path": "src/lib/dates.ts", "added": 2, "removed": 9 }],
+    "patch": "diff --git a/src/lib/dates.ts b/src/lib/dates.ts\nindex 7777777..8888888 100644\n--- a/src/lib/dates.ts\n+++ b/src/lib/dates.ts\n@@ -1,16 +1,9 @@\n-export function formatTime(value: Date): string {\n-  return value.toTimeString().slice(0, 5)\n-}\n-\n-export function formatDate(value: Date): string {\n-  return value.toISOString().slice(0, 10)\n-}\n+const pad = (n: number): string => String(n).padStart(2, '0')\n \n export function formatShort(value: string | Date): string {\n   const date = typeof value === 'string' ? parseDate(value) : value\n-  return formatDate(date)\n+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`\n }\n \n export function parseDate(value: string): Date {\n   return new Date(`${value}T00:00:00`)\n }\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/lib/dates.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["definition-of-done"],
+    "mustMention": [["formattime"], ["restore", "revert", "removed"]],
+    "referenceFix": "Restore the deleted formatTime and formatDate exports in src/lib/dates.ts: other modules import them, and the DoD says no exported helper is removed. The inlined date math can stay. Re-run bun test.",
+    "rationale": "formatShort still works, but the diff deletes two exported helpers that callers rely on. 'Simplify' never authorised removing public API, so the DoD item is unmet."
+  }
+}
