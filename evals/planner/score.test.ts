@@ -130,6 +130,32 @@ describe('scorePlan', () => {
     expect(check(score, 'validator').ok).toBe(true);
   });
 
+  test('a new feature folder may be named differently when the feature task owns it', () => {
+    const { plan } = fixture('sky-todo-quick-wins');
+    const renames: Record<string, string> = {
+      'title-count': 'src/features/tab-title/**',
+      today: 'src/features/header-date/**',
+      'tag-count': 'src/features/tag-footer/**',
+    };
+    const tasks = cloneTasks(plan).map((task) => {
+      const target = renames[task.key];
+      return target === undefined ? task : { ...task, lane: { ...task.lane, owns: [target] } };
+    });
+    const score = rescore('sky-todo-quick-wins', tasks);
+    const lanes = check(score, 'lane-precision');
+    expect(lanes.ok).toBe(true);
+    expect(lanes.detail).toContain('covered 3/3');
+  });
+
+  test('an existing required file still needs exact coverage', () => {
+    const { plan } = fixture('sky-todo-launch-day');
+    const tasks = cloneTasks(plan).map((task) =>
+      task.key === 'theme' ? { ...task, lane: { ...task.lane, owns: ['src/templates/theme/**'] } } : task,
+    );
+    const score = rescore('sky-todo-launch-day', tasks);
+    expect(check(score, 'lane-precision').detail).toContain('src/features/theme/index.ts');
+  });
+
   test('owning a forbidden shared file fails lane precision', () => {
     const { plan } = fixture('sky-todo-launch-day');
     const tasks = cloneTasks(plan).map((task) =>

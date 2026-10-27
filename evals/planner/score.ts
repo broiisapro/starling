@@ -1,5 +1,5 @@
 import type { Plan, RepoMap, TaskSpec } from '../lib/core';
-import { globsOverlap, matchesAny } from '../lib/core';
+import { globsOverlap, matchesAny, normalizeGlobPath } from '../lib/core';
 import type { PlannerCase } from './case';
 import { validatePlan } from './validate';
 
@@ -204,7 +204,9 @@ function tasksForFeature(taskFeatures: Map<string, Set<string>>, feature: string
 
 function checkLanes(plan: Plan, testCase: PlannerCase, knownFiles: Set<string>): PlanCheck {
   const covered = testCase.requiredLaneFiles.filter((file) =>
-    plan.tasks.some((task) => matchesAny(file, task.lane.owns)),
+    plan.tasks.some(
+      (task) => matchesAny(file, task.lane.owns) || coversNewFeatureFolder(file, task, testCase, knownFiles),
+    ),
   );
   const violations = testCase.forbiddenFiles.filter((file) =>
     plan.tasks.some((task) => matchesAny(file, task.lane.owns)),
@@ -226,6 +228,40 @@ function checkLanes(plan: Plan, testCase: PlannerCase, knownFiles: Set<string>):
       (missing.length > 0 ? `, missing ${missing.join(', ')}` : '') +
       (violations.length > 0 ? `, forbids-touched ${violations.join(', ')}` : ''),
   };
+}
+
+/**
+ * Coverage for a feature folder that does not exist yet.
+ *
+ * The answer key names a concrete new path (`src/features/undo/index.ts`), but the goal never
+ * dictates the folder's name: `src/features/undo-redo/**` is an equally good home for the same
+ * capability. For a path that is not in the repo map, accept any owned path under the same feature
+ * root *when the owning task is the task for that feature*. Existing files and shared paths still
+ * need exact coverage, and `forbiddenFiles` still catches shared writes.
+ */
+function coversNewFeatureFolder(
+  file: string,
+  task: TaskSpec,
+  testCase: PlannerCase,
+  knownFiles: Set<string>,
+): boolean {
+  if (knownFiles.has(file)) return false;
+  const segments = normalizeGlobPath(file).split('/');
+  if (segments.length < 3) return false;
+  const folder = (segments[segments.length - 2] ?? '').toLowerCase();
+  if (folder === '') return false;
+  const root = segments.slice(0, -2).join('/');
+  if (!task.lane.owns.some((glob) => normalizeGlobPath(glob).startsWith(`${root}/`))) return false;
+
+  const candidates = testCase.features.filter(
+    (feature) =>
+      feature.id
+        .toLowerCase()
+        .split('-')
+        .some((word) => word.length > 2 && folder.includes(word)) ||
+      feature.keywords.some((group) => group.some((word) => folder.includes(word.toLowerCase()))),
+  );
+  return candidates.some((feature) => matchesFeature(task, feature.keywords));
 }
 
 function checkDefinitionOfDone(plan: Plan): PlanCheck {

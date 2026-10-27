@@ -38,9 +38,13 @@ export interface LiveCaseResult {
 
 export interface LiveRunOptions {
   caseName?: string;
+  /** Run only these cases (iteration loop); `caseName` is the single-case shorthand. */
+  caseNames?: string[];
   maxTokens?: number;
   maxRepairs?: number;
   temperature?: number;
+  /** Approximate token budget for the repo-map block. Default 3000. */
+  mapTokens?: number;
   /** `repomap` (default) or `verbose`: the A/B the assignment asks for. */
   mapRenderer?: MapRenderer;
   /** Extra attempts per case when the provider returns an unusable completion. Default 1. */
@@ -60,12 +64,14 @@ export interface LiveRunResult {
 
 export async function runLivePlannerEval(options: LiveRunOptions = {}): Promise<LiveRunResult> {
   const all = loadPlannerCases();
-  const cases = options.caseName === undefined ? all : [findPlannerCase(all, options.caseName)];
+  const wanted = options.caseNames ?? (options.caseName === undefined ? undefined : [options.caseName]);
+  const cases = wanted === undefined ? all : wanted.map((name) => findPlannerCase(all, name));
   const { planner } = createLivePlanner({
     ...(options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens }),
     ...(options.maxRepairs === undefined ? {} : { maxRepairs: options.maxRepairs }),
     ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
     ...(options.mapRenderer === undefined ? {} : { mapRenderer: options.mapRenderer }),
+    ...(options.mapTokens === undefined ? {} : { mapTokens: options.mapTokens }),
   });
 
   const results: LiveCaseResult[] = [];
@@ -147,10 +153,12 @@ export function formatLines(result: LiveRunResult): string {
 
 interface CliArgs {
   caseName?: string;
+  caseNames?: string[];
   maxTokens?: number;
   maxRepairs?: number;
   temperature?: number;
   mapRenderer?: MapRenderer;
+  mapTokens?: number;
   dumpDir?: string;
   out?: string;
 }
@@ -174,9 +182,15 @@ export function parseArgs(argv: string[]): CliArgs {
       return value;
     };
     if (flag === '--case') args.caseName = next();
-    else if (flag === '--max-tokens') args.maxTokens = numeric();
+    else if (flag === '--cases') {
+      args.caseNames = next()
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value !== '');
+    } else if (flag === '--max-tokens') args.maxTokens = numeric();
     else if (flag === '--max-repairs') args.maxRepairs = numeric();
     else if (flag === '--temperature') args.temperature = numeric();
+    else if (flag === '--map-tokens') args.mapTokens = numeric();
     else if (flag === '--map-renderer') {
       const value = next();
       if (value !== 'repomap' && value !== 'verbose') {
@@ -221,10 +235,12 @@ async function main(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   const result = await runLivePlannerEval({
     ...(args.caseName === undefined ? {} : { caseName: args.caseName }),
+    ...(args.caseNames === undefined ? {} : { caseNames: args.caseNames }),
     ...(args.maxTokens === undefined ? {} : { maxTokens: args.maxTokens }),
     ...(args.maxRepairs === undefined ? {} : { maxRepairs: args.maxRepairs }),
     ...(args.temperature === undefined ? {} : { temperature: args.temperature }),
     ...(args.mapRenderer === undefined ? {} : { mapRenderer: args.mapRenderer }),
+    ...(args.mapTokens === undefined ? {} : { mapTokens: args.mapTokens }),
     onCase: (entry) => {
       console.log(
         `· ${entry.caseName} score=${entry.score.score.toFixed(3)} tasks=${entry.tasks} ${entry.elapsedMs}ms`,

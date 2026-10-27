@@ -31,6 +31,7 @@ export interface LivePlannerOptions {
   minTasks?: number;
   maxTasks?: number;
   mapRenderer?: MapRenderer;
+  mapTokens?: number;
 }
 
 export interface LivePlanner {
@@ -61,6 +62,7 @@ export function createLivePlanner(options: LivePlannerOptions = {}): LivePlanner
     ...(options.minTasks === undefined ? {} : { minTasks: options.minTasks }),
     ...(options.maxTasks === undefined ? {} : { maxTasks: options.maxTasks }),
     ...(options.mapRenderer === undefined ? {} : { mapRenderer: options.mapRenderer }),
+    ...(options.mapTokens === undefined ? {} : { mapTokens: options.mapTokens }),
   });
   return { planner, llm, service };
 }
