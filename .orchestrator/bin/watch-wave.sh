@@ -43,6 +43,11 @@ while true; do
       grep -qx "$branch" "$SEEN" || { echo "$branch" >> "$SEEN"; notify "Epic ${base%%-*} opened its PR" "$url"; }
     else pr="…"; fi
     printf "%-24s %-9s %-7s %-6s %-44s %s\n" "$base" "$alive" "$commits" "$dirty" "$last" "$pr"
+    log="$WT_ROOT/_logs/${base}.log"
+    if [ -f "$log" ] && [ -z "${url:-}" ]; then   # still in flight → show what it's doing right now
+      act="$(tail -c 4000 "$log" | sed $'s/\x1b\\[[0-9;?]*[A-Za-z]//g' | tr -d '\r' | grep -v '^[[:space:]]*$' | tail -1 | cut -c1-110)"
+      printf "   %s↳ %s (log %s ago)\n" "" "$act" "$(ago "$(stat -f %m "$log" 2>/dev/null || date +%s)")"
+    fi
   done
   echo
   if [ "$total" -gt 0 ] && [ "$withpr" = "$total" ]; then

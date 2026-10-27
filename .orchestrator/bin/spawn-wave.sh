@@ -8,12 +8,12 @@
 #              or "checkpoint-C1" etc: runs .orchestrator/prompts/checkpoint-C1.md on main
 #   --only     comma list of epic numbers to launch (default: all in the wave)
 #   --machine  mbp|air: only launch epics assigned to this laptop in .orchestrator/epics.tsv
-#   --mode     terminal (default on macOS): one Terminal/iTerm window per agent, tiled on screen
-#              tmux: one tmux window per agent · bg: headless background processes, logs in ../starling-wt/_logs/
-#   --ui       tui (default): a real interactive opencode session per window. The model comes from the
+#   --mode     bg (default): headless background agents, logs in ../starling-wt/_logs/ (watch: watch-wave.sh <wave>)
+#              terminal: one Terminal/iTerm window per agent · tmux: one tmux window per agent
+#   --ui       tui: a real interactive opencode session per window (terminal/tmux modes only). The model comes from the
 #              repo's opencode.json "model" key (newer opencode TUIs have no --model flag). Sessions are
 #              normal opencode sessions, so they also show up in `opencode`'s session list.
-#              run: headless `opencode run` streaming output, also tee'd to ../starling-wt/_logs/ (always used for bg)
+#              run (default): headless `opencode run`, output tee'd to ../starling-wt/_logs/ (always used for bg)
 #   --resume   instead of NN-slug.md, run the newest NN-slug.fixK.md for each selected epic (worktree must exist)
 #   --dry-run  print what would happen
 #
@@ -42,11 +42,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -z "$WAVE" ] && { sed -n '2,20p' "$0"; exit 1; }
-if [ -z "$MODE" ]; then
-  if [ "$(uname)" = Darwin ] && command -v osascript >/dev/null 2>&1; then MODE=terminal
-  elif command -v tmux >/dev/null 2>&1; then MODE=tmux; else MODE=bg; fi
-fi
-[ -z "$UI" ] && UI=tui
+[ -z "$MODE" ] && MODE=bg      # lightest: headless, no windows. Watch with watch-wave.sh, stop with stop-agents.sh
+[ -z "$UI" ] && UI=run
 [ "$MODE" = bg ] && UI=run
 
 command -v opencode >/dev/null || { echo "opencode not found on PATH"; exit 1; }
@@ -92,6 +89,7 @@ MSG="Your assignment is the file ${prompt} in this worktree. Read it completely,
 echo "=== \$(date) :: ${name} :: model ${MODEL} :: ui ${UI} ===" >> "$LOG_DIR/${name}.log"
 ${cmd}
 echo; echo "--- epic ${name}: opencode exited at \$(date) ---"
+osascript -e 'display notification "Agent for epic ${name} finished. Check its window / PR." with title "🐦 Starling" sound name "Glass"' >/dev/null 2>&1 || true
 EOF
   chmod +x "$script"
   echo "🐦 launching ${name}  (${MODE}/${UI})"
@@ -191,5 +189,5 @@ echo "✨ ${TOTAL} starling(s) in the air."
 case "$MODE" in
   terminal) echo "Each agent has its own window. Cmd-\` cycles windows; click into one to talk to that agent.";;
   tmux) echo "watch: tmux attach -t $SESSION   (Ctrl-b w to pick a window)";;
-  *) echo "logs: $LOG_DIR";;
+  *) echo "Running headless. Scoreboard: bash .orchestrator/bin/watch-wave.sh ${WAVE}   ·   stop: bash .orchestrator/bin/stop-agents.sh";;
 esac
