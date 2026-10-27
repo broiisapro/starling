@@ -1,5 +1,6 @@
 import type { Clock, EventBus, ExecOptions, ExecResult, LLM } from '@starling/core';
 import { z } from 'zod';
+import type { CommandPolicy } from './command-policy';
 
 /**
  * `typeof exec` from `@starling/core`, restated structurally so tests can inject a fake without
@@ -35,6 +36,17 @@ export interface CreateAuditorOptions {
   profile?: string;
   /** Env source for profile/model selection; defaults to `process.env`. Injected by tests. */
   env?: Record<string, string | undefined>;
+  /**
+   * What the repo-provided test/lint commands may execute (Epic 103, SEC-11). Defaults to
+   * `{ mode: 'any', scrubEnv: true }`, so existing repos behave exactly as before.
+   */
+  commandPolicy?: CommandPolicy;
+  /**
+   * When true, a task with no `run.worktreePath` fails the `tests` check instead of grading the hub
+   * repo (Epic 103; Epic 100 starts filling `worktreePath`). Default false: the check still runs and
+   * its detail says where it ran.
+   */
+  requireWorktree?: boolean;
 }
 
 export interface ResolvedAuditorOptions {
@@ -45,6 +57,8 @@ export interface ResolvedAuditorOptions {
   commandTimeoutMs: number;
   lintBlocking: boolean;
   maxDiffChars: number;
+  commandPolicy: CommandPolicy;
+  requireWorktree: boolean;
 }
 
 export const DEFAULT_COMMAND_TIMEOUT_MS = 600_000;
