@@ -8,7 +8,7 @@
  * `task.migrated` events start a long arc between roosts, `node.joined` grows a roost in, and
  * `node.left` dims it and scatters its birds.
  */
-import type { NodeInfo, Plan, StarlingEvent, TaskRun, TaskStatus } from '@starling/core';
+import type { NodeInfo, Plan, Run, StarlingEvent, TaskRun, TaskStatus } from '@starling/core';
 import {
   type Behaviour,
   type BehaviourKind,
@@ -18,6 +18,16 @@ import {
 } from './behaviour';
 import { type BoidBuffers, type BoidFlock, placeStatic, stepBoids, TAU } from './boids';
 import { applyCalmLayout } from './calm';
+import {
+  BEAT_DECAY,
+  createSparkPool,
+  NOTICE_LIFE,
+  RIPPLE_LIFE,
+  type RoostNotice,
+  type SparkPool,
+  spawnSparks,
+  stepSparks,
+} from './cues';
 import {
   layoutRoosts,
   makeWire,
@@ -35,6 +45,12 @@ export const MAX_BIRDS = BIRDS_PER_FLOCK * MAX_TASKS;
 export const TRAIL_CAP = 48;
 /** Agent events this close to "now" make a flock fly harder. */
 export const ACTIVITY_WINDOW_MS = 10_000;
+/** The final "all landed" wave that runs across the wire once the run finishes. */
+export const SWEEP_DURATION = 3.2;
+/** How long the bright landing shimmer lasts after a flock reaches the wire. */
+export const LANDING_SHIMMER = 1.5;
+/** Sparks per `file.edited`. */
+export const SPARKS_PER_EDIT = 4;
 
 const MIGRATE = migrateBehaviour();
 const SCATTER = scatterBehaviour();
@@ -85,12 +101,16 @@ export interface Flock extends BoidFlock {
   enterY: number;
   /** Wire slot in merge order, or -1. Assigned when the flock starts merging. */
   mergedSlot: number;
+  /** 1-based landing order, or 0 while the flock has not landed yet. */
+  landedSeq: number;
   roostSlot: number;
   roostCount: number;
   orbit: number;
   migration: Migration | null;
   scatterUntil: number;
   scatterAngle: number;
+  /** A `tool.call` pulse: 1 on the event, decays to 0. Drives the beat ring. */
+  beat: number;
   /** Leader breadcrumbs for the migration trail (x, y pairs). */
   trail: Float32Array;
   trailLen: number;
@@ -104,8 +124,18 @@ export interface SkyInput {
   tasks?: Record<string, TaskRun>;
   nodes: readonly NodeInfo[];
   recent?: readonly StarlingEvent[];
+  /** Run status, so the sim can fire the final "all landed" sweep exactly once. */
+  status?: Run['status'];
   /** Wall-clock time of this input in epoch ms. Defaults to the newest event's ts. */
   now?: number;
+}
+
+/** Sound cues the sim produced since the last drain (the SkyView feeds them to WebAudio). */
+export interface AudioCues {
+  landings: number;
+  migrations: number;
+  joins: number;
+  leaves: number;
 }
 
 export interface SkySimOptions {
@@ -150,21 +180,31 @@ export class SkySimulation {
   height: number;
   wire: Wire;
   readonly birds: BoidBuffers;
+  readonly sparks: SparkPool;
   readonly seed: number;
 
   flocks: Flock[] = [];
   roosts: Roost[] = [];
+  /** Toast-like captions (join / leave / all-landed), oldest first. */
+  notices: RoostNotice[] = [];
   simTime = 0;
   reducedMotion: boolean;
+  /** -1 when idle; otherwise seconds into the final all-landed sweep. */
+  sweepT = -1;
 
   private rng: () => number;
   private runId: string | undefined;
   private nodes: readonly NodeInfo[] = [];
   private mergedCounter = 0;
+  private landedCounter = 0;
+  private pendingCues: AudioCues = { landings: 0, migrations: 0, joins: 0, leaves: 0 };
+  private sweepSeen = false;
   private baseNow = 0;
   private baseTime = 0;
   private eventTs = new Map<string, number[]>();
   private lastMigrationTs = new Map<string, number>();
+  private lastCueTs = new Map<string, number>();
+  private lastNoticeTs = new Map<string, number>();
   private tx = 0;
   private ty = 0;
 
@@ -175,6 +215,7 @@ export class SkySimulation {
     this.rng = mulberry32(this.seed);
     this.reducedMotion = opts.reducedMotion ?? false;
     this.wire = makeWire(this.width, this.height);
+    this.sparks = createSparkPool();
     this.birds = {
       x: new Float32Array(MAX_BIRDS),
       y: new Float32Array(MAX_BIRDS),
@@ -199,7 +240,12 @@ export class SkySimulation {
     this.syncRoosts(input.nodes);
     this.collectEvents(input.recent ?? []);
     this.syncFlocks(input.plan, input.tasks);
+    this.collectCues(input.recent ?? []);
     this.assignRoostSlots();
+    if (input.status === 'finished' && !this.sweepSeen) {
+      this.sweepSeen = true;
+      this.startSweep();
+    }
     if (this.reducedMotion) this.layoutCalm();
   }
 
@@ -214,6 +260,9 @@ export class SkySimulation {
       if (old) {
         r.grow = old.grow;
         r.dim = old.dim;
+        r.busy = old.busy;
+        r.ripple = old.ripple;
+        r.left = old.left;
       }
       return r;
     });
@@ -234,14 +283,35 @@ export class SkySimulation {
   step(dt: number): void {
     const d = Math.min(Math.max(dt, 0), 0.05);
     this.simTime += d;
+    this.advanceSweep(d);
     this.animateRoosts(d);
     if (this.reducedMotion) return;
+    stepSparks(this.sparks, d);
     for (const flock of this.flocks) this.stepFlock(flock, d);
   }
 
   // ── queries ───────────────────────────────────────────────────────────────────────────────────
   findFlock(taskKey: string): Flock | undefined {
     return this.flocks.find((f) => f.taskKey === taskKey);
+  }
+
+  /** Cues produced since the last call (the SkyView drains these every frame and clears them). */
+  drainAudioCues(): AudioCues {
+    const out = { ...this.pendingCues };
+    this.pendingCues.landings = 0;
+    this.pendingCues.migrations = 0;
+    this.pendingCues.joins = 0;
+    this.pendingCues.leaves = 0;
+    return out;
+  }
+
+  /** How much of the flock is actually working — the low hum's volume. */
+  workingFraction(): number {
+    let active = 0;
+    for (const flock of this.flocks) {
+      if (flock.status === 'running' || flock.status === 'auditing' || flock.status === 'fixing') active++;
+    }
+    return Math.min(1, active / 8);
   }
 
   /** Nearest flock leader within `radius` CSS pixels — the click/hover target. */
@@ -274,9 +344,18 @@ export class SkySimulation {
   // ── input diffing ─────────────────────────────────────────────────────────────────────────────
   private resetFlocks(): void {
     this.flocks = [];
+    this.notices = [];
     this.mergedCounter = 0;
+    this.landedCounter = 0;
+    this.sweepT = -1;
+    this.sweepSeen = false;
+    this.pendingCues = { landings: 0, migrations: 0, joins: 0, leaves: 0 };
     this.eventTs.clear();
     this.lastMigrationTs.clear();
+    this.lastCueTs.clear();
+    this.lastNoticeTs.clear();
+    this.sparks.life.fill(0);
+    this.sparks.head = 0;
   }
 
   private syncRoosts(nodes: readonly NodeInfo[]): void {
@@ -291,6 +370,9 @@ export class SkySimulation {
       if (old) {
         r.grow = old.grow;
         r.dim = old.dim;
+        r.busy = old.busy;
+        r.ripple = old.ripple;
+        r.left = old.left;
         wasDim.set(r.nodeId, old.dimTarget);
       } else {
         r.grow = 0;
@@ -299,24 +381,31 @@ export class SkySimulation {
       seen.add(r.nodeId);
       next.push(r);
     }
-    // Nodes that vanished from the list keep a dimmed roost so the scatter is visible.
+    // Nodes that vanished from the list keep a dimmed roost so the scatter and the caption are visible.
     for (const old of this.roosts) {
       if (seen.has(old.nodeId)) continue;
       wasDim.set(old.nodeId, old.dimTarget);
       old.dimTarget = 0.25;
+      if (old.left < 0) old.left = 0;
       next.push(old);
     }
 
     for (const r of next) {
-      const node = nodes.find((n) => n.id === r.nodeId);
+      const node = layoutNodes.find((n) => n.id === r.nodeId);
       const active = node !== undefined && node.status !== 'offline';
       const was = wasDim.get(r.nodeId) ?? 1;
-      if (was > 0.5 && !active) this.scatterFlocksOn(r.nodeId);
+      if (was > 0.5 && !active) {
+        this.scatterFlocksOn(r.nodeId);
+        if (r.left < 0) r.left = 0;
+      }
       if (was <= 0.5 && active) r.grow = 0;
       r.dimTarget = active ? 1 : 0.25;
       if (node) {
         r.name = node.name;
         r.kind = node.kind;
+        r.activeSessions = node.activeSessions;
+        r.maxSessions = node.maxSessions;
+        if (node.kind === 'local' && node.id === 'hub') r.isHub = true;
       }
     }
     this.roosts = next;
@@ -345,7 +434,62 @@ export class SkySimulation {
           this.lastMigrationTs.set(taskKey, e.ts);
           const flock = this.findFlock(taskKey);
           if (flock) this.startMigration(flock, fromNode, toNode);
+          this.pendingCues.migrations += 1;
         }
+      } else if (e.type === 'node.joined' || e.type === 'node.left') {
+        this.collectNodeEvent(e);
+      }
+    }
+  }
+
+  /**
+   * Join/leave captions and roost ripples. Events are deduplicated by timestamp and **back-dated**
+   * to their wall time, so a replay frame that lands nine seconds after the join shows a settled
+   * roost, not a fresh toast.
+   */
+  private collectNodeEvent(e: Extract<StarlingEvent, { type: 'node.joined' | 'node.left' }>): void {
+    const nodeId = e.type === 'node.joined' ? e.payload.node.id : e.payload.nodeId;
+    const name =
+      e.type === 'node.joined'
+        ? e.payload.node.name
+        : (this.roosts.find((r) => r.nodeId === nodeId)?.name ?? nodeId);
+    const id = `${e.type}:${nodeId}`;
+    const last = this.lastNoticeTs.get(id) ?? Number.NEGATIVE_INFINITY;
+    if (e.ts <= last) return;
+    this.lastNoticeTs.set(id, e.ts);
+    const age = Math.max(0, (this.baseNow - e.ts) / 1000);
+    const roost = this.roosts.find((r) => r.nodeId === nodeId);
+    if (e.type === 'node.joined') {
+      if (roost) {
+        roost.ripple = age;
+        roost.left = -1;
+      }
+      this.pendingCues.joins += 1;
+      this.notices.push({ id, nodeId, name, kind: 'joined', born: this.simTime - age, life: NOTICE_LIFE });
+    } else {
+      if (roost) roost.left = age;
+      this.pendingCues.leaves += 1;
+      this.notices.push({ id, nodeId, name, kind: 'left', born: this.simTime - age, life: NOTICE_LIFE });
+    }
+  }
+
+  /**
+   * Work cues: a `file.edited` throws sparks at the flock, a `tool.call` makes it beat. Runs after
+   * `syncFlocks`, so a cue that arrives with the very first input still lands on a real flock.
+   */
+  private collectCues(recent: readonly StarlingEvent[]): void {
+    for (const e of recent) {
+      if (e.type !== 'agent.event') continue;
+      const key = e.payload.taskKey;
+      const last = this.lastCueTs.get(key) ?? Number.NEGATIVE_INFINITY;
+      if (e.ts <= last) continue;
+      this.lastCueTs.set(key, e.ts);
+      const flock = this.findFlock(key);
+      if (!flock) continue;
+      if (e.payload.kind === 'file.edited') {
+        spawnSparks(this.sparks, flock.leaderX, flock.leaderY, SPARKS_PER_EDIT, this.rng);
+      } else if (e.payload.kind === 'tool.call') {
+        flock.beat = 1;
       }
     }
   }
@@ -431,12 +575,14 @@ export class SkySimulation {
       enterX: rx,
       enterY: ry,
       mergedSlot: -1,
+      landedSeq: 0,
       roostSlot: 0,
       roostCount: 1,
       orbit: this.rng() * TAU,
       migration: null,
       scatterUntil: 0,
       scatterAngle: 0,
+      beat: 0,
       trail: new Float32Array(TRAIL_CAP * 2),
       trailLen: 0,
       trailDrain: 0,
@@ -459,11 +605,17 @@ export class SkySimulation {
       flock.mergedSlot = this.mergedCounter++;
     }
     if (flock.status === status) return;
+    const landed = status === 'merged' && flock.status !== 'merged';
     flock.status = status;
     flock.statusTime = 0;
     flock.behaviour = behaviourFor(status);
     flock.enterX = flock.leaderX;
     flock.enterY = flock.leaderY;
+    if (landed) {
+      // Landing order is merge order: a flock born already merged on a reconnect does not chime.
+      flock.landedSeq = ++this.landedCounter;
+      this.pendingCues.landings += 1;
+    }
   }
 
   private assignRoostSlots(): void {
@@ -484,6 +636,19 @@ export class SkySimulation {
     });
   }
 
+  /**
+   * How many wire slots are in use: the flocks that have landed (or are gliding in). Spacing the
+   * wire by this, not by every task in the plan, keeps the merge order legible and gives each
+   * landed task key room for its label — the wire reads as a queue filling up.
+   */
+  private wireSlots(): number {
+    let slots = 0;
+    for (const flock of this.flocks) {
+      if (flock.status === 'merged' || flock.status === 'merging') slots++;
+    }
+    return Math.max(1, slots);
+  }
+
   private startMigration(flock: Flock, fromNodeId: string, toNodeId: string): void {
     if (!fromNodeId || !toNodeId || fromNodeId === toNodeId) return;
     if (flock.migration && flock.migration.toNodeId === toNodeId) return;
@@ -494,7 +659,8 @@ export class SkySimulation {
       fromX: flock.leaderX,
       fromY: flock.leaderY,
       toX: target?.x ?? this.width / 2,
-      toY: this.height * 0.4,
+      // End the arc in the destination roost's working band, so the flock reforms where it will work.
+      toY: (target?.y ?? this.height - 26) - this.height * 0.3,
       t: 0,
       duration: 3.4,
     };
@@ -519,13 +685,59 @@ export class SkySimulation {
     for (const r of this.roosts) {
       r.grow = Math.min(1, r.grow + dt / 1.2);
       r.dim += (r.dimTarget - r.dim) * (1 - Math.exp(-2.5 * dt));
+      const target = r.maxSessions > 0 ? Math.min(1, r.activeSessions / r.maxSessions) : 0;
+      r.busy += (target - r.busy) * (1 - Math.exp(-2.2 * dt));
+      if (r.ripple >= 0) r.ripple = r.ripple + dt > RIPPLE_LIFE ? -1 : r.ripple + dt;
+      if (r.left >= 0) r.left += dt;
     }
+    for (let i = this.notices.length - 1; i >= 0; i--) {
+      const notice = this.notices[i];
+      if (!notice || this.simTime - notice.born > notice.life) this.notices.splice(i, 1);
+    }
+    if (this.notices.length > 4) this.notices.splice(0, this.notices.length - 4);
+  }
+
+  // ── the final sweep ──────────────────────────────────────────────────────────────────────────
+  private startSweep(): void {
+    this.sweepT = 0;
+    const landed = this.flocks.filter((flock) => flock.status === 'merged').length;
+    const name = landed > 0 ? `All ${landed} ${landed === 1 ? 'bird' : 'birds'} landed` : 'All birds landed';
+    this.notices.push({
+      id: 'finished',
+      nodeId: '*',
+      name,
+      kind: 'finished',
+      born: this.simTime,
+      life: NOTICE_LIFE,
+    });
+  }
+
+  private advanceSweep(dt: number): void {
+    if (this.sweepT < 0) return;
+    this.sweepT += dt;
+    if (this.sweepT > SWEEP_DURATION) this.sweepT = -1;
+  }
+
+  /** How far the all-landed wave is through the wire (0..1), or -1 when idle. */
+  sweepProgress(): number {
+    return this.sweepT < 0 ? -1 : Math.min(1, this.sweepT / SWEEP_DURATION);
+  }
+
+  /** Vertical lift for a landed flock, staggered by merge order so the wave travels left → right. */
+  private sweepLift(flock: Flock): number {
+    if (this.sweepT < 0) return 0;
+    const delay = Math.max(0, flock.mergedSlot) * 0.05;
+    const local = (this.sweepT - delay) / 1.5;
+    if (local <= 0 || local >= 1) return 0;
+    return Math.sin(Math.PI * local) * 30;
   }
 
   // ── one flock ─────────────────────────────────────────────────────────────────────────────────
   private stepFlock(flock: Flock, dt: number): void {
     flock.statusTime += dt;
     flock.activity = this.activityFor(flock.taskKey);
+    if (flock.beat > 0) flock.beat *= Math.exp(-BEAT_DECAY * dt);
+    if (flock.beat < 0.01) flock.beat = 0;
 
     const roost = this.roostFor(flock.nodeId);
     const rx = roost?.x ?? this.width / 2;
@@ -562,12 +774,14 @@ export class SkySimulation {
         roostPerchRow(flock.roostSlot) -
         Math.abs(Math.sin(this.simTime * 5.2 + flock.phase * TAU)) * 14;
     } else if (kind === 'wirePerch') {
-      const slots = Math.max(1, this.flocks.length);
+      const slots = this.wireSlots();
       const x = wireSlotX(this.wire, Math.max(0, flock.mergedSlot), slots);
       flock.leaderX = x + Math.sin(this.simTime * 0.9 + flock.phase * TAU) * 2.4;
       flock.leaderY = this.wire.yAt(x) - 5 + Math.sin(this.simTime * 1.7 + flock.phase) * 1.4;
+      // The final all-landed wave lifts the wire flocks in merge order.
+      flock.leaderY -= this.sweepLift(flock);
     } else {
-      this.leaderTarget(flock, kind, rx);
+      this.leaderTarget(flock, kind, rx, ry);
       const rate =
         kind === 'murmur' ? 2.4 : kind === 'fade' ? 1.2 : kind === 'zigzag' || kind === 'flicker' ? 8 : 3.4;
       const k = 1 - Math.exp(-rate * dt);
@@ -589,38 +803,40 @@ export class SkySimulation {
     else this.drainTrail(flock, dt);
   }
 
-  private leaderTarget(flock: Flock, kind: BehaviourKind, rx: number): void {
+  private leaderTarget(flock: Flock, kind: BehaviourKind, rx: number, ry: number): void {
     const w = this.width;
     const h = this.height;
     const t = this.simTime;
     const phase = flock.phase;
+    // Working flocks loop *above their own roost*, low in the sky. Before Epic 47 they orbited the
+    // middle of the canvas, which left the bottom half empty once the roosts emptied; anchoring the
+    // band to the roost keeps every bird legible next to the machine that is running it.
+    const band = ry - (0.2 + 0.07 * flock.activity) * h + (phase - 0.5) * 0.05 * h;
     switch (kind) {
       case 'murmur': {
         const a = flock.activity;
-        const radiusX = 78 + 68 * a;
-        const radiusY = 34 + 24 * a;
+        const radiusX = 66 + 54 * a;
+        const radiusY = 26 + 18 * a;
+        const centreX = Math.min(w - radiusX - 70, Math.max(radiusX + 70, rx));
         const angle = t * (0.5 + 0.8 * a) + phase * TAU + flock.orbit * 0.7;
-        this.tx = Math.min(
-          w - 60,
-          Math.max(60, rx + Math.sin(t * 0.3 + phase) * 22 + Math.cos(angle) * radiusX),
-        );
-        this.ty = h * 0.4 + Math.sin(angle) * radiusY;
+        this.tx = centreX + Math.cos(angle) * radiusX + Math.sin(t * 0.3 + phase) * 12;
+        this.ty = band + Math.sin(angle) * radiusY;
         return;
       }
       case 'circle': {
         const angle = t * 1.9 + phase * TAU;
-        this.tx = rx + Math.cos(angle) * 26;
-        this.ty = h * 0.47 + Math.sin(angle) * 26;
+        this.tx = rx + Math.cos(angle) * 28;
+        this.ty = band + Math.sin(angle) * 24;
         return;
       }
       case 'zigzag': {
-        this.tx = rx + Math.sin(t * 7.6 + phase * TAU) * 46;
-        this.ty = h * 0.46 - Math.abs(Math.sin(t * 3.8 + phase)) * 24;
+        this.tx = rx + Math.sin(t * 8.2 + phase * TAU) * 52;
+        this.ty = band - Math.abs(Math.sin(t * 4.1 + phase)) * 26;
         return;
       }
       case 'flicker': {
-        this.tx = flock.enterX + Math.sin(t * 8.5 + phase) * 30;
-        this.ty = flock.enterY - 10 + Math.cos(t * 8.5 + phase) * 10;
+        this.tx = rx + Math.sin(t * 9 + phase) * 34;
+        this.ty = band + Math.cos(t * 9 + phase) * 12;
         return;
       }
       case 'fade': {
@@ -630,7 +846,7 @@ export class SkySimulation {
       }
       case 'scatter': {
         this.tx = rx;
-        this.ty = h * 0.34;
+        this.ty = ry - h * 0.3;
         return;
       }
       default: {
@@ -658,7 +874,7 @@ export class SkySimulation {
   }
 
   private glideLeader(flock: Flock): void {
-    const slots = Math.max(1, this.flocks.length);
+    const slots = this.wireSlots();
     const targetX = wireSlotX(this.wire, Math.max(0, flock.mergedSlot), slots);
     const targetY = this.wire.yAt(targetX) - 5;
     const p = Math.min(1, flock.statusTime / 1.9);
