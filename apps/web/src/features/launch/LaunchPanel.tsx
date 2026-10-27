@@ -139,6 +139,7 @@ export function LaunchPanel({ onLaunch, onPreview, recentRepos, goals, runs, onO
           )
         }
         bodyClassName="flex flex-col"
+        scroll
       >
         {launched === undefined ? null : (
           <div

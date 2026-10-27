@@ -191,6 +191,7 @@ export function PlanPreview({ state, canPreview, stale, onPreview }: PlanPreview
         }
         actions={actions}
         bodyClassName="p-[var(--spacing-panel)]"
+        scroll
       >
         {state.status === 'idle' ? (
           <EmptyState

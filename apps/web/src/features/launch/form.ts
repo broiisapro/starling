@@ -101,10 +101,14 @@ export function toLaunchInput(values: LaunchFormValues): LaunchInput {
   return input;
 }
 
-/** Stable identity for "the plan on screen is for these inputs" (stale-preview detection). */
+/**
+ * Stable identity for "the plan on screen is for these inputs" (stale-preview detection).
+ *
+ * Only the repo and the goal change the DAG; agents/budget/dry-run are dispatch knobs, so adjusting
+ * them must not mark a perfectly good plan stale.
+ */
 export function requestKey(values: LaunchFormValues): string {
-  const input = toLaunchInput(values);
-  return JSON.stringify([input.repoPath, input.goal, input.maxParallel, input.budgetUsd]);
+  return JSON.stringify([values.repoPath.trim(), values.goal.trim()]);
 }
 
 /** Apply a quick-pick chip: the text becomes the goal and the chip remembers it is selected. */

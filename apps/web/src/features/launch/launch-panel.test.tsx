@@ -223,7 +223,7 @@ describe('plan preview', () => {
     fireEvent.click(view.getByTestId('launch-preview-button'));
     await view.findByTestId('launch-preview-ready');
 
-    typeInto(view, 'launch-max-parallel', '2');
+    typeInto(view, 'launch-goal', 'A different goal that needs a different DAG');
     expect(view.getByTestId('launch-preview').textContent).toContain('inputs changed');
   });
 

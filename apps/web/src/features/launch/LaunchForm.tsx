@@ -1,4 +1,4 @@
-import { Bird, Eye, Loader2 } from 'lucide-react';
+import { Eye, Loader2 } from 'lucide-react';
 import { useId } from 'react';
 import { Kbd } from '../../components';
 import { cn } from '../../lib/cn';
@@ -273,7 +273,9 @@ export function LaunchForm({
           disabled={busy || confirmOpen}
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-teal-300/50 bg-gradient-to-b from-teal-400/30 to-teal-500/15 px-4 py-2.5 text-body font-semibold text-teal-50 shadow-[var(--shadow-glow)] transition-[filter,transform] hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 motion-safe:transition-transform"
         >
-          <Bird aria-hidden="true" className="h-4 w-4" />
+          <span aria-hidden="true" className="text-base leading-none">
+            🐦
+          </span>
           Release the flock
         </button>
         <button

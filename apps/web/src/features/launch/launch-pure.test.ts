@@ -74,7 +74,8 @@ describe('launch form', () => {
     const chip = applyGoal(DEFAULT_FORM, { name: 'quick-wins', text: VALID_FORM.goal });
     expect(chip.goalName).toBe('quick-wins');
     expect(requestKey(chip)).toBe(requestKey({ ...chip }));
-    expect(requestKey(chip)).not.toBe(requestKey({ ...chip, maxParallel: '9' }));
+    expect(requestKey(chip)).not.toBe(requestKey({ ...chip, goal: 'something else entirely' }));
+    expect(requestKey(chip)).toBe(requestKey({ ...chip, maxParallel: '9', budgetUsd: '12' }));
     expect(editedGoal(chip, 'something else').goalName).toBeUndefined();
     expect(goalError('short')).toBeDefined();
   });
