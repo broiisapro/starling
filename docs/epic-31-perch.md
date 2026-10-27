@@ -17,16 +17,16 @@ registry, the scheduler and the hub; Epic 22 owns CLI flag parsing; Epic 42 prov
 
 `createPerchApp` builds a Hono app implementing every row of the ARCHITECTURE §6 Perch table:
 
-| Method | Path | Behaviour |
-| --- | --- | --- |
-| GET | `/perch/info` | `await deps.info()` → `NodeInfo` |
-| POST | `/perch/tasks` | zod-validates `StartTaskOptions`, rejects `repo.kind: 'local'`, calls `node.startTask`, remembers the handle |
-| POST | `/perch/tasks/:runId/:key/prompt` | forwards a fixer prompt to the same session |
-| POST | `/perch/tasks/:runId/:key/abort` | aborts the session |
-| POST | `/perch/tasks/:runId/:key/collect` | `node.collect(handle, '', baseRef)`, caches the `TaskResult` |
-| GET | `/perch/tasks/:runId/:key/bundle?base=<ref>` | streams `TaskResult.bundlePath` as `application/octet-stream` |
-| DELETE | `/perch/tasks/:runId/:key` | `node.cleanup`, drops the cached handle/result |
-| GET | `/perch/events` | SSE of the node's `AgentEvent`s, with a keep-alive |
+| Method | Path                                         | Behaviour                                                                                                    |
+| ------ | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| GET    | `/perch/info`                                | `await deps.info()` → `NodeInfo`                                                                             |
+| POST   | `/perch/tasks`                               | zod-validates `StartTaskOptions`, rejects `repo.kind: 'local'`, calls `node.startTask`, remembers the handle |
+| POST   | `/perch/tasks/:runId/:key/prompt`            | forwards a fixer prompt to the same session                                                                  |
+| POST   | `/perch/tasks/:runId/:key/abort`             | aborts the session                                                                                           |
+| POST   | `/perch/tasks/:runId/:key/collect`           | `node.collect(handle, '', baseRef)`, caches the `TaskResult`                                                 |
+| GET    | `/perch/tasks/:runId/:key/bundle?base=<ref>` | streams `TaskResult.bundlePath` as `application/octet-stream`                                                |
+| DELETE | `/perch/tasks/:runId/:key`                   | `node.cleanup`, drops the cached handle/result                                                               |
+| GET    | `/perch/events`                              | SSE of the node's `AgentEvent`s, with a keep-alive                                                           |
 
 Every route goes through one `app.use('*')` middleware, so a future route cannot ship
 unauthenticated by accident. `x-flock-token` is compared against the join code with
@@ -83,7 +83,7 @@ reports `os.platform()`, `os.arch()`, `os.cpus().length` and `os.totalmem()` rou
 `localModels` is only probed when `lendModels` is not `false`, and the probe is a single
 `GET {ollamaUrl}/api/tags` — the metadata endpoint behind `ollama list`, which does **not** load a
 model. A sleeping Ollama is the normal case: any failure means `[]`, never an error. The daemon
-wraps the probe in `createLocalModelsProbe`, which caches successes *and* failures for 30 s so a
+wraps the probe in `createLocalModelsProbe`, which caches successes _and_ failures for 30 s so a
 3 s heartbeat loop does not hammer Ollama or pay a 750 ms timeout every tick.
 
 A perch is always reported as `kind: 'remote'`, even when it is this laptop's own daemon: from the
