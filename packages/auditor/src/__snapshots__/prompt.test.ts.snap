@@ -1,0 +1,85 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`buildAuditPrompt matches the committed snapshot 1`] = `
+"# Audit request
+
+Task \`csv-export\` — "CSV export" (attempt 1)
+Branch: \`starling/run-1/csv-export\`
+Overall goal: Export the todo list as CSV with correct quoting.
+
+## Task brief
+
+Goal: Export the current todo list as a CSV download with a proper header row and escaped fields.
+
+Deliverables:
+- src/features/export/index.ts exports exportCsv(todos) and initExportButton()
+- Fields containing commas or quotes are escaped
+- Downloaded filename is sky-todo-YYYY-MM-DD.csv
+
+Out of scope:
+- Importing CSV
+
+## Definition of done
+
+One \`dod\` entry is required for each item below, in this order:
+1. bun test passes
+2. A round-trip test covers commas, quotes and newlines
+3. The button is disabled when the list is empty
+
+## Repository decisions that apply to every task
+
+- Vanilla TypeScript + Vite, no UI framework
+- Tests live beside their sources and run with bun test
+
+## Lane
+
+- owns: src/features/export/**
+- reads (read-only): src/store/todos.ts, src/main.ts
+
+## Deterministic signals
+
+- lane: clean (every changed file matches the task lane)
+- test command \`bun test\`: passed
+- lint command \`bunx biome check .\`: passed
+- test files changed: no
+- NEW BEHAVIOUR WITHOUT NEW TESTS: YES
+- diff: complete
+
+## Changed files (1)
+
+- \`src/features/export/index.ts\` (+14/-0)
+
+## Test output tail
+
+\`\`\`text
+12 pass
+0 fail
+\`\`\`
+
+## Diff
+
+\`\`\`diff
+diff --git a/src/features/export/index.ts b/src/features/export/index.ts
+new file mode 100644
+index 0000000..1a2b3c4
+--- /dev/null
++++ b/src/features/export/index.ts
+@@ -0,0 +1,14 @@
++import { visibleTodos } from '../../store/todos';
++
++export function exportCsv(todos: readonly Todo[]): string {
++  const header = 'id,title,done,createdAt,due,tags';
++  const rows = todos.map((todo) => [todo.id, escape(todo.title), todo.done, todo.createdAt, todo.due ?? '', todo.tags.join(';')].join(','));
++  return [header, ...rows].join('\\r\\n');
++}
++
++function escape(value: string): string {
++  return /[",\\n]/.test(value) ? \`"\${value.replace(/"/g, '""')}"\` : value;
++}
++
++export function initExportButton(): void {}
+
+\`\`\`
+
+Return only the JSON object described in the system prompt."
+`;
