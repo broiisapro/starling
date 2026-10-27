@@ -21,13 +21,7 @@ import {
 } from './drain';
 import { createEventLog } from './event-log';
 import { buildPerchHealth, type PerchHealth, type PerchHealthProbes } from './health';
-import {
-  isSafeId,
-  isSafeRef,
-  PerchCollectSchema,
-  PerchPromptSchema,
-  PerchStartTaskSchema,
-} from './validate';
+import { isSafeId, isSafeRef, PerchCollectSchema, PerchPromptSchema, PerchStartTaskSchema } from './validate';
 
 /**
  * Largest request body the perch will parse (SEC-05). A hub never legitimately sends more: the
@@ -131,10 +125,7 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   // Token-guarded like every other route: the presence of a perch on the LAN is not public.
   app.get('/perch/health', async (c) => {
     if (deps.health === undefined) {
-      return c.json(
-        errorBody('health-unavailable', 'this perch was started without health probes'),
-        503,
-      );
+      return c.json(errorBody('health-unavailable', 'this perch was started without health probes'), 503);
     }
     // The app's own drain state wins over the probe's, so a caller cannot report "healthy" while
     // this app is refusing new tasks.
@@ -373,9 +364,7 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
     }
 
     // Anything the hub already deleted is "finished"; anything still here ran out of time.
-    const finished = [...before.entries()]
-      .filter(([key]) => !handles.has(key))
-      .map(([, key]) => key);
+    const finished = [...before.entries()].filter(([key]) => !handles.has(key)).map(([, key]) => key);
     const aborted: string[] = [];
     for (const [key, handle] of [...handles.entries()]) {
       try {
@@ -474,10 +463,7 @@ async function readJson<T>(
     } catch {
       return {
         ok: false,
-        response: c.json(
-          { error: { code: 'invalid-json', message: 'request body could not be read' } },
-          400,
-        ),
+        response: c.json({ error: { code: 'invalid-json', message: 'request body could not be read' } }, 400),
       };
     }
   }

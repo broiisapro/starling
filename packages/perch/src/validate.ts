@@ -61,8 +61,7 @@ export function isSafeId(value: string): boolean {
 const refMessage = (field: 'branch' | 'fromRef' | 'baseRef'): string =>
   `${field} must match ${PERCH_REF_PATTERN.source}, must not start with "-" or contain ".."${field === 'branch' ? '' : ' or "@{"'}`;
 
-const idMessage = (field: 'runId' | 'taskKey'): string =>
-  `${field} must match ${PERCH_ID_PATTERN.source}`;
+const idMessage = (field: 'runId' | 'taskKey'): string => `${field} must match ${PERCH_ID_PATTERN.source}`;
 
 /**
  * `StartTaskOptions` plus the perch's boundary rules. A hostile `branch`, `fromRef`, `runId` or

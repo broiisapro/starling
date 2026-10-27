@@ -1,6 +1,6 @@
 import { constants } from 'node:fs';
 import { access, statfs } from 'node:fs/promises';
-import { type ExecutionNode, exec as coreExec } from '@starling/core';
+import { exec as coreExec, type ExecutionNode } from '@starling/core';
 import type { ExecFn } from './perch-info';
 
 /**

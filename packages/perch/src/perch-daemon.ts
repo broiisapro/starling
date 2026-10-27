@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { DrainOptions, DrainReport } from './drain';
 import type { MdnsAdvertiser } from './handshake';
 import { createPerchHealthProbes, type PerchHealthProbes } from './health';
-import { PERCH_HEARTBEAT_JITTER, nextHeartbeatDelay } from './heartbeat';
+import { nextHeartbeatDelay, PERCH_HEARTBEAT_JITTER } from './heartbeat';
 import { randomJoinCode } from './join-code';
 import { findLanIPv4, perchUrl } from './lan';
 import { STARLING_SERVICE_TYPE } from './mdns';
@@ -91,7 +91,6 @@ export interface PerchHandle {
    */
   drain(opts?: DrainOptions): Promise<DrainReport>;
 }
-
 
 const RegisterResponseSchema = z.object({ nodeId: z.string().min(1) });
 
