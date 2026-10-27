@@ -133,6 +133,11 @@ export function formatReport(report: StressReport): string {
       `failures ${report.failures.length}   ${report.ok ? 'OK' : 'FAILED'}`,
   );
   lines.push(
+    `phases (wall clock): ${report.phases
+      .map((phase) => `${phase.phase} ${ms(phase.wallMs)}${phase.count > 1 ? `/${phase.count}` : ''}`)
+      .join(', ')}`,
+  );
+  lines.push(
     `checks: ${checks.commits}/${report.worktrees} commits, ` +
       `${checks.diffs}/${report.worktrees} diffs, ` +
       `${checks.conflictsFound}/${checks.conflictsExpected} conflicting pairs found, ` +
@@ -144,13 +149,16 @@ export function formatReport(report: StressReport): string {
   const disk = report.disk;
   lines.push('');
   lines.push(
-    `disk: ${formatBytes(disk.perWorktreeAvgBytes)} per worktree ` +
+    `disk: ${formatBytes(disk.perWorktreeAvgBytes)} per worktree apparent size ` +
       `(p50 ${formatBytes(disk.perWorktreeP50Bytes)}, p95 ${formatBytes(disk.perWorktreeP95Bytes)}; ` +
-      `~${disk.fullWorktreeFiles.toLocaleString('en-US')} files each), ` +
-      `${formatBytes(disk.totalWorktreeBytes)} for ${report.worktrees} worktrees`,
+      `~${disk.fullWorktreeFiles.toLocaleString('en-US')} files each)` +
+      (disk.allocatedSampleBytes === undefined
+        ? ''
+        : `, ${formatBytes(disk.allocatedSampleBytes)} allocated (du sample)`),
   );
   lines.push(
-    `      .git ${formatBytes(disk.repoGitBytes)} (shared by all worktrees), ` +
+    `      ${formatBytes(disk.totalWorktreeBytes)} apparent for ${report.worktrees} worktrees; ` +
+      `.git ${formatBytes(disk.repoGitBytes)} (shared), ` +
       `main checkout ${formatBytes(disk.repoCheckoutBytes)}, ` +
       `bundles ${formatBytes(disk.bundleBytes)}`,
   );
@@ -158,8 +166,11 @@ export function formatReport(report: StressReport): string {
     const reduction = Math.max(0, Math.round((1 - disk.sparse.ratioOfFull) * 100));
     lines.push(
       `      sparse lane (${disk.sparse.directories.join(', ')}): ` +
-        `${formatBytes(disk.sparse.bytes)} / ${disk.sparse.files} files — ` +
-        `${reduction}% smaller than a full checkout`,
+        `${formatBytes(disk.sparse.bytes)} / ${disk.sparse.files} files` +
+        (disk.sparse.allocatedBytes === undefined
+          ? ''
+          : ` (${formatBytes(disk.sparse.allocatedBytes)} allocated)`) +
+        ` — ${reduction}% smaller than a full checkout`,
     );
   }
 

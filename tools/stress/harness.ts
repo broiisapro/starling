@@ -67,6 +67,13 @@ export interface StressFailure {
   message: string;
 }
 
+/** Wall clock for one phase, next to the per-call latencies (which include mutex queueing). */
+export interface PhaseStat {
+  phase: string;
+  wallMs: number;
+  count: number;
+}
+
 export interface DiskSample {
   path: string;
   bytes: number;
@@ -91,6 +98,8 @@ export interface StressReport {
   totalMs: number;
   /** 1/5/15-minute load average when the run started, so absolute timings are interpretable. */
   loadAverage: [number, number, number];
+  /** Wall clock per phase. `create` is serialised, so its per-call latency is a queue, not a cost. */
+  phases: PhaseStat[];
   operations: OperationStat[];
   failures: StressFailure[];
   checks: {
@@ -110,10 +119,12 @@ export interface StressReport {
     perWorktreeP95Bytes: number;
     fullWorktreeFiles: number;
     totalWorktreeBytes: number;
+    /** Sampled `du -sk` allocation for up to three worktrees (apparent size hides block overhead). */
+    allocatedSampleBytes?: number;
     repoGitBytes: number;
     repoCheckoutBytes: number;
     bundleBytes: number;
-    sparse?: SparseDiskSample & { ratioOfFull: number };
+    sparse?: SparseDiskSample & { ratioOfFull: number; allocatedBytes?: number };
   };
   kept: boolean;
 }
@@ -184,6 +195,25 @@ async function writeFileAt(root: string, relative: string, content: string): Pro
   await writeFile(target, content);
 }
 
+/**
+ * Allocated bytes on disk via `du -sk`.
+ *
+ * Apparent size (`stat().size`) says nothing about what a 5 000-file checkout really costs, because
+ * every small file still occupies a filesystem block (4 KB on APFS/ext4). `du` is the number a user
+ * sees, so the report carries both. Missing/odd `du` (Windows) simply omits the sample.
+ */
+async function allocatedBytes(path: string): Promise<number | undefined> {
+  try {
+    const proc = Bun.spawn(['du', '-sk', path], { stdout: 'pipe', stderr: 'ignore' });
+    const [stdout, code] = await Promise.all([new Response(proc.stdout).text(), proc.exited]);
+    if (code !== 0) return undefined;
+    const kb = Number.parseInt(stdout.trim().split(/\s+/)[0] ?? '', 10);
+    return Number.isFinite(kb) ? kb * 1024 : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** A repository with `files` files spread over 50 directories, plus one shared file per pair. */
 async function generateRepo(repo: string, files: number, pairs: number): Promise<void> {
   await mkdir(repo, { recursive: true });
@@ -240,6 +270,7 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
 
   const durations = new Map<string, number[]>();
   const failures: StressFailure[] = [];
+  const phases: PhaseStat[] = [];
   const checks: StressReport['checks'] = {
     commits: 0,
     diffs: 0,
@@ -266,6 +297,16 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
     }
   }
 
+  /** Time a whole phase (wall clock, so serialised queueing is not counted once per caller). */
+  async function phase<T>(name: string, count: number, fn: () => Promise<T>): Promise<T> {
+    const at = performance.now();
+    try {
+      return await fn();
+    } finally {
+      phases.push({ phase: name, wallMs: round(performance.now() - at), count });
+    }
+  }
+
   try {
     const setupStart = performance.now();
     await generateRepo(repo, files, conflictPairs);
@@ -276,105 +317,125 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
     const branches = Array.from({ length: worktrees }, (_, index) => `starling/stress/t${index}`);
 
     log(`creating ${worktrees} worktrees concurrently…`);
-    const created = await Promise.all(
-      branches.map((branch, index) =>
-        step('create', branch, () => ws.create(repo, branch, 'main')).then((result) =>
-          result === undefined ? undefined : { ...result, index },
+    const created = await phase('create', worktrees, () =>
+      Promise.all(
+        branches.map((branch, index) =>
+          step('create', branch, () => ws.create(repo, branch, 'main')).then((result) =>
+            result === undefined ? undefined : { ...result, index },
+          ),
         ),
       ),
     );
 
     log(`committing in ${worktrees} worktrees concurrently…`);
-    await Promise.all(
-      created.map(async (worktree) => {
-        if (worktree === undefined) return;
-        const index = worktree.index;
-        await step('commit', branches[index] ?? '', async () => {
-          await writeFileAt(worktree.path, `tasks/t${index}.txt`, `task ${index} output\n`);
-          if (index < conflictPairs * 2) {
-            const pair = Math.floor(index / 2);
-            await writeFileAt(
-              worktree.path,
-              `shared/pair-${pair}.txt`,
-              `pair ${pair} line 1 — task ${index}\npair ${pair} line 2\npair ${pair} line 3\n` +
-                `pair ${pair} line 4\npair ${pair} line 5\n`,
-            );
-          }
-          const sha = await ws.commitAll(worktree.path, `stress: task ${index}`);
-          if (sha === undefined) throw new Error(`commitAll returned undefined in ${worktree.path}`);
-          checks.commits += 1;
-        });
-      }),
+    await phase('commit', worktrees, () =>
+      Promise.all(
+        created.map(async (worktree) => {
+          if (worktree === undefined) return;
+          const index = worktree.index;
+          await step('commit', branches[index] ?? '', async () => {
+            await writeFileAt(worktree.path, `tasks/t${index}.txt`, `task ${index} output\n`);
+            if (index < conflictPairs * 2) {
+              const pair = Math.floor(index / 2);
+              await writeFileAt(
+                worktree.path,
+                `shared/pair-${pair}.txt`,
+                `pair ${pair} line 1 — task ${index}\npair ${pair} line 2\npair ${pair} line 3\n` +
+                  `pair ${pair} line 4\npair ${pair} line 5\n`,
+              );
+            }
+            const sha = await ws.commitAll(worktree.path, `stress: task ${index}`);
+            if (sha === undefined) throw new Error(`commitAll returned undefined in ${worktree.path}`);
+            checks.commits += 1;
+          });
+        }),
+      ),
     );
 
     log(`diffing ${worktrees} worktrees concurrently…`);
-    await Promise.all(
-      created.map((worktree) =>
-        worktree === undefined
-          ? Promise.resolve(undefined)
-          : step('diff', branches[worktree.index] ?? '', async () => {
-              const summary = await ws.diff(worktree.path, 'main');
-              if (summary.files.length === 0) {
-                throw new Error('diff came back empty after a commit');
-              }
-              checks.diffs += 1;
-              return summary;
-            }),
+    await phase('diff', worktrees, () =>
+      Promise.all(
+        created.map((worktree) =>
+          worktree === undefined
+            ? Promise.resolve(undefined)
+            : step('diff', branches[worktree.index] ?? '', async () => {
+                const summary = await ws.diff(worktree.path, 'main');
+                if (summary.files.length === 0) {
+                  throw new Error('diff came back empty after a commit');
+                }
+                checks.diffs += 1;
+                return summary;
+              }),
+        ),
       ),
     );
 
     log(`predicting conflicts for ${conflictPairs} pairs…`);
-    await Promise.all(
-      Array.from({ length: conflictPairs }, (_, pair) => {
-        const left = `starling/stress/t${pair * 2}`;
-        const right = `starling/stress/t${pair * 2 + 1}`;
-        return step('predict-conflicts', `${left} vs ${right}`, async () => {
-          const conflicted = await ws.predictConflicts(repo, left, right);
-          const expected = `shared/pair-${pair}.txt`;
-          if (!conflicted.includes(expected)) {
-            throw new Error(
-              `expected ${expected} among conflicted paths, got [${conflicted.join(', ') || 'none'}]`,
-            );
-          }
-          checks.conflictsFound += 1;
-          checks.conflictingPaths.push(expected);
-          return conflicted;
-        });
-      }),
+    await phase('predict-conflicts', conflictPairs, () =>
+      Promise.all(
+        Array.from({ length: conflictPairs }, (_, pair) => {
+          const left = `starling/stress/t${pair * 2}`;
+          const right = `starling/stress/t${pair * 2 + 1}`;
+          return step('predict-conflicts', `${left} vs ${right}`, async () => {
+            const conflicted = await ws.predictConflicts(repo, left, right);
+            const expected = `shared/pair-${pair}.txt`;
+            if (!conflicted.includes(expected)) {
+              throw new Error(
+                `expected ${expected} among conflicted paths, got [${conflicted.join(', ') || 'none'}]`,
+              );
+            }
+            checks.conflictsFound += 1;
+            checks.conflictingPaths.push(expected);
+            return conflicted;
+          });
+        }),
+      ),
     );
 
     log(`creating and fetching ${bundleCount} bundles…`);
     const bundlePaths: string[] = [];
-    for (let index = 0; index < bundleCount; index += 1) {
-      const branch = branches[index] ?? '';
-      const worktree = created[index];
-      if (worktree === undefined) continue;
-      const bundle = await step('bundle-create', branch, () =>
-        ws.createBundle(repo, branch, { base: 'main' }),
-      );
-      if (bundle === undefined) continue;
-      bundlePaths.push(bundle);
-      await step('bundle-fetch', branch, async () => {
-        const intoBranch = `stress/fetched-${index}`;
-        await ws.fetchBundle(repo, bundle, branch, intoBranch);
-        const [fetched, expected] = await Promise.all([
-          git(repo, 'rev-parse', `refs/heads/${intoBranch}`),
-          git(worktree.path, 'rev-parse', 'HEAD'),
-        ]);
-        if (fetched.trim() !== expected.trim()) {
-          throw new Error(`fetched ${fetched.trim()} but the worktree is at ${expected.trim()}`);
-        }
-        checks.bundlesFetched += 1;
-      });
-    }
+    await phase('bundles', bundleCount, async () => {
+      for (let index = 0; index < bundleCount; index += 1) {
+        const branch = branches[index] ?? '';
+        const worktree = created[index];
+        if (worktree === undefined) continue;
+        const bundle = await step('bundle-create', branch, () =>
+          ws.createBundle(repo, branch, { base: 'main' }),
+        );
+        if (bundle === undefined) continue;
+        bundlePaths.push(bundle);
+        await step('bundle-fetch', branch, async () => {
+          const intoBranch = `stress/fetched-${index}`;
+          await ws.fetchBundle(repo, bundle, branch, intoBranch);
+          const [fetched, expected] = await Promise.all([
+            git(repo, 'rev-parse', `refs/heads/${intoBranch}`),
+            git(worktree.path, 'rev-parse', 'HEAD'),
+          ]);
+          if (fetched.trim() !== expected.trim()) {
+            throw new Error(`fetched ${fetched.trim()} but the worktree is at ${expected.trim()}`);
+          }
+          checks.bundlesFetched += 1;
+        });
+      }
+    });
 
     log('measuring disk use…');
     const perWorktree: DiskSample[] = [];
-    for (const worktree of created) {
-      if (worktree === undefined) continue;
-      const usage = await diskUsage(worktree.path);
-      perWorktree.push({ path: worktree.path, bytes: usage.bytes, files: usage.files });
-    }
+    let allocatedSampleBytes: number | undefined;
+    await phase('disk', created.length, async () => {
+      for (const worktree of created) {
+        if (worktree === undefined) continue;
+        const usage = await diskUsage(worktree.path);
+        perWorktree.push({ path: worktree.path, bytes: usage.bytes, files: usage.files });
+      }
+      // `du` on three worktrees is enough to calibrate apparent size against block overhead.
+      const samples: number[] = [];
+      for (const sample of perWorktree.slice(0, 3)) {
+        const bytes = await allocatedBytes(sample.path);
+        if (bytes !== undefined) samples.push(bytes);
+      }
+      if (samples.length > 0) allocatedSampleBytes = Math.round(average(samples));
+    });
     const repoGit = await diskUsage(join(repo, '.git'));
     const repoCheckout = await diskUsage(repo);
     const bundleBytes = (
@@ -382,15 +443,16 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
     ).reduce((sum, value) => sum + value, 0);
 
     log(`removing ${worktrees} worktrees concurrently…`);
-    await Promise.all(
-      created.map((worktree) =>
-        worktree === undefined
-          ? Promise.resolve(undefined)
-          : step('remove', branches[worktree.index] ?? '', async () => {
-              await ws.remove(worktree.path);
-              if (existsSync(worktree.path)) throw new Error('worktree directory survived remove()');
-              checks.worktreesRemoved += 1;
-            }),
+    await phase('remove', worktrees, () =>
+      Promise.all(
+        created.map((worktree) => {
+          if (worktree === undefined) return Promise.resolve(undefined);
+          return step('remove', branches[worktree.index] ?? '', async () => {
+            await ws.remove(worktree.path);
+            if (existsSync(worktree.path)) throw new Error('worktree directory survived remove()');
+            checks.worktreesRemoved += 1;
+          });
+        }),
       ),
     );
     const remaining = (await git(repo, 'worktree', 'list', '--porcelain'))
@@ -405,10 +467,11 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
         worktreeRoot,
         sparseCheckout: () => ['src/mod0', 'src/mod1'],
       });
-      const lane = await step('create-sparse', 'starling/stress/sparse', () =>
-        sparseWs.create(repo, 'starling/stress/sparse', 'main'),
-      );
-      if (lane !== undefined) {
+      await phase('sparse', 1, async () => {
+        const lane = await step('create-sparse', 'starling/stress/sparse', () =>
+          sparseWs.create(repo, 'starling/stress/sparse', 'main'),
+        );
+        if (lane === undefined) return;
         const usage: DiskUsage = await diskUsage(lane.path);
         const fullAvg = average(perWorktree.map((sample) => sample.bytes));
         sparseSample = {
@@ -417,9 +480,12 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
           files: usage.files,
           directories: ['src/mod0', 'src/mod1'],
           ratioOfFull: fullAvg === 0 ? 0 : usage.bytes / fullAvg,
+          ...(await allocatedBytes(lane.path).then((bytes) =>
+            bytes === undefined ? {} : { allocatedBytes: bytes },
+          )),
         };
         await step('remove-sparse', 'starling/stress/sparse', () => sparseWs.remove(lane.path));
-      }
+      });
     }
 
     const worktreeBytes = perWorktree.map((sample) => sample.bytes);
@@ -441,6 +507,7 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
       setupMs: round(setupMs),
       totalMs: round(performance.now() - started),
       loadAverage: loadavg() as [number, number, number],
+      phases,
       operations,
       failures,
       checks,
@@ -451,6 +518,7 @@ export async function runStress(opts: StressOptions = {}): Promise<StressReport>
         perWorktreeP95Bytes: Math.round(percentile(worktreeBytes, 95)),
         fullWorktreeFiles: Math.round(average(fileCounts)),
         totalWorktreeBytes: worktreeBytes.reduce((sum, value) => sum + value, 0),
+        ...(allocatedSampleBytes === undefined ? {} : { allocatedSampleBytes }),
         repoGitBytes: repoGit.bytes,
         repoCheckoutBytes: repoCheckout.bytes,
         bundleBytes,
