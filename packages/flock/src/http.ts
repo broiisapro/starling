@@ -222,7 +222,11 @@ export function subscribeSse(opts: SseOptions): SseSubscription {
         await readSse(res.body, opts.onData, () => closed);
       } catch (err) {
         if (closed) break;
-        opts.onError?.(networkError(err, 'perch event stream'));
+        const mapped = networkError(err, 'perch event stream');
+        opts.onError?.(mapped);
+        // A rejected join code never starts working on its own: stop instead of hammering the perch
+        // every reconnectMs forever. Network failures do retry.
+        if (mapped.code === 'INVALID_ARGUMENT') break;
       }
       if (closed) break;
       await sleep(reconnectMs, controller.signal);

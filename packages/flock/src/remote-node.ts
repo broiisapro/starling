@@ -36,6 +36,8 @@ export interface RemoteNodeOptions {
   /** Where downloaded bundles are written. Defaults to `<tmpdir>/starling-flock`. */
   bundleDir?: string;
   timeoutMs?: number;
+  /** Bundle downloads are bigger than JSON calls and get their own deadline. */
+  downloadTimeoutMs?: number;
   /** SSE reconnect delay. */
   reconnectMs?: number;
   /** Set false to keep the node HTTP-only (useful for probes and tests). */
@@ -173,7 +175,14 @@ export function createRemoteNode(options: RemoteNodeOptions): RemoteNode {
       );
 
       const query = `?base=${encodeURIComponent(baseRef)}`;
-      const bytes = await requestBytes(`${taskPath(base, handle)}/bundle${query}`, { method: 'GET' }, http);
+      const bytes = await requestBytes(
+        `${taskPath(base, handle)}/bundle${query}`,
+        { method: 'GET' },
+        {
+          ...http,
+          timeoutMs: options.downloadTimeoutMs ?? 60_000,
+        },
+      );
       await mkdir(bundleDir, { recursive: true });
       const bundlePath = join(
         bundleDir,

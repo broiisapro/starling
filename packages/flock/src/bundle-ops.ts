@@ -81,13 +81,22 @@ export function createBundleOps(options: BundleOpsOptions = {}): BundleOps {
         });
       }
       await mkdir(dirname(dir), { recursive: true });
-      const clone = await run(['git', 'clone', bundlePath, dir], { cwd: dirname(dir), timeoutMs });
+      // A bundle has no HEAD of its own, so a plain clone invents `master` and leaves our ref only as
+      // `origin/<ref>`. `--branch` asks for the bundled branch by name and creates it locally.
+      const branch = ref.replace(/^refs\/heads\//, '');
+      const clone = await run(['git', 'clone', '--branch', branch, bundlePath, dir], {
+        cwd: dirname(dir),
+        timeoutMs,
+      });
       if (clone.code !== 0) {
         throw new StarlingError('WORKSPACE_ERROR', `git clone from bundle failed: ${clone.stderr.trim()}`, {
           details: { bundlePath, dir },
         });
       }
-      const checkout = await run(['git', 'checkout', ref], { cwd: dir, timeoutMs });
+      // Detach HEAD on purpose: the perch reuses this cache clone for every task in a run and fetches
+      // the integration branch again. Git refuses to fetch into a branch that is checked out here, so
+      // the cache repo must never sit on the ref it is going to update.
+      const checkout = await run(['git', 'checkout', '--detach', ref], { cwd: dir, timeoutMs });
       if (checkout.code !== 0) {
         throw new StarlingError(
           'WORKSPACE_ERROR',

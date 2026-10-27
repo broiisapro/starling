@@ -1,7 +1,7 @@
-import { mkdir, stat } from 'node:fs/promises';
+import { mkdir, rename, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { Clock, ExecutionNode, NodeInfo } from '@starling/core';
-import { exec as coreExec, NodeInfoSchema, StarlingError } from '@starling/core';
+import { exec as coreExec, NodeInfoSchema, newId, StarlingError } from '@starling/core';
 import type { BundleOps } from './bundle-ops';
 import type { FlockHub as HandshakeFlockHub, JoinInfo } from './handshake';
 import { requestJson } from './http';
@@ -73,6 +73,8 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
   const remoteNodes = new Map<string, ExecutionNode>();
   let activeRepo: string | undefined;
   let stopBrowse: (() => void) | undefined;
+  /** Bundles being written right now, so two perches asking for the same ref share one `git bundle`. */
+  const inFlight = new Map<string, Promise<string>>();
 
   const bundlePathFor = async (ref: string): Promise<string> => {
     if (activeRepo === undefined) {
@@ -88,20 +90,38 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
       });
     }
     const sha = resolved.stdout.trim();
+    const repo = activeRepo;
     const path = join(options.bundleDir, `${sha}.bundle`);
     if (await exists(path)) return path;
 
-    await mkdir(options.bundleDir, { recursive: true });
-    const created = await run(['git', 'bundle', 'create', path, ref], {
-      cwd: activeRepo,
-      timeoutMs: options.bundleTimeoutMs ?? 120_000,
-    });
-    if (created.code !== 0) {
-      throw new StarlingError('EXEC_FAILED', `git bundle create ${ref} failed: ${created.stderr.trim()}`, {
-        details: { repo: activeRepo, ref, path },
+    const alreadyRunning = inFlight.get(path);
+    if (alreadyRunning !== undefined) return alreadyRunning;
+
+    const write = (async (): Promise<string> => {
+      await mkdir(options.bundleDir, { recursive: true });
+      // Write to a sibling temp file and rename, so a crashed bundle never becomes a cached, corrupt
+      // file that perches keep downloading until someone clears the cache by hand.
+      const temp = `${path}.${newId()}.partial`;
+      const created = await run(['git', 'bundle', 'create', temp, ref], {
+        cwd: repo,
+        timeoutMs: options.bundleTimeoutMs ?? 120_000,
       });
+      if (created.code !== 0) {
+        await rm(temp, { force: true });
+        throw new StarlingError('EXEC_FAILED', `git bundle create ${ref} failed: ${created.stderr.trim()}`, {
+          details: { repo, ref, path },
+        });
+      }
+      await rename(temp, path);
+      return path;
+    })();
+
+    inFlight.set(path, write);
+    try {
+      return await write;
+    } finally {
+      inFlight.delete(path);
     }
-    return path;
   };
 
   const hub: FlockHub = {
@@ -144,7 +164,7 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
         ...input.info,
         kind: 'remote',
         url: input.url,
-        status: 'online',
+        status: input.info.status === 'busy' ? 'busy' : 'online',
         activeSessions: Math.max(0, input.info.activeSessions),
         lastSeen: options.clock.now(),
       });

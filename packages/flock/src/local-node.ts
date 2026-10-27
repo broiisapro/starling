@@ -92,12 +92,17 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
   const fetchFn = options.fetch ?? fetch;
   const tasks = new Map<string, LocalTask>();
   const sessionToTask = new Map<string, string>();
+  /** Tasks whose session id is not known yet (runner.start is still in flight). */
+  const pending = new Set<string>();
   const listeners = new Set<(event: AgentEvent) => void>();
+  /** Synchronous reservation count so two concurrent startTask calls cannot oversubscribe. */
+  let activeCount = 0;
 
   const unsubscribeRunner = options.runner.onEvent((event) => {
     // Re-emit only sessions this node started. A shared runner (one `opencode serve` on the hub) also
     // hosts sessions from other nodes; without this filter every node would claim every event.
-    if (!sessionToTask.has(event.sessionId)) return;
+    // `pending` covers `session.started`, which can arrive before `runner.start` resolves.
+    if (!sessionToTask.has(event.sessionId) && !pending.has(taskId(event.runId, event.taskKey))) return;
     for (const listener of [...listeners]) listener(event);
   });
 
@@ -114,7 +119,7 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
   };
 
   const info = async (): Promise<NodeInfo> => {
-    const activeSessions = tasks.size;
+    const activeSessions = activeCount;
     return {
       id,
       name: options.name,
@@ -151,7 +156,7 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
     const bytes = await requestBytes(
       opts.repo.url,
       { method: 'GET' },
-      { fetch: fetchFn, token: opts.repo.token, timeoutMs: options.downloadTimeoutMs },
+      { fetch: fetchFn, token: opts.repo.token, timeoutMs: options.downloadTimeoutMs ?? 60_000 },
     );
     await Bun.write(incomingPath, bytes);
 
@@ -177,10 +182,11 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
 
     info,
 
-    activeSessions: () => tasks.size,
+    activeSessions: () => activeCount,
 
     async startTask(opts) {
-      if (tasks.size >= options.maxSessions) {
+      const key = taskId(opts.runId, opts.taskKey);
+      if (activeCount >= options.maxSessions) {
         throw new StarlingError(
           'INVALID_ARGUMENT',
           `Node ${id} is at capacity (${options.maxSessions} sessions)`,
@@ -189,17 +195,26 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
           },
         );
       }
-      const key = taskId(opts.runId, opts.taskKey);
       if (tasks.has(key)) {
         throw new StarlingError('INVALID_ARGUMENT', `Node ${id} is already running ${opts.taskKey}`, {
           details: { nodeId: id },
         });
       }
 
-      const prepared = await prepareRepo(opts);
-      const worktree = await options.workspace.create(prepared.repoPath, opts.branch, opts.fromRef);
+      activeCount += 1;
+      pending.add(key);
 
-      // Reserve the slot before awaiting the runner so two concurrent startTask calls cannot oversubscribe.
+      let worktree: { path: string; branch: string };
+      let prepared: { repoPath: string; resultBundlePath?: string };
+      try {
+        prepared = await prepareRepo(opts);
+        worktree = await options.workspace.create(prepared.repoPath, opts.branch, opts.fromRef);
+      } catch (err) {
+        activeCount -= 1;
+        pending.delete(key);
+        throw err;
+      }
+
       const reserved: LocalTask = {
         handle: {
           nodeId: id,
@@ -228,9 +243,12 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
         const handle: TaskHandle = { ...reserved.handle, sessionId };
         reserved.handle = handle;
         sessionToTask.set(sessionId, key);
+        pending.delete(key);
         return handle;
       } catch (err) {
         tasks.delete(key);
+        pending.delete(key);
+        activeCount -= 1;
         // A half-created worktree would confuse the next attempt; best effort, the original error wins.
         await options.workspace.remove(worktree.path).catch(() => undefined);
         throw err;
@@ -280,6 +298,7 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
       const task = tasks.get(key);
       if (task === undefined) return;
       tasks.delete(key);
+      activeCount -= 1;
       if (task.handle.sessionId !== '') sessionToTask.delete(task.handle.sessionId);
       await options.workspace.remove(task.worktreePath);
     },
@@ -293,7 +312,9 @@ export function createLocalNode(options: LocalNodeOptions): LocalNode {
       unsubscribeRunner();
       const live = [...tasks.values()];
       tasks.clear();
+      pending.clear();
       sessionToTask.clear();
+      activeCount = 0;
       await Promise.all(
         live.map((task) =>
           task.handle.sessionId === ''
