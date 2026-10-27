@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { fetchTaskDiff } from '../data/api';
 import { startSkyData } from '../data/bootstrap';
+import { diffKey } from '../data/reducer';
 import { useSky } from '../data/store';
 import { currentRoute, initialSpeed } from '../lib/route';
 import type { DemoSpeed } from '../lib/speed';
@@ -21,6 +23,8 @@ export function AppShell() {
   const state = useSky();
   const [route] = useState(currentRoute);
   const [speed, setSpeed] = useState<DemoSpeed>(() => initialSpeed(route));
+  // `undefined` = auto-detect; the top bar's one-click fallback flips this between live and demo.
+  const [demoOverride, setDemoOverride] = useState<boolean | undefined>(route.demo);
   const [theme, setTheme] = useState<Theme>(() => {
     const initial = readTheme();
     applyTheme(initial);
@@ -45,7 +49,7 @@ export function AppShell() {
     let cancelled = false;
     let stop: (() => void) | undefined;
 
-    startSkyData({ demo: route.demo, speed })
+    startSkyData({ demo: demoOverride, speed })
       .then((result) => {
         if (cancelled) {
           result.stop();
@@ -61,7 +65,24 @@ export function AppShell() {
       cancelled = true;
       stop?.();
     };
-  }, [route.demo, speed, playground]);
+  }, [demoOverride, speed, playground]);
+
+  // Lazy diffs: the event stream carries summaries, not patches. Selecting a task in live mode asks
+  // the hub for its latest diff once; the store caches it per run+task, so switching back is instant.
+  const { connection, activeRunId, selectedTask, diffs } = state;
+  useEffect(() => {
+    if (connection !== 'live' || activeRunId === undefined || selectedTask === undefined) return;
+    if (diffs[diffKey(activeRunId, selectedTask)] !== undefined) return;
+    const runId = activeRunId;
+    const taskKey = selectedTask;
+    const controller = new AbortController();
+    void fetchTaskDiff(runId, taskKey, { signal: controller.signal }).then((diff) => {
+      if (!controller.signal.aborted && diff !== undefined) {
+        useSky.getState().setDiff(runId, taskKey, diff);
+      }
+    });
+    return () => controller.abort();
+  }, [connection, activeRunId, selectedTask, diffs]);
 
   // Deep link: ?run=<id> or #/runs/<id> selects a run once its events have arrived.
   useEffect(() => {
@@ -86,6 +107,7 @@ export function AppShell() {
       onSelectRun={(runId) => useSky.getState().setActiveRun(runId)}
       onCloseDrawer={() => useSky.getState().selectTask()}
       onSelectTask={(key) => useSky.getState().selectTask(key)}
+      onToggleDemo={() => setDemoOverride(useSky.getState().connection === 'demo')}
     />
   );
 }

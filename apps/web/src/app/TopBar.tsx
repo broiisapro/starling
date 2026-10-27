@@ -1,6 +1,7 @@
-import type { Run } from '@starling/core';
+import type { Run } from '@starling/core/browser';
 import { Bird, Keyboard, Moon, Sun } from 'lucide-react';
 import { Badge, type BadgeTone, Kbd, type TabItem, Tabs, Tooltip } from '../components';
+import { modelLabel, modelLabels, type PublicConfig } from '../data/api';
 import type { ConnectionState } from '../data/reducer';
 import { cn } from '../lib/cn';
 import { DEMO_SPEEDS, type DemoSpeed } from '../lib/speed';
@@ -26,6 +27,10 @@ export interface TopBarProps {
   /** Shell-level progress: tasks landed / total in the active run. */
   landed?: number;
   totalTasks?: number;
+  /** `/api/config/public`: the header shows the auditor's model and every role in a tooltip. */
+  config?: PublicConfig;
+  /** One-click fallback: demo when live, live when demo. */
+  onToggleDemo?(): void;
 }
 
 const SPEED_TABS: readonly TabItem<DemoSpeed>[] = DEMO_SPEEDS.map((speed) => ({
@@ -99,6 +104,8 @@ export function TopBar({
   onOpenHelp,
   landed,
   totalTasks,
+  config,
+  onToggleDemo,
 }: TopBarProps) {
   const status = CONNECTION[connection];
   const activeRun = runs.find((run) => run.id === activeRunId) ?? runs[0];
@@ -144,6 +151,39 @@ export function TopBar({
           {status.label}
         </Badge>
       </Tooltip>
+
+      {onToggleDemo !== undefined ? (
+        <Tooltip
+          content={
+            connection === 'demo'
+              ? 'Reconnect to the Starling server at /api/health.'
+              : 'Replay the recorded launch-day run (no server needed).'
+          }
+        >
+          <button
+            type="button"
+            onClick={onToggleDemo}
+            aria-label={connection === 'demo' ? 'Switch to live data' : 'Switch to demo replay'}
+            className="inline-flex h-7 items-center rounded-lg border border-hairline-strong bg-surface-1/70 px-2 text-caption font-medium text-ink-3 transition-colors hover:bg-surface-3 hover:text-ink-1"
+          >
+            {connection === 'demo' ? 'Live' : 'Demo'}
+          </button>
+        </Tooltip>
+      ) : null}
+
+      {config !== undefined ? (
+        <Tooltip
+          content={
+            <span className="block whitespace-pre font-mono text-micro" data-testid="model-roles">
+              {modelLabels(config).join('\n')}
+            </span>
+          }
+        >
+          <Badge tone="neutral" className="hidden font-mono xl:inline-flex">
+            {modelLabel(config, 'auditor')}
+          </Badge>
+        </Tooltip>
+      ) : null}
 
       {totalTasks !== undefined && totalTasks > 0 ? (
         <Badge

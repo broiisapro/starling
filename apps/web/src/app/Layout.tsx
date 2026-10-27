@@ -9,8 +9,10 @@ import {
   drawerProps,
   flockProps,
   metricsProps,
+  type QueueExtras,
   queueProps,
   type SelectorActions,
+  type SkyExtras,
   skyProps,
   sortedRuns,
   storeActions,
@@ -48,6 +50,8 @@ export interface LayoutProps {
   onSelectTask?(key: string): void;
   /** The centre view to start on. Keys 1/2 and the top-bar toggle change it after mount. */
   initialView?: CentreView;
+  /** One-click live ↔ demo fallback in the top bar. Omitted in tests / embedded layouts. */
+  onToggleDemo?(): void;
 }
 
 /**
@@ -75,6 +79,7 @@ export function Layout({
   onCloseDrawer,
   onSelectTask,
   initialView = 'sky',
+  onToggleDemo,
 }: LayoutProps) {
   const [view, setView] = useState<CentreView>(initialView);
   const [flockOpen, setFlockOpen] = useState(true);
@@ -98,7 +103,15 @@ export function Layout({
   const sky = skyProps(state, actions);
   const dag = dagProps(state, actions);
   const drawer = drawerProps(state, actions);
-  const queue = queueProps(state, actions);
+  // `selectedTask` is additive on MergeQueueProps (Epic 40); until then the panel ignores it. Passed
+  // as a typed spread so this compiles both before and after core grows the field.
+  const queueExtras: QueueExtras = {
+    ...(state.selectedTask === undefined ? {} : { selectedTask: state.selectedTask }),
+  };
+  const queue = queueProps(state, actions, queueExtras);
+  // `paused` is additive on SkyViewProps (Epic 40 / Epic 47's polish): the Sky's rAF loop should stop
+  // while the DAG is the visible centre view. Same typed-spread trick.
+  const skyExtras: SkyExtras = { paused: view !== 'sky' };
   // `live` is only passed when the engine actually says the run is running. Today `run.status` only
   // changes at `run.finished` (no intermediate event), so a replay would otherwise claim "not live"
   // and freeze the clock; omitting the flag lets the meter keep inferring liveness from sample age.
@@ -182,6 +195,8 @@ export function Layout({
         onOpenHelp={() => setHelpOpen(true)}
         landed={landed}
         totalTasks={tasksOfRun.length}
+        {...(state.publicConfig === undefined ? {} : { config: state.publicConfig })}
+        {...(onToggleDemo === undefined ? {} : { onToggleDemo })}
       />
 
       <main
@@ -277,7 +292,7 @@ export function Layout({
                 resetKey={state.activeRunId}
                 fallback={(error) => <RegionPlaceholder name="sky" detail={error.message} />}
               >
-                <SkyView {...sky} reducedMotion={reducedMotion} />
+                <SkyView {...sky} {...skyExtras} reducedMotion={reducedMotion} />
               </ErrorBoundary>
             </div>
             <div
