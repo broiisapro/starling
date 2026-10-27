@@ -1,0 +1,80 @@
+name: Contract request
+description: You need a change to something that is frozen — contracts, ports, root config — and may not make it yourself.
+title: "contract: "
+labels: ["contract-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Don't edit frozen files.** `packages/core/src/contracts.ts`, `packages/core/src/ports.ts`,
+        root config (`package.json`, `tsconfig*.json`, `biome.json`), `AGENTS.md` and
+        `opencode.json` belong to the Orchestrator (and, in Wave 0, Epic 00).
+
+        Work around the gap locally inside your lane (a local type or adapter), ship the epic,
+        and file this request. It gets folded into ARCHITECTURE.md as a new locked decision and
+        lands in the next wave's prompts.
+
+  - type: input
+    id: epic
+    attributes:
+      label: Requesting epic
+      placeholder: "16"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: What needs to change
+      options:
+        - "packages/core/src/contracts.ts (a type or zod schema)"
+        - "packages/core/src/ports.ts (a port interface)"
+        - "packages/core/src/testing/ (a mock)"
+        - "root config (package.json / tsconfig / biome)"
+        - "ARCHITECTURE.md locked decision"
+        - "other"
+    validations:
+      required: true
+
+  - type: textarea
+    id: change
+    attributes:
+      label: Precise proposed change
+      description: Paste the exact diff or the exact type signature. "Add `foo: string` to `TaskSpec`" beats "make plans better".
+      render: typescript
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is needed
+      description: What you cannot do without it, and what you did instead in the meantime.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Local type, adapter, narrower port, or doing nothing — and why each falls short.
+    validations:
+      required: false
+
+  - type: textarea
+    id: blast-radius
+    attributes:
+      label: Blast radius
+      description: Which packages, mocks and epics would have to change if this is accepted.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Confirmations
+      options:
+        - label: I did not edit the frozen file; the workaround lives inside my lane.
+          required: true
+        - label: My epic can merge without this change (it is not a hard blocker), or I have said so above.
+          required: true

@@ -1,0 +1,101 @@
+name: Bug
+description: Something in Starling is broken — a package, the CLI, the dashboard, the perch, or the build itself.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please don't paste API keys, tokens or `.env` contents. `starling doctor` output is
+        safe to share.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - planner
+        - repomap
+        - prompts
+        - workspace (worktrees, bundles)
+        - runner (opencode)
+        - auditor
+        - merger
+        - store / replay
+        - engine
+        - flock / perch
+        - server / SSE
+        - web dashboard
+        - cli
+        - local models / ollama
+        - github integration
+        - repo ops / bootstrap scripts
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      description: Output of `starling --version`, or the short sha you are on.
+      placeholder: "0.1.0 (a1b2c3d)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: machine
+    attributes:
+      label: Machine
+      options: ["MacBook Pro M5 Pro (32 GB)", "MacBook Air M2 (16 GB)", "other"]
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: The actual behaviour, including the exact error text and the StarlingError code if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Smallest sequence that fails. A `starling replay` of a JSONL is ideal.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / events
+      description: Relevant `starling status`, SSE events, or the tail of the run's JSONL.
+      render: text
+    validations:
+      required: false
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Demo-breaking bugs jump the queue.
+      options:
+        - "demo-breaking: the golden run cannot finish"
+        - "high: a core epic is blocked"
+        - "medium: wrong but workable"
+        - "low: cosmetic"
+    validations:
+      required: true

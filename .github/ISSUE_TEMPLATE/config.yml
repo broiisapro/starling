@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Architecture and contracts (read this first)
+    url: https://github.com/broiisapro/starling/blob/main/.orchestrator/ARCHITECTURE.md
+    about: Lanes, locked decisions, the frozen contracts in packages/core.
+  - name: How the swarm builds Starling
+    url: https://github.com/broiisapro/starling/blob/main/.orchestrator/PROCESS.md
+    about: Issue → branch → worktree → PR → audit → merge. One epic, one PR.
+  - name: Ask a question
+    url: https://github.com/broiisapro/starling/discussions
+    about: Anything that is not an epic, a bug or a contract change.
