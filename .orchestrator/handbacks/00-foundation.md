@@ -26,7 +26,7 @@
 
 **Verification (exact commands + results):**
 - `bun run test` (root): **173 pass / 0 fail** — summary line: `173 pass, 0 fail, 726 expect() calls. Ran 173 tests across 36 files.`
-- `bun run check`: clean — `Checked 134 files … No fixes applied` and the per-workspace `tsc --noEmit -p` loop exits 0 for all 18 workspaces.
+- `bun run check`: clean — `Checked 136 files … No fixes applied` and the per-workspace `tsc --noEmit -p` loop exits 0 for all 18 workspaces.
 - Exclusion check: created `examples/throwaway/ignored.test.ts` asserting `1 === 2`; `bun run test` still reported `173 pass, 0 fail`; removed it (`examples/` absent before and after).
 - `bun run dev:web` then `curl http://localhost:5173/`: HTML `<title>Starling — the sky is loading 🐦</title>`; `bun run build` in `apps/web`: `✓ built in 266ms` (`dist/index.html`, CSS, JS).
 - `bun run dev:server` then `curl http://localhost:7777/api/health`: `{"ok":true,"version":"0.0.0"}`.

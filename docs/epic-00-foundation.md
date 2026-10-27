@@ -168,7 +168,7 @@ Runtime values from `@starling/core`:
 `estimateSavedUsd`, `emptyMetrics`, `withCall`.
 
 Types from `@starling/core`: every contract type above plus `ModelPricing`, `StarlingErrorCode`,
-`StarlingEventOf`, `ExecOptions`, `ExecResult`, `StarlingConfig`, `ModelsConfig`, `ProviderConfig`,
+`StarlingErrorOptions`, `StarlingEventOf`, `ExecOptions`, `ExecResult`, `StarlingConfig`, `ModelsConfig`, `ProviderConfig`,
 `OpencodeConfig`, `FlockConfig`, `PerchConfig`, and every port type: `LLMRequest`, `LLMResponse`, `LLM`,
 `RepoMapper`, `Planner`, `PromptContext`, `PromptCompiler`, `Workspace`, `AgentRunner`, `AuditInput`,
 `Auditor`, `Merger`, `Tracker`, `Store`, `EventBus`, `ExecutionNode`, `NodeRegistry`, `Scheduler`,
