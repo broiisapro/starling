@@ -1,0 +1,91 @@
+{
+  "generatedAt": "2026-10-27T20:08:56.554Z",
+  "totalEvents": 20000,
+  "taskCount": 29,
+  "wallMs": 603.5,
+  "perEvent": {
+    "count": 20000,
+    "minMs": 0.00020799999998644125,
+    "p50Ms": 0.003917000000001281,
+    "p95Ms": 0.008124999999949978,
+    "p99Ms": 0.04093825000003108,
+    "maxMs": 88.59866599999998,
+    "meanMs": 0.030115065900000026,
+    "totalMs": 602.3013180000005
+  },
+  "msPerEvent": 0.0302,
+  "eventsPerSecond": 33142,
+  "mix": {
+    "run.created": 1,
+    "plan.created": 1,
+    "agent.event": 14500,
+    "audit.verdict": 600,
+    "merge.result": 700,
+    "metrics": 3000,
+    "node.joined": 200,
+    "node.stats": 400,
+    "log": 300,
+    "task.status": 297,
+    "run.finished": 1
+  },
+  "caps": {
+    "events": {
+      "name": "events",
+      "cap": 5000,
+      "actual": 5000,
+      "ok": true
+    },
+    "agentLog": {
+      "name": "agentLog/task",
+      "cap": 500,
+      "actual": 500,
+      "ok": true
+    },
+    "verdicts": {
+      "name": "verdicts/task",
+      "cap": 100,
+      "actual": 100,
+      "ok": true
+    },
+    "merges": {
+      "name": "merges",
+      "cap": 500,
+      "actual": 500,
+      "ok": true
+    },
+    "metricsHistory": {
+      "name": "metricsHistory",
+      "cap": 2000,
+      "actual": 2000,
+      "ok": true
+    },
+    "allOk": true
+  },
+  "state": {
+    "runs": 1,
+    "tasks": 30,
+    "agentLogEntries": 6000,
+    "agentLogMaxPerTask": 500,
+    "verdictsMaxPerTask": 100,
+    "merges": 500,
+    "metricsHistory": 2000,
+    "jsonBytes": 3503972
+  },
+  "memory": {
+    "before": {
+      "rssMb": 36.4,
+      "heapUsedMb": 7.8,
+      "heapTotalMb": 12.1,
+      "externalMb": 0.9
+    },
+    "after": {
+      "rssMb": 42.6,
+      "heapUsedMb": 8.3,
+      "heapTotalMb": 12.3,
+      "externalMb": 1
+    },
+    "peakRssMb": 42.6,
+    "peakHeapUsedMb": 8.3,
+    "heapDeltaMb": 0.5
+  }
+}

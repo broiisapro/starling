@@ -1,0 +1,158 @@
+{
+  "generatedAt": "2026-10-27T19:59:16.372Z",
+  "mode": {
+    "tasks": 30,
+    "maxParallel": 20,
+    "eventsPerTask": 300,
+    "replaySpeed": 4,
+    "serialisedMerges": true,
+    "doubleRecord": false,
+    "retimeReplayEvents": false,
+    "sessionHeadroom": 4,
+    "nodeMaxSessions": 24,
+    "peakSessions": 20,
+    "testCommand": "bun run test"
+  },
+  "runId": "01m5zf3pyfheewqmhw0v96rwwz",
+  "status": "finished",
+  "wallMs": 14370.5,
+  "events": {
+    "total": 9230,
+    "agentEvents": 9000,
+    "perSecond": 642.3,
+    "peakPerSecond": 2172,
+    "gap": {
+      "count": 9229,
+      "minMs": 0.00008400000024266774,
+      "p50Ms": 0.0002920000006270129,
+      "p95Ms": 2.1140747999998046,
+      "p99Ms": 39.682876760000276,
+      "maxMs": 559.1388750000001,
+      "meanMs": 1.545566326254199,
+      "totalMs": 14264.031625000001
+    }
+  },
+  "store": {
+    "append": {
+      "count": 9230,
+      "minMs": 0,
+      "p50Ms": 0.00004199999966658652,
+      "p95Ms": 0.0007500000010622898,
+      "p99Ms": 0.0018330000001947155,
+      "maxMs": 0.07916599999998652,
+      "meanMs": 0.00018506879740197118,
+      "totalMs": 1.708185000020194
+    },
+    "flush": {
+      "count": 183,
+      "minMs": 0.0004170000001977314,
+      "p50Ms": 0.0012909999995827093,
+      "p95Ms": 0.0045621999999184495,
+      "p99Ms": 0.0722924999999305,
+      "maxMs": 1.511000000000422,
+      "meanMs": 0.010991830601054998,
+      "totalMs": 2.0115049999930648
+    },
+    "saveRun": {
+      "count": 803,
+      "minMs": 0.08316599999989194,
+      "p50Ms": 0.3055420000000595,
+      "p95Ms": 6.012996399999606,
+      "p99Ms": 16.079286340000074,
+      "maxMs": 91.12374999999997,
+      "meanMs": 1.3363057148194275,
+      "totalMs": 1073.0534890000004
+    },
+    "read": {
+      "count": 1,
+      "minMs": 9.594457999999577,
+      "p50Ms": 9.594457999999577,
+      "p95Ms": 9.594457999999577,
+      "p99Ms": 9.594457999999577,
+      "maxMs": 9.594457999999577,
+      "meanMs": 9.594457999999577,
+      "totalMs": 9.594457999999577
+    },
+    "appendCalls": 9230,
+    "savedRuns": 803,
+    "readCalls": 1,
+    "recordedEvents": 9230,
+    "dbBytes": 8307192,
+    "staleAgentEvents": 9000
+  },
+  "audit": {
+    "verdicts": 30,
+    "passed": 30,
+    "latency": {
+      "count": 30,
+      "minMs": 277.8165420000005,
+      "p50Ms": 909.6663125000002,
+      "p95Ms": 1218.6757585500002,
+      "p99Ms": 1274.1328979300004,
+      "maxMs": 1296.028792,
+      "meanMs": 837.9356888666667,
+      "totalMs": 25138.070666000003
+    }
+  },
+  "merge": {
+    "merged": 30,
+    "failed": 0,
+    "conflict": 0,
+    "other": 0,
+    "latency": {
+      "count": 30,
+      "minMs": 806.3249999999998,
+      "p50Ms": 4708.398979,
+      "p95Ms": 5387.40893315,
+      "p99Ms": 5452.93432318,
+      "maxMs": 5465.821041,
+      "meanMs": 4371.892181933333,
+      "totalMs": 131156.76545799998
+    },
+    "service": {
+      "count": 30,
+      "minMs": 175.13195799999994,
+      "p50Ms": 275.4348955000005,
+      "p95Ms": 916.9108788,
+      "p99Ms": 1074.6810079599998,
+      "maxMs": 1131.6211669999993,
+      "meanMs": 391.8913916333333,
+      "totalMs": 11756.741748999999
+    },
+    "queueWait": {
+      "count": 30,
+      "minMs": 0.24487400000043635,
+      "p50Ms": 4440.3642500000005,
+      "p95Ms": 5113.4214193,
+      "p99Ms": 5176.30840654,
+      "maxMs": 5198.013999999999,
+      "meanMs": 3973.885529233333,
+      "totalMs": 119216.56587699999
+    }
+  },
+  "taskDurations": {
+    "count": 30,
+    "minMs": 3071.9781669999998,
+    "p50Ms": 7370.688646,
+    "p95Ms": 11366.41862485,
+    "p99Ms": 11697.427858570001,
+    "maxMs": 11782.367167,
+    "meanMs": 7677.257016666666,
+    "totalMs": 230317.71049999996
+  },
+  "memory": {
+    "rssMb": 49.5,
+    "heapUsedMb": 39.2,
+    "heapTotalMb": 12.5,
+    "externalMb": 33.7,
+    "peakRssMb": 66.9,
+    "peakHeapUsedMb": 122.4
+  },
+  "plan": {
+    "tasks": 30,
+    "issues": 1,
+    "errors": 0,
+    "warnings": 1
+  },
+  "errors": []
+}

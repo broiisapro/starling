@@ -1,0 +1,161 @@
+{
+  "generatedAt": "2026-10-27T19:58:54.940Z",
+  "mode": {
+    "tasks": 30,
+    "maxParallel": 20,
+    "eventsPerTask": 300,
+    "replaySpeed": 4,
+    "serialisedMerges": false,
+    "doubleRecord": false,
+    "retimeReplayEvents": true,
+    "sessionHeadroom": 4,
+    "nodeMaxSessions": 24,
+    "peakSessions": 20,
+    "testCommand": "bun run test"
+  },
+  "runId": "01m5zf34c27z2he6wkb7svnkt6",
+  "status": "finished",
+  "wallMs": 12100.7,
+  "events": {
+    "total": 9228,
+    "agentEvents": 9000,
+    "perSecond": 762.6,
+    "peakPerSecond": 1988,
+    "gap": {
+      "count": 9227,
+      "minMs": 0.0001249999986612238,
+      "p50Ms": 0.00033400000029359944,
+      "p95Ms": 1.3860411999999993,
+      "p99Ms": 33.82852950000039,
+      "maxMs": 436.6462909999999,
+      "meanMs": 1.2849046683645822,
+      "totalMs": 11855.815375
+    }
+  },
+  "store": {
+    "append": {
+      "count": 9228,
+      "minMs": 0,
+      "p50Ms": 0.00004199999966658652,
+      "p95Ms": 0.0006250000005820766,
+      "p99Ms": 0.0015000000003055902,
+      "maxMs": 17.104833000001236,
+      "meanMs": 0.0021975330515840957,
+      "totalMs": 20.278835000018034
+    },
+    "flush": {
+      "count": 105,
+      "minMs": 0.0007079999998040876,
+      "p50Ms": 0.0013330000001587905,
+      "p95Ms": 0.005958399999508391,
+      "p99Ms": 0.08994367999965083,
+      "maxMs": 69.27691700000003,
+      "meanMs": 0.6632246571428314,
+      "totalMs": 69.6385889999973
+    },
+    "saveRun": {
+      "count": 801,
+      "minMs": 0.08525000000008731,
+      "p50Ms": 0.30141699999990124,
+      "p95Ms": 4.9785830000000715,
+      "p99Ms": 14.303875000000062,
+      "maxMs": 59.01991700000053,
+      "meanMs": 1.1615241947565493,
+      "totalMs": 930.380879999996
+    },
+    "read": {
+      "count": 1,
+      "minMs": 6.874832999999853,
+      "p50Ms": 6.874832999999853,
+      "p95Ms": 6.874832999999853,
+      "p99Ms": 6.874832999999853,
+      "maxMs": 6.874832999999853,
+      "meanMs": 6.874832999999853,
+      "totalMs": 6.874832999999853
+    },
+    "appendCalls": 9228,
+    "savedRuns": 801,
+    "readCalls": 1,
+    "recordedEvents": 9228,
+    "dbBytes": 5756216,
+    "staleAgentEvents": 0
+  },
+  "audit": {
+    "verdicts": 30,
+    "passed": 30,
+    "latency": {
+      "count": 30,
+      "minMs": 375.2444999999989,
+      "p50Ms": 964.8088539999997,
+      "p95Ms": 2033.04379375,
+      "p99Ms": 2209.55018,
+      "maxMs": 2253.672375,
+      "meanMs": 1146.8340193666663,
+      "totalMs": 34405.02058099999
+    }
+  },
+  "merge": {
+    "merged": 28,
+    "failed": 2,
+    "conflict": 0,
+    "other": 0,
+    "latency": {
+      "count": 28,
+      "minMs": 264.17112499999894,
+      "p50Ms": 1005.1757710000002,
+      "p95Ms": 1885.2128271000004,
+      "p99Ms": 1970.1830324100001,
+      "maxMs": 1989.595875,
+      "meanMs": 1039.0509911071429,
+      "totalMs": 29093.427751000003
+    },
+    "service": {
+      "count": 30,
+      "minMs": 196.31912499999999,
+      "p50Ms": 986.5723955000003,
+      "p95Ms": 1875.7253812499996,
+      "p99Ms": 1968.6484637499996,
+      "maxMs": 1989.5393749999994,
+      "meanMs": 986.2094762666667,
+      "totalMs": 29586.284288
+    },
+    "queueWait": {
+      "count": 30,
+      "minMs": 0,
+      "p50Ms": 0,
+      "p95Ms": 0,
+      "p99Ms": 0,
+      "maxMs": 0,
+      "meanMs": 0,
+      "totalMs": 0
+    }
+  },
+  "taskDurations": {
+    "count": 30,
+    "minMs": 2974.19425,
+    "p50Ms": 6128.350312500001,
+    "p95Ms": 8994.2604705,
+    "p99Ms": 9205.121127639999,
+    "maxMs": 9246.740791999999,
+    "meanMs": 6201.9554776666655,
+    "totalMs": 186058.66432999997
+  },
+  "memory": {
+    "rssMb": 46.4,
+    "heapUsedMb": 43.9,
+    "heapTotalMb": 12.6,
+    "externalMb": 38.3,
+    "peakRssMb": 57.2,
+    "peakHeapUsedMb": 92.4
+  },
+  "plan": {
+    "tasks": 30,
+    "issues": 1,
+    "errors": 0,
+    "warnings": 1
+  },
+  "errors": [
+    "merger threw for t22-wire-the-filter-chips: git merge of \"starling/svnkt6/t22-wire-the-filter-chips\" into \"starling/svnkt6/integration\" failed",
+    "merger threw for t26-persist-the-theme-choice: git merge of \"starling/svnkt6/t26-persist-the-theme-choice\" into \"starling/svnkt6/integration\" failed"
+  ]
+}
