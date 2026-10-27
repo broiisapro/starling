@@ -41,6 +41,8 @@ export interface PipelineHost {
   touchMetrics(): void;
   promptContext(spec: TaskSpec, branch: string): PromptContext;
   branchOf(taskKey: string): string;
+  /** A node collected a commit for this task: remember it so a perch loss does not discard the work. */
+  recordCollect(taskKey: string, commit: string): void;
   enqueue(live: LiveTask, generation: number, step: () => Promise<void>): void;
   onStepError(live: LiveTask, generation: number, err: unknown, phase: string): void;
 }
@@ -93,6 +95,7 @@ export class TaskPipeline {
       return;
     }
     if (this.#stale(live, generation)) return;
+    this.#host.recordCollect(key, result.commit);
 
     const task = this.#host.run.tasks[key];
     if (task === undefined) return;

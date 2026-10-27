@@ -59,6 +59,9 @@ export function computeRunMetrics(run: Run, ledger: UsageLedger, now: number): R
 export interface Timers {
   setInterval(fn: () => void, ms: number): unknown;
   clearInterval(handle: unknown): void;
+  /** Optional: the stall watchdog uses timeouts. Implementations without them fall back to global. */
+  setTimeout?(fn: () => void, ms: number): unknown;
+  clearTimeout?(handle: unknown): void;
 }
 
 export const systemTimers: Timers = {
@@ -70,6 +73,14 @@ export const systemTimers: Timers = {
   },
   clearInterval(handle) {
     clearInterval(handle as ReturnType<typeof setInterval>);
+  },
+  setTimeout(fn, ms) {
+    const handle = setTimeout(fn, ms);
+    (handle as { unref?: () => void }).unref?.();
+    return handle;
+  },
+  clearTimeout(handle) {
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
   },
 };
 

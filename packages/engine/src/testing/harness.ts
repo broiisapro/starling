@@ -52,6 +52,7 @@ export function makeConfig(overrides: Record<string, unknown> = {}): StarlingCon
 /** A controllable `Timers` double: `fireHeartbeat()` runs whatever the publisher registered. */
 export class FakeTimers implements Timers {
   #callbacks = new Set<() => void>();
+  #timeouts = new Set<{ fn: () => void }>();
   intervalMs: number | undefined;
 
   setInterval(fn: () => void, ms: number): unknown {
@@ -64,12 +65,33 @@ export class FakeTimers implements Timers {
     this.#callbacks.delete(handle as () => void);
   }
 
+  setTimeout(fn: () => void, _ms: number): unknown {
+    const entry = { fn };
+    this.#timeouts.add(entry);
+    return entry;
+  }
+
+  clearTimeout(handle: unknown): void {
+    this.#timeouts.delete(handle as { fn: () => void });
+  }
+
   fireHeartbeat(): void {
     for (const fn of [...this.#callbacks]) fn();
   }
 
+  /** Fire every pending timeout once (stall watchdogs), then forget it. */
+  fireTimeouts(): void {
+    const pending = [...this.#timeouts];
+    this.#timeouts.clear();
+    for (const entry of pending) entry.fn();
+  }
+
   get active(): number {
     return this.#callbacks.size;
+  }
+
+  get pendingTimeouts(): number {
+    return this.#timeouts.size;
   }
 }
 
@@ -88,6 +110,8 @@ export interface HarnessOptions {
   tracker?: NoopTracker;
   timers?: Timers;
   strictTransitions?: boolean;
+  policies?: EngineDeps['policies'];
+  worktreePathFor?: EngineDeps['worktreePathFor'];
 }
 
 export interface Harness {
@@ -111,6 +135,8 @@ export interface Harness {
   statusEvents(): Array<{ taskKey: string; from: string; to: string }>;
   ofType<T extends StarlingEvent['type']>(type: T): Array<Extract<StarlingEvent, { type: T }>>;
   logs(level?: 'debug' | 'info' | 'warn' | 'error'): string[];
+  /** Policy-coded log events (the additive `code` property Epic 49 adds). */
+  policyLogs(code?: string): Array<{ code: string; msg: string; taskKey?: string }>;
   transitionsFor(taskKey: string): string[];
 }
 
@@ -188,6 +214,8 @@ export function buildHarness(options: HarnessOptions = {}): Harness {
     tracker,
     strictTransitions: options.strictTransitions ?? true,
     timers: options.timers,
+    ...(options.policies === undefined ? {} : { policies: options.policies }),
+    ...(options.worktreePathFor === undefined ? {} : { worktreePathFor: options.worktreePathFor }),
     ...(options.writer === undefined ? {} : { writer: options.writer }),
     ...(options.bundleUrlFor === undefined ? {} : { bundleUrlFor: options.bundleUrlFor }),
   };
@@ -244,6 +272,22 @@ export function buildHarness(options: HarnessOptions = {}): Harness {
         if (event.type !== 'log') continue;
         if (level !== undefined && event.payload.level !== level) continue;
         out.push(event.payload.msg);
+      }
+      return out;
+    },
+    policyLogs(code) {
+      const out: Array<{ code: string; msg: string; taskKey?: string }> = [];
+      for (const event of events) {
+        if (event.type !== 'log') continue;
+        const payload = event.payload as Record<string, unknown>;
+        const value = payload.code;
+        if (typeof value !== 'string') continue;
+        if (code !== undefined && value !== code) continue;
+        out.push({
+          code: value,
+          msg: event.payload.msg,
+          ...(event.payload.taskKey === undefined ? {} : { taskKey: event.payload.taskKey }),
+        });
       }
       return out;
     },
