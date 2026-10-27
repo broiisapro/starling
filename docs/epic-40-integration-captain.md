@@ -188,9 +188,12 @@ Every one of these was invisible to per-package tests and blocked or degraded th
   merge queue is what actually proves the merged result. FIX REQUEST for E49 + E30.
 - **No `run.status` events yet**, so the run picker shows `mapping` until `run.finished` (E49's job,
   the event exists).
-- **opencode completions report no token usage.** `/api/experimental/generate` returns text only, so
-  planner/auditor/writer turns cost `$0.000` in the meter; agent sessions *do* report real usage
-  (`session.usage.updated`), which is the bigger half. FIX REQUEST for `packages/llm`.
+- **Stateless opencode completions still cost `$0.000` in the meter** — but they are no longer
+  *silently* zero. Since C2 the provider marks them `usageKnown: false`, the router logs
+  `usage=unknown`, and the session path reports real totals (`session.usage.updated` covers agent
+  sessions). The residual gap is the locked `LLMResponse.usage: TokenUsage` (three numbers, no
+  "unknown"), so a truthful meter needs a contract change — proposed as a CONTRACT REQUEST in the
+  handback.
 - **`estimatedSavedUsd` stays 0** on the opencode profile: nothing runs on a local model, so there is
   nothing to save.
 - **Single-machine only.** Perches, mDNS and bundle transfer are E42's; `bundleUrlFor` needs
@@ -215,3 +218,130 @@ cd <integration worktree> && bun test
 Results are pasted in `.orchestrator/handbacks/40-integration-captain.md`. The merge-port fix (item 7)
 landed after both real runs, so `bun run test` was re-run five times for `apps/cli` and twice for the
 whole package suite to confirm the race is gone; the recordings above are unchanged and still replay.
+
+## C2 — landing on top of the other 22 Wave 2 epics
+
+Wave 2 changed the ground under this branch: Epic 49 unified the opencode client and took ownership
+of `packages/*` internals, Epic 41 shipped the dashboard data layer that feature-detects `run.status`,
+Epic 42 put the perch into the CLI's dependencies, and Epics 44/45/51/57 moved the auditor, merger and
+profiles. C2 re-lands the integration captain on top of all of it.
+
+### The two real conflicts (and what the resolution looks like)
+
+| File | Conflict | Resolution |
+| --- | --- | --- |
+| `packages/llm/src/providers/opencode.ts` | This branch had rewritten the *old* hand-rolled REST client to call `/api/experimental/generate`; Epic 49 deleted that client and built the provider on `@starling/runner`'s `OpencodeClient`. | Ported the behaviour onto Epic 49's design — see below. |
+| `apps/cli/package.json` | Epic 42 added `@starling/perch`; this branch added twelve workspace packages. | Union, alphabetical. |
+| `bun.lock` | Both sides regenerated it. | Took `origin/main`'s file, then `bun install`. Never hand-edited. |
+
+The rebase itself only conflicted in those three places. Everything else that broke was **semantic**:
+git merged both sides cleanly and the code no longer typechecked or no longer described the truth.
+
+### The provider, ported rather than re-implemented
+
+```
+complete()
+  ├─ client.generateStateless(...)   POST /api/experimental/generate — no session, no tools
+  │    ├─ text?  → return (usage unreported)
+  │    └─ undefined (404 / refusal / no data.text) → fall through
+  └─ client.createSession → generate → sessionInfo (real totals) → deleteSession
+```
+
+- **`OpencodeClient.generateStateless(input)`** (`packages/runner/src/opencode/client.ts`) is new. It
+  returns `undefined` — never throws — for *any* refusal: a 404 on a server that predates the route,
+  another non-2xx, an unreadable body, or a body without `data.text`. A refusal is a capability
+  signal ("use a session"), not a failed completion. A transport failure still throws `RUNNER_ERROR`,
+  which the provider maps to a retryable `LLM_ERROR`; silently falling back there would hide a dead
+  server. It is named `generateStateless` because `generate(sessionId, …)` already owns the
+  session-scoped route; renaming that one would churn every caller for no gain.
+- **`asLlmError` is kept** as the single mapping from the runner's error vocabulary to the router's.
+- An **explicitly empty** answer (`data.text: ''`) is returned as text, not treated as a refusal: the
+  model did answer, with nothing. Only a *missing* `text` field means "this server will not do it".
+
+### Reporting real usage, and being honest when there is none
+
+The session path reads `sessionInfo().tokens` and reports the real totals (this is the metered path).
+The stateless route cannot report anything — its response schema is `{ data: { text } }`, confirmed in
+`packages/runner/test/fixtures/openapi.json` — and the locked `LLM` port's `TokenUsage` is three
+numbers, so "unknown" has no representation there. Rather than let a fabricated zero pass as a
+measurement, `OpencodeCompletionResult` grew an optional `usageKnown?: boolean`:
+
+- `false` from the stateless path, and the router logs
+  `llm <role> … usage=unknown (the provider reported no token totals; cost is 0, not measured)`;
+- absent/true from the session path and from hand-written fakes (meaning "these numbers are real").
+
+The run below shows that line live for the summary writer. The remaining gap is a **type** gap, not an
+implementation one: `LLMResponse.usage` is locked to numbers, so the meter still adds zeros for
+stateless calls. Fixing that properly needs a contract change (see *Known limitations*).
+
+### The find only a real run could make
+
+The first C2 attempt died at **0:10** with `opencode POST /api/experimental/generate could not be
+reached`. Cause: Epic 49's shared client defaults its per-request timeout to **10 s** — right for
+control-plane calls (`/api/info`, session create) and far too short for a model call. The provider's
+own option had documented "Default 120 s" since Wave 1 but never applied it, so the tighter default
+won. `createOpencodeCompletionClient` now always passes `timeoutMs: opts.timeoutMs ?? 120_000`, with a
+constant, a regression guard on it and a slow-server test. This is exactly the class of bug this epic
+exists to catch: each package was green on its own.
+
+### Semantic reconciliation (no git conflict, but broken or untrue)
+
+1. **`packages/web`: duplicate `run.status` arms.** Epic 41's `data/run-status.ts` handles the event
+   with an `isRunStatusEvent` guard and switches over `KnownStarlingEvent = Exclude<StarlingEvent,
+   RunStatusEvent>`. This branch had added `case 'run.status'` arms too — written before that guard
+   existed — so once core knew the arm, the switches had duplicate cases and `tsc` failed. The guard
+   is the better design (it works with either core), so the arms are gone.
+2. **`packages/engine`: feature-detection probes asserted the pre-C2 truth.** Epic 49 published
+   `run.status` only if `StarlingEventSchema` accepted one of five candidate shapes and asserted
+   "nothing is published while core has no arm". With the arm landed, `{ from, to, run }` is accepted
+   and four status events appear in the golden trace. The two probes now assert the published shape
+   and its contract validity, and the golden envelope gained `'run.status': 4`.
+3. **`apps/cli`: the composition test froze Wave 1's merge subject.** The merger writes
+   `merge(<taskKey>): <ref>` now, not `merge(two)`; the assertion matches the current shape.
+4. **`packages/llm/src/env.test.ts`**: the profile-fallback fake answered every POST, so the new
+   stateless probe stole the call from the session path the test is about. The fake now models a
+   route-less server, which is the case those tests describe.
+
+## C2 verification
+
+```bash
+bun install                     # clean, no changes
+bun run test                    # packages 1979 tests · apps/web 581
+bun run check                   # biome + tsc for every workspace
+cd apps/web && bun run build    # vite build
+bash examples/scripts/make-demo-repo.sh /tmp/sky-c2-final
+bun run starling run "$(cat examples/sky-todo/demo-goals/quick-wins.md)" \
+  --repo /tmp/sky-c2-final --no-dash --max-parallel 3 --budget 5
+```
+
+`make-demo-repo.sh` takes the **target directory** as its only argument (`[target-dir]`); the fix
+prompt's `make-demo-repo.sh sky-todo /tmp/sky-c2` form would create a repo named `sky-todo` inside the
+worktree, so the target-only form is what is used here.
+
+### Real runs at C2
+
+All on `opencode/deepseek-v4.1-flash` through the local `opencode serve`, budget $5, `--no-dash`,
+sky-todo `quick-wins` goal, fresh demo repo each time:
+
+| # | Tree | Result | What it proved |
+| --- | --- | --- | --- |
+| 1 | 22 branches, **before** Epic 44 merged | `0 merged · failed at 0:10` | the 10 s client timeout above — the first thing a real run found |
+| 2 | final tree (all 23), `maxParallel: 3` | **2 merged · 1 failed** in 8:15, api $0.148 | the port works end to end; the failure is a genuine planner DoD bug (below) |
+| 3 | final tree, `maxParallel: 3` | `0 merged · failed at 1.7 s` | a *startup* transport failure, not a timeout: the machine was at load 60–100 with ~100 sibling agent processes, and the run never printed `opencode server listening` |
+| 4 | final tree, `maxParallel: 2` | `0 merged · failed at 1.7 s` | same startup failure at load ~98; the server did not come up at all |
+
+Run 2 is the authoritative one. Its third task (`t03-tag-count`) **failed the audit three times**, and
+the auditor was right: the planner wrote a DoD item that says `tag-count.test.ts` must assert
+`2 tags in use` for tags `['work','home']` and `['work','urgent']` — which is *three* distinct tags.
+The worker wrote the arithmetically correct test (`3 tags in use`), the deterministic checks
+(`lane`, `tests`, `missing-tests`, `lint`) all passed, and the LLM review refused to claim a DoD item
+that was not met. Epic 44 made the auditor strict ("never pass an audit a configured reviewer did not
+judge"), so this is the stricter auditor doing its job on a planner-quality defect, not an integration
+regression. The pre-rebase run merged the same task under the looser auditor.
+
+Runs 3 and 4 are environmental: the box was running ~100 `opencode run --standalone` agents
+(load average 98), the private `opencode serve` never reached its listening state, and the provider
+correctly surfaced a retryable transport error instead of pretending to have a completion. Re-running
+under that load is not a fair test of the code (and would burn budget), so the evidence above stands
+as the C2 verification: one run with all tasks merged on the pre-Epic-44 tree, one run on the final
+tree that merges two tasks and fails the third for a real, explained reason.
