@@ -1,0 +1,128 @@
+{
+  "kind": "starling.local-model.smoke",
+  "schemaVersion": 1,
+  "startedAt": "2026-10-27T15:06:10.298Z",
+  "finishedAt": "2026-10-27T15:06:41.562Z",
+  "ok": true,
+  "host": {
+    "hostname": "D75-N38.gen.queensu.ca",
+    "platform": "darwin",
+    "arch": "arm64",
+    "bun": "1.4.4",
+    "cpu": "Apple M5",
+    "ramGb": 32
+  },
+  "ollama": {
+    "url": "http://127.0.0.1:11434",
+    "version": "0.40.8"
+  },
+  "model": "qwen3.8:27b-mlx",
+  "transport": "v1-json_schema",
+  "request": {
+    "endpoint": "/v1/chat/completions",
+    "responseFormat": "json_schema",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "pass": {
+          "type": "boolean",
+          "description": "true only if every definition-of-done item is satisfied"
+        },
+        "summary": {
+          "type": "string",
+          "description": "one or two sentences: what was checked and what is wrong"
+        },
+        "fixInstructions": {
+          "type": "string",
+          "description": "exact, actionable steps for the coding agent; omit when pass is true"
+        }
+      },
+      "required": [
+        "pass",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "system": "You are Starling's auditor. You judge one coding agent's diff against a definition of done. Be strict and literal: if a definition-of-done item is not visible in the diff, it is not done. Reply with a single JSON object and nothing else.",
+    "user": "GOAL: format dates for the UI without a time component.\n\nDEFINITION OF DONE:\n1. formatDate returns YYYY-MM-DD in local time (no timezone suffix, no time component)\n2. a unit test covers a single-digit month and a single-digit day\n3. no other exported API changes\n\nDIFF:\n```diff\ndiff --git a/src/format.ts b/src/format.ts\nindex 1a2b3c4..5d6e7f8 100644\n--- a/src/format.ts\n+++ b/src/format.ts\n@@ -1,5 +1,7 @@\n export function formatDate(d: Date): string {\n-  return d.toISOString();\n+  const pad = (n: number): string => String(n).padStart(2, \"0\");\n+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;\n }\n```\n\nReturn {pass, summary, fixInstructions}.",
+    "temperature": 0,
+    "maxTokens": 2000,
+    "keepAlive": "5m",
+    "think": false
+  },
+  "timings": {
+    "modelAlreadyResident": true,
+    "cold": {
+      "ttftMs": 14247,
+      "totalMs": 25291,
+      "completionTokens": 416,
+      "tokensPerSec": 16.45,
+      "tokensPerSecSource": "usage"
+    },
+    "warm": {
+      "ttftMs": 460,
+      "totalMs": 5828,
+      "completionTokens": 102,
+      "tokensPerSec": 18.29,
+      "tokensPerSecSource": "api-chat-eval",
+      "loadDurationMs": 56
+    }
+  },
+  "memory": {
+    "before": {
+      "ollamaPs": "NAME               ID              SIZE     PROCESSOR    CONTEXT    RUNNER    UNTIL              \nqwen3.8:27b-mlx    5642e97495e1    18 GB    100% GPU     32768      mlx       4 minutes from now",
+      "residentSize": "18 GB",
+      "ollamaRssMb": 298,
+      "wiredMb": 21054,
+      "freePercent": 25
+    },
+    "after": {
+      "ollamaPs": "NAME               ID              SIZE     PROCESSOR    CONTEXT    RUNNER    UNTIL              \nqwen3.8:27b-mlx    5642e97495e1    19 GB    100% GPU     32768      mlx       4 minutes from now",
+      "residentSize": "19 GB",
+      "ollamaRssMb": 242,
+      "wiredMb": 20600,
+      "freePercent": 21
+    }
+  },
+  "checks": [
+    {
+      "name": "json-parses",
+      "ok": true,
+      "detail": "572 bytes"
+    },
+    {
+      "name": "shape-pass-boolean",
+      "ok": true,
+      "detail": "pass=false"
+    },
+    {
+      "name": "shape-summary-string",
+      "ok": true,
+      "detail": "non-empty"
+    },
+    {
+      "name": "shape-fixInstructions-optional",
+      "ok": true,
+      "detail": "string"
+    },
+    {
+      "name": "no-extra-keys",
+      "ok": true,
+      "detail": "none"
+    },
+    {
+      "name": "verdict-is-sane",
+      "ok": true,
+      "detail": "pass=false (expected false: the diff adds no test)"
+    }
+  ],
+  "notes": [
+    "think:false looks ignored on /v1/chat/completions (cold 416 tokens vs warm 102 on /api/chat); disable reasoning via the native endpoint."
+  ],
+  "verdict": {
+    "pass": false,
+    "summary": "formatDate correctly returns YYYY-MM-DD in local time with zero-padding (DoD #1 ✓), and no other exported API changes are present (DoD #3 ✓). However, DoD #2 is not met: the diff contains no unit test file or test case covering a single-digit month and single-digit day.",
+    "fixInstructions": "Add a unit test (e.g., src/format.test.ts) that calls formatDate with a Date whose month and day are single-digit (e.g., new Date(2024, 0, 5) → '2024-01-05') and asserts the output is the expected zero-padded string. The test must be visible in the diff."
+  },
+  "rawResponse": "{\"pass\":false,\"summary\":\"formatDate correctly returns YYYY-MM-DD in local time with zero-padding (DoD #1 ✓), and no other exported API changes are present (DoD #3 ✓). However, DoD #2 is not met: the diff contains no unit test file or test case covering a single-digit month and single-digit day.\",\"fixInstructions\":\"Add a unit test (e.g., src/format.test.ts) that calls formatDate with a Date whose month and day are single-digit (e.g., new Date(2024, 0, 5) → '2024-01-05') and asserts the output is the expected zero-padded string. The test must be visible in the diff.\"}"
+}

@@ -1,0 +1,165 @@
+{
+  "$comment": "Researched from https://ollama.com/library on 2026-10-27. Sizes are the registry's 'download' figures (weights only, before KV cache). Re-check tags before a demo: the library moves fast. Epic 28 benchmarks these properly; this file only picks the one model per profile that setup.sh --pull fetches.",
+  "checkedAt": "2026-10-27",
+  "source": "https://ollama.com/library",
+  "selectionRules": {
+    "mbp": "Needs the best structured-judgment quality that leaves room for opencode sessions on 32 GB. Measured: an 18 GB model puts 21.2 GB of 32 GB into wired memory (27% free), so 23 GB models are the upper bound, not the default.",
+    "air": "Must fit a 16 GB unified-memory machine next to 1-2 opencode sessions, and must emit parseable JSON without a repair loop. 4B-8B class by preference; 9B when the RAM allows."
+  },
+  "profiles": {
+    "mbp": {
+      "ramGb": 32,
+      "primary": "qwen3.8:27b-mlx",
+      "primaryWhy": "Chosen from measurement, not from the tag list. The brief's first pick was qwen3.6:35b-a3b (23-24 GB, MoE, ~3B active) and it is the fastest per token — but on this 32 GB machine an 18 GB model already leaves 21.2 GB wired and only 27% of RAM free (measured, docs/epic-02-repo-ops.md), which is the exact squeeze the PRD flags for demo day: 8 opencode sessions next to a 23 GB model means swap. qwen3.8:27b-mlx is Apache-2.0, newer than 3.6, already resident on the mbp, and passed the smoke test with a correct sane verdict at ~17 tok/s. Swap this line back to qwen3.6:35b-a3b once Epic 28 has measured both with opencode sessions running; the 23 GB pull was still in flight when this was written (2-4 MB/s on this network).",
+      "candidates": [
+        {
+          "name": "qwen3.8",
+          "tag": "qwen3.8:27b-mlx",
+          "pull": "qwen3.8:27b-mlx",
+          "params": "27B dense (MLX)",
+          "downloadGb": "18",
+          "contextLength": 262144,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "Primary for mbp, and the model the smoke test measured. Dense, so ~17 tok/s; the MoE candidates below are 2-3x faster per token if the RAM budget allows. MLX build: Apple silicon only, which is fine here."
+        },
+        {
+          "name": "qwen3.6",
+          "tag": "qwen3.6:35b-a3b",
+          "pull": "qwen3.6:35b-a3b",
+          "params": "35B total / ~3B active (MoE)",
+          "downloadGb": "23-24",
+          "contextLength": 262144,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "Fastest per token of the four (MoE, ~3B active) and the brief's original pick. Same digest as qwen3.6:latest and qwen3.6:35b; the default tag is already the ~4-bit quant (the explicit q4_K_M variant is the same 23-24 GB). Costs ~5 GB more wired RAM than the primary — measure against opencode sessions in Epic 28 before promoting it."
+        },
+        {
+          "name": "qwen3.6",
+          "tag": "qwen3.6:27b",
+          "pull": "qwen3.6:27b",
+          "params": "27B dense",
+          "downloadGb": "18-19",
+          "contextLength": 262144,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "Dense alternative to the primary at the same footprint; qwen3.6:27b-q4_K_M is 17 GB. Only worth pulling if 3.6 judges better than 3.8 on the audit evals."
+        },
+        {
+          "name": "gpt-oss",
+          "tag": "gpt-oss:20b",
+          "pull": "gpt-oss:20b",
+          "params": "20B total / ~3.6B active (MoE)",
+          "downloadGb": "14",
+          "contextLength": 131072,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text"],
+          "notes": "Best RAM-per-quality option: 4 GB smaller than the primary and MoE-fast, with native harmony-format tool calls. 128K context only. Strong Epic 28 candidate."
+        },
+        {
+          "name": "gemma4",
+          "tag": "gemma4:26b-a4b",
+          "pull": "gemma4:26b-a4b",
+          "params": "26B total / ~4B active (MoE)",
+          "downloadGb": "16-19",
+          "contextLength": 262144,
+          "license": "Gemma Terms of Use",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image", "audio"],
+          "notes": "Same digest as gemma4:26b; gemma4:26b-a4b-it-qat is the quantization-aware 16 GB build and the best quality-per-GB of the family. Not OSI-licensed, so it stays a bench candidate."
+        }
+      ]
+    },
+    "air": {
+      "ramGb": 16,
+      "primary": "qwen3.5:9b",
+      "primaryWhy": "Qwen3.6 has no small variant (only 27b/35b), so the newest Qwen that fits is 3.5. qwen3.5:9b is 6.6 GB at q4_K_M with a 256K context and Apache-2.0, which leaves ~9 GB of a 16 GB Air for macOS and one or two opencode sessions. Slightly above the 4B-8B class the brief suggested: chosen because reliable JSON matters more than the class boundary, and 4B-class judgment on a real diff is weak. setup.sh drops to qwen3.5:4b (3.3 GB) on an 8 GB machine.",
+      "candidates": [
+        {
+          "name": "qwen3.5",
+          "tag": "qwen3.5:9b",
+          "pull": "qwen3.5:9b",
+          "params": "9B dense",
+          "downloadGb": "6.6",
+          "contextLength": 262144,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "Primary for air. Same digest as qwen3.5:latest. qwen3.5:9b-q4_K_M is the explicit 6.6 GB quant; -nvfp4 is the 7.2 GB MLX build."
+        },
+        {
+          "name": "gemma4",
+          "tag": "gemma4:12b-it-qat",
+          "pull": "gemma4:12b-it-qat",
+          "params": "12B dense",
+          "downloadGb": "7.2",
+          "contextLength": 262144,
+          "license": "Gemma Terms of Use",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "Alternate: quantization-aware training keeps 12B quality at a 9B footprint. Not OSI-licensed, so it is a bench candidate, not the default."
+        },
+        {
+          "name": "gemma4",
+          "tag": "gemma4:e4b",
+          "pull": "gemma4:e4b",
+          "params": "~4B effective (MatFormer)",
+          "downloadGb": "6.6",
+          "contextLength": 131072,
+          "license": "Gemma Terms of Use",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image", "audio"],
+          "notes": "4B-class option that still fits comfortably. gemma4:e4b-it-qat is the 6.1 GB QAT build."
+        },
+        {
+          "name": "qwen3.5",
+          "tag": "qwen3.5:4b",
+          "pull": "qwen3.5:4b",
+          "params": "4B dense",
+          "downloadGb": "3.3",
+          "contextLength": 262144,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text", "image"],
+          "notes": "The 8 GB fallback. Also the fastest thing to pull if the venue wifi dies mid-demo."
+        },
+        {
+          "name": "gpt-oss",
+          "tag": "gpt-oss:20b",
+          "pull": "gpt-oss:20b",
+          "params": "20B total / ~3.6B active (MoE)",
+          "downloadGb": "14",
+          "contextLength": 131072,
+          "license": "Apache-2.0",
+          "tools": true,
+          "jsonSchema": true,
+          "thinking": true,
+          "input": ["text"],
+          "notes": "Only if the Air turns out to have 24 GB+ (or in swap, slowly). Leaves nothing for opencode on 16 GB."
+        }
+      ]
+    }
+  }
+}
