@@ -19,13 +19,7 @@ export type { SkyViewProps } from './handshake';
 
 // Dev page / demo backup.
 export { DEFAULT_FIXTURE_URL, Playground, type PlaygroundProps } from './Playground';
-export {
-  FALLBACK_STATUS_COLORS,
-  SKY_COLORS,
-  STATUS_SHEEN,
-  statusColor,
-  TASK_STATUSES,
-} from './palette';
+export { SKY_COLORS, STATUS_SHEEN, statusColor, TASK_STATUSES } from './palette';
 // Rendering (used by the Playground and screenshots; the shell only needs SkyView).
 export { createSkyRenderer, type RenderOptions, type SkyRenderer } from './render';
 // Fixture / replay helpers.

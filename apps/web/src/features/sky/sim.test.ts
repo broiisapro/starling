@@ -10,7 +10,7 @@ import {
 } from '@starling/core/testing';
 import type { BehaviourKind } from './behaviour';
 import { calmZone } from './layout';
-import { FALLBACK_STATUS_COLORS } from './palette';
+import { statusColor } from './palette';
 import { BIRDS_PER_FLOCK, createSky, MAX_BIRDS, MAX_TASKS, type SkySimulation, TRAIL_CAP } from './sim';
 
 const HUB = makeNodeInfo({ id: 'hub', name: 'MacBook Pro', kind: 'local' });
@@ -232,7 +232,7 @@ describe('status → behaviour', () => {
       boot(sim, ['a'], status as TaskStatus);
       const flock = sim.findFlock('a');
       expect(flock?.behaviour.kind).toBe(kind);
-      expect(flock?.behaviour.tint).toBe(FALLBACK_STATUS_COLORS[status as TaskStatus]);
+      expect(flock?.behaviour.tint).toBe(statusColor(status as TaskStatus));
     }
   });
 
@@ -272,8 +272,8 @@ describe('status → behaviour', () => {
     const fix = leaderBox(sim, 'fix', 2);
     expect(audit.width).toBeLessThan(70);
     expect(fix.width).toBeGreaterThan(55);
-    expect(sim.findFlock('audit')?.behaviour.tint).toBe(FALLBACK_STATUS_COLORS.auditing);
-    expect(sim.findFlock('fix')?.behaviour.tint).toBe(FALLBACK_STATUS_COLORS.fixing);
+    expect(sim.findFlock('audit')?.behaviour.tint).toBe(statusColor('auditing'));
+    expect(sim.findFlock('fix')?.behaviour.tint).toBe(statusColor('fixing'));
   });
 
   test('failed flocks fall and grey out', () => {

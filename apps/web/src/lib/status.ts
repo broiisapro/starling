@@ -1,7 +1,10 @@
-import type { TaskStatus } from '@starling/core';
+import type { NodeStatus, TaskStatus } from '@starling/core';
 
 /**
  * One palette per `TaskStatus`, shared by the web shell, the feature panels and the Sky canvas.
+ *
+ * This is the **only** status palette in `apps/web`: at C1 the Sky, DAG, queue and flock features
+ * dropped their local fallbacks and read from here, so a task is the same colour in every panel.
  *
  * `hex` is what Canvas 2D paints (Epic 24's birds); the Tailwind class strings are for DOM badges.
  * The classes are written literally so Tailwind's scanner emits them; do not build them from a
@@ -133,6 +136,84 @@ export const TASK_STATUSES: readonly TaskStatus[] = [
 
 /** Statuses that mean "no more work will happen" — handy for progress maths. */
 export const TERMINAL_STATUSES: readonly TaskStatus[] = ['merged', 'failed', 'conflict', 'cancelled'];
+
+/** Solid, one-line chip used by the queue board and the DAG's hover tooltip. */
+export function statusChip(status: TaskStatus): string {
+  const palette = STATUS_COLORS[status];
+  return `${palette.border} ${palette.bg} ${palette.text}`;
+}
+
+/** Card chrome for the DAG's task nodes (border + translucent fill). */
+export function statusSurface(status: TaskStatus): string {
+  const palette = STATUS_COLORS[status];
+  return `${palette.border} ${palette.bg}`;
+}
+
+/**
+ * Node (roost) status is a different axis from `TaskStatus`: it describes a machine, not a task.
+ * Epic 32's flock panel needs the same treatment, so its palette lives here too rather than in a
+ * feature fallback. Colour language: emerald = online, amber = busy, slate = offline.
+ */
+export interface NodeStatusPalette {
+  label: string;
+  /** The solid status dot. */
+  dot: string;
+  /** The expanding ring behind the dot on a busy roost. */
+  pulse: string;
+  /** Text colour for the status word. */
+  text: string;
+  /** Filled session pip. */
+  meter: string;
+  /** Hairline accent across the top of the card. */
+  accent: string;
+  /** Pill styling for the hub/perch badge. */
+  badge: string;
+  /** Extra card chrome (border/ring) for this status. */
+  card: string;
+}
+
+export const NODE_STATUS_COLORS: Record<NodeStatus, NodeStatusPalette> = {
+  online: {
+    label: 'online',
+    dot: 'bg-emerald-400',
+    pulse: 'bg-emerald-400',
+    text: 'text-emerald-300',
+    meter: 'bg-emerald-400/90',
+    accent: 'bg-gradient-to-r from-transparent via-emerald-400/70 to-transparent',
+    badge: 'border-emerald-400/25 bg-emerald-400/10 text-emerald-200',
+    card: 'border-white/10 hover:border-emerald-300/30',
+  },
+  busy: {
+    label: 'busy',
+    dot: 'bg-amber-400',
+    pulse: 'bg-amber-400',
+    text: 'text-amber-300',
+    meter: 'bg-amber-400/90',
+    accent: 'bg-gradient-to-r from-transparent via-amber-400/70 to-transparent',
+    badge: 'border-amber-400/25 bg-amber-400/10 text-amber-200',
+    card: 'border-amber-300/20 hover:border-amber-300/40',
+  },
+  offline: {
+    label: 'offline',
+    dot: 'bg-slate-500',
+    pulse: 'bg-slate-500',
+    text: 'text-slate-400',
+    meter: 'bg-slate-500/70',
+    accent: 'bg-gradient-to-r from-transparent via-slate-500/40 to-transparent',
+    badge: 'border-white/10 bg-white/5 text-slate-300',
+    card: 'border-dashed border-white/10 hover:border-white/20',
+  },
+};
+
+/** Hub and perch are not statuses: there is exactly one hub, and perches are the rest (§1). */
+export const HUB_BADGE = 'border-sky-400/30 bg-sky-400/10 text-sky-200';
+export const PERCH_BADGE = 'border-violet-400/25 bg-violet-400/10 text-violet-200';
+
+/** The task chip inside a roost card: same task colours as every other panel. */
+export function taskTone(status: TaskStatus): { dot: string; text: string } {
+  const palette = STATUS_COLORS[status];
+  return { dot: palette.dot, text: palette.text };
+}
 
 export function statusPalette(status: TaskStatus): StatusPalette {
   return STATUS_COLORS[status];

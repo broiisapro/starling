@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskStatus } from '@starling/core';
 import { behaviourFor, behaviourTable, migrateBehaviour, STATIC_KINDS, scatterBehaviour } from './behaviour';
-// `TASK_STATUSES` lives in the palette module (the shared status list the whole feature uses).
-import { FALLBACK_STATUS_COLORS, STATUS_SHEEN, TASK_STATUSES as STATUSES } from './palette';
+// `TASK_STATUSES` and the status hexes come from the dashboard's one shared palette (lib/status).
+import { STATUS_SHEEN, TASK_STATUSES as STATUSES, statusColor } from './palette';
 
 describe('behaviour table', () => {
   test('is total: every TaskStatus has a documented kind, tint and alpha', () => {
     for (const status of STATUSES) {
       const behaviour = behaviourFor(status);
       expect(behaviour.kind).toBeString();
-      expect(behaviour.tint).toBe(FALLBACK_STATUS_COLORS[status]);
+      expect(behaviour.tint).toBe(statusColor(status));
       expect(behaviour.alpha).toBeGreaterThanOrEqual(0);
       expect(behaviour.alpha).toBeLessThanOrEqual(1);
       expect(behaviour.speed).toBeGreaterThanOrEqual(0);

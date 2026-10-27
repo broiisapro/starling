@@ -21,13 +21,20 @@ export {
   parseDemoSpeed,
 } from './speed';
 export {
+  HUB_BADGE,
   isTerminalStatus,
+  NODE_STATUS_COLORS,
+  type NodeStatusPalette,
+  PERCH_BADGE,
   STATUS_COLORS,
   type StatusPalette,
+  statusChip,
   statusLabel,
   statusPalette,
+  statusSurface,
   TASK_STATUSES,
   TERMINAL_STATUSES,
+  taskTone,
 } from './status';
 export {
   applyTheme,

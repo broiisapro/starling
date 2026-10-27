@@ -1,43 +1,19 @@
 /**
  * The Sky's colour vocabulary.
  *
- * `src/lib/status.ts` (Epic 23) will own the canonical dashboard colours at checkpoint C1. Until it
- * lands, this module is the local fallback: `FALLBACK_STATUS_COLORS` has one entry per `TaskStatus`
- * and the same keys the shared module is expected to export, so switching over is a one-line import
- * swap (`statusColor()` is the only call site the rest of this feature uses).
+ * Status colours come from the dashboard's one shared palette (`src/lib/status.ts`) — at C1 the
+ * local fallback was deleted, so a bird in the sky, a DAG card and a queue chip are the same
+ * colour for the same `TaskStatus`. What lives here is sky-only: the dusk scene colours and the
+ * pre-blended iridescent sheens (they need per-status hex values, which the shared palette owns).
  */
 import type { TaskStatus } from '@starling/core';
+import { STATUS_COLORS, TASK_STATUSES } from '../../lib/status';
 
-/** Every task status, in lifecycle order. Handy for tables, tests and the live region. */
-export const TASK_STATUSES: readonly TaskStatus[] = [
-  'pending',
-  'ready',
-  'running',
-  'auditing',
-  'fixing',
-  'merging',
-  'merged',
-  'conflict',
-  'failed',
-  'cancelled',
-];
+export { TASK_STATUSES };
 
-/** Fallback palette, keyed exactly like the future `src/lib/status.ts`. */
-export const FALLBACK_STATUS_COLORS: Record<TaskStatus, string> = {
-  pending: '#8fa2b8',
-  ready: '#9be3ff',
-  running: '#4fc3ff',
-  auditing: '#ffc857',
-  fixing: '#ff8a65',
-  merging: '#b388ff',
-  merged: '#4ade80',
-  failed: '#6b7280',
-  conflict: '#ff5c8a',
-  cancelled: '#475569',
-};
-
+/** Canvas hex for a status — the single source of truth is the shared palette. */
 export function statusColor(status: TaskStatus): string {
-  return FALLBACK_STATUS_COLORS[status];
+  return STATUS_COLORS[status].hex;
 }
 
 /** Dusk colours that are not status-specific. */
@@ -75,7 +51,7 @@ function mix(a: readonly [number, number, number], b: readonly [number, number, 
 function buildSheen(): Record<TaskStatus, readonly string[]> {
   const out = {} as Record<TaskStatus, readonly string[]>;
   for (const status of TASK_STATUSES) {
-    const base = hexToRgb(FALLBACK_STATUS_COLORS[status]);
+    const base = hexToRgb(statusColor(status));
     out[status] = Array.from({ length: 12 }, (_, i) => {
       const stop = hexToRgb(SHEEN_STOPS[i % SHEEN_STOPS.length] ?? '#ffffff');
       return mix(base, stop, 0.18 + 0.57 * (i / 11));

@@ -60,7 +60,8 @@ test('shows the status, node badge, attempts and elapsed time on a card', () => 
   const view = render(<DagView plan={plan} tasks={tasks} onSelectTask={() => {}} />);
 
   const card = view.getByTestId('task-node-a');
-  expect(card.textContent).toContain('running');
+  // Labels come from the one shared status palette (`src/lib/status.ts`): running reads "flying".
+  expect(card.textContent).toContain('flying');
   expect(card.getAttribute('data-status')).toBe('running');
   expect(card.textContent).toContain('M2-Air');
   expect(card.textContent).toContain('↻ 2');
