@@ -1,6 +1,6 @@
 ## Epic 21 Handback — Server: REST + SSE + flock endpoints
 
-**Status:** Complete. Branch `epic/21-server` @ `HEAD` (this handback commit on top). Every route in ARCHITECTURE §6 is implemented on Hono, fed only by injected ports, and tested against core mocks; the dev server demos the full pipeline with no engine.
+**Status:** Complete. Branch `epic/21-server` @ `5a7ec0a` (docs + handback commits on top). Every route in ARCHITECTURE §6 is implemented on Hono, fed only by injected ports, and tested against core mocks; the dev server demos the full pipeline with no engine.
 
 **Delivered:**
 
