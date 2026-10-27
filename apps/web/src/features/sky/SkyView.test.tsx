@@ -3,7 +3,9 @@ import { GlobalRegistrator } from '@happy-dom/global-registrator';
 import { makeNodeInfo, makePlan, makeRun, makeTaskRun, makeTaskSpec } from '@starling/core/testing';
 import type { ReactElement } from 'react';
 import { useState } from 'react';
+import { layoutRoosts, roostPerchOffset } from './layout';
 import { SkyView } from './SkyView';
+import { type SkyAudio, SOUND_STORAGE_KEY } from './sound';
 
 // `apps/web/bunfig.toml` preloads happy-dom when tests run from this package; the root
 // `bun run test` does not load nested bunfigs, so register here as well (idempotently).
@@ -46,6 +48,16 @@ async function mount(ui: () => ReactElement) {
   });
   return {
     container,
+    async rerender(next: () => ReactElement) {
+      await act(async () => {
+        root.render(next());
+      });
+    },
+    async click(element: Element | null) {
+      await act(async () => {
+        element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      });
+    },
     async unmount() {
       await act(async () => {
         root.unmount();
@@ -122,12 +134,20 @@ test('clicking a flock leader selects that task', async () => {
     <SkyView run={pendingRun} nodes={nodes} recent={[]} onSelectTask={(key) => selected.push(key)} />
   ));
 
-  // happy-dom reports a 0×0 rect, so the Sky falls back to 720×420 CSS px. The hub roost sits at
-  // (72, 394); the first pending flock perches at x≈53, so a click there hits `theme`.
+  // happy-dom reports a 0×0 rect, so the Sky falls back to 720×420 CSS px. Ask the layout where the
+  // hub roost is rather than hard-coding pixels that Epic 47 moved.
+  const roost = layoutRoosts(nodes, 720, 420).find((candidate) => candidate.nodeId === 'hub');
+  if (!roost) throw new Error('missing hub roost');
   const canvas = view.container.querySelector('canvas');
   const [{ act }] = await Promise.all([import('react')]);
   await act(async () => {
-    canvas?.dispatchEvent(new MouseEvent('click', { clientX: 53, clientY: 386, bubbles: true }));
+    canvas?.dispatchEvent(
+      new MouseEvent('click', {
+        clientX: roost.x + roostPerchOffset(0, 2),
+        clientY: roost.y - 8,
+        bubbles: true,
+      }),
+    );
   });
   expect(selected.length).toBeGreaterThan(0);
   expect(selected[0]).toBe('theme');
@@ -152,6 +172,151 @@ test('an empty sky still explains itself', async () => {
   );
   expect(view.container.querySelector('[aria-live="polite"]')?.textContent).toBe('No run. 0 machines.');
   await view.unmount();
+});
+
+// ── Epic 47: pausing and the sound toggle ───────────────────────────────────────────────────────
+
+function stubAudio(): { audio: SkyAudio; state: { enabled: boolean; cues: string[]; hum: number[] } } {
+  const state = { enabled: false, cues: [] as string[], hum: [] as number[] };
+  return {
+    state,
+    audio: {
+      get enabled() {
+        return state.enabled;
+      },
+      setEnabled(on: boolean) {
+        state.enabled = on;
+        return on;
+      },
+      cue(kind) {
+        state.cues.push(kind);
+      },
+      setHum(level) {
+        state.hum.push(level);
+      },
+      resume() {},
+      dispose() {
+        state.enabled = false;
+      },
+    },
+  };
+}
+
+test('the paused prop stops the rAF loop and unpausing restarts it', async () => {
+  const originalRaf = globalThis.requestAnimationFrame;
+  const originalCancel = globalThis.cancelAnimationFrame;
+  const frames: FrameRequestCallback[] = [];
+  globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+    frames.push(callback);
+    return frames.length;
+  }) as typeof requestAnimationFrame;
+  globalThis.cancelAnimationFrame = (() => {}) as typeof cancelAnimationFrame;
+
+  const fpsCalls: number[] = [];
+  const sky = (isPaused: boolean) => (
+    <SkyView
+      run={run}
+      nodes={nodes}
+      recent={[]}
+      onSelectTask={() => {}}
+      paused={isPaused}
+      onFps={(fps) => fpsCalls.push(fps)}
+    />
+  );
+
+  // React schedules a few callbacks of its own, so the test drives the queue by hand and uses two
+  // signals that only the Sky's own loop can produce: a self-rescheduling pending frame, and fps
+  // callbacks. A paused Sky drains the queue; a live one never does (it always queues its successor).
+  let now = performance.now() + 1000;
+  const flush = (limit = 40) => {
+    for (let i = 0; i < limit && frames.length > 0; i++) {
+      const callback = frames.shift();
+      now += 120;
+      callback?.(now);
+    }
+  };
+
+  try {
+    const view = await mount(() => sky(true));
+    flush();
+    expect(frames.length).toBe(0);
+    expect(fpsCalls.length).toBe(0);
+
+    await view.rerender(() => sky(false));
+    flush(12);
+    // The live loop re-queues itself, so the queue is never drained and the fps hook fires.
+    expect(frames.length).toBe(1);
+    expect(fpsCalls.length).toBeGreaterThan(0);
+
+    const fpsWhileRunning = fpsCalls.length;
+    await view.rerender(() => sky(true));
+    flush();
+    expect(frames.length).toBe(0);
+    expect(fpsCalls.length).toBe(fpsWhileRunning);
+
+    await view.rerender(() => sky(false));
+    flush(12);
+    expect(frames.length).toBe(1);
+    expect(fpsCalls.length).toBeGreaterThan(fpsWhileRunning);
+
+    await view.unmount();
+  } finally {
+    globalThis.requestAnimationFrame = originalRaf;
+    globalThis.cancelAnimationFrame = originalCancel;
+  }
+});
+
+test('the sound toggle is remembered per viewer', async () => {
+  localStorage.removeItem(SOUND_STORAGE_KEY);
+  const { audio, state } = stubAudio();
+  const view = await mount(() => (
+    <SkyView run={run} nodes={nodes} recent={[]} onSelectTask={() => {}} createAudio={() => audio} />
+  ));
+  const button = view.container.querySelector('button[aria-pressed]');
+  expect(button?.getAttribute('aria-pressed')).toBe('false');
+  expect(button?.getAttribute('aria-label')).toContain('Play');
+
+  await view.click(button);
+  expect(button?.getAttribute('aria-pressed')).toBe('true');
+  expect(button?.getAttribute('aria-label')).toContain('Mute');
+  expect(state.enabled).toBe(true);
+  expect(localStorage.getItem(SOUND_STORAGE_KEY)).toBe('on');
+  await view.unmount();
+
+  // A fresh viewer (another mount) restores the preference.
+  const second = stubAudio();
+  const again = await mount(() => (
+    <SkyView run={run} nodes={nodes} recent={[]} onSelectTask={() => {}} createAudio={() => second.audio} />
+  ));
+  expect(again.container.querySelector('button[aria-pressed]')?.getAttribute('aria-pressed')).toBe('true');
+  expect(second.state.enabled).toBe(true);
+  await again.unmount();
+  localStorage.removeItem(SOUND_STORAGE_KEY);
+});
+
+test('a blocked localStorage does not break the sound toggle', async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get() {
+      throw new Error('SecurityError: denied');
+    },
+  });
+  const { audio } = stubAudio();
+  try {
+    const view = await mount(() => (
+      <SkyView run={run} nodes={nodes} recent={[]} onSelectTask={() => {}} createAudio={() => audio} />
+    ));
+    const button = view.container.querySelector('button[aria-pressed]');
+    expect(button?.getAttribute('aria-pressed')).toBe('false');
+    await view.click(button);
+    // The toggle still works for this page view; only the preference is lost.
+    expect(button?.getAttribute('aria-pressed')).toBe('true');
+    await view.unmount();
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'localStorage', descriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+  }
 });
 
 afterAll(() => {
