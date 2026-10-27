@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 420" width="1120" height="420" role="img" aria-labelledby="pipelineTitle pipelineDesc">
+  <title id="pipelineTitle">Starling's run loop: goal, repo map, plan with lanes, flock, audit, merge queue, integration branch</title>
+  <desc id="pipelineDesc">Seven stages left to right. A goal becomes a repo map, then a task DAG with non-overlapping file lanes, then a flock of agents in parallel worktrees. Each result is audited with tests, a lane check and a local model; failures return to the same agent with fix instructions. Passing work enters a merge queue in DAG order and lands on one integration branch.</desc>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6f7b89"/>
+    </marker>
+  </defs>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" fill="#6f7b89">
+    <!-- heading -->
+    <text x="32" y="50" font-size="24" font-weight="650" fill="#5a6673">One goal in, a flock out</text>
+    <text x="32" y="78" font-size="14">The run loop. Every stage publishes events, so the dashboard can watch it live or replay it later.</text>
+
+    <!-- stage boxes -->
+    <g stroke="#6f7b89" stroke-opacity="0.55" stroke-width="1.5" fill="rgba(127,127,127,0.07)">
+      <rect x="32"   y="140" width="136" height="96" rx="12"/>
+      <rect x="184"  y="140" width="136" height="96" rx="12"/>
+      <rect x="336"  y="140" width="136" height="96" rx="12"/>
+      <rect x="488"  y="140" width="136" height="96" rx="12"/>
+      <rect x="640"  y="140" width="136" height="96" rx="12"/>
+      <rect x="792"  y="140" width="136" height="96" rx="12"/>
+      <rect x="944"  y="140" width="136" height="96" rx="12"/>
+    </g>
+
+    <!-- accent caps: map/plan = teal, run/audit = amber, merge = violet -->
+    <g stroke-width="3" stroke-linecap="round">
+      <path d="M44 140 H156" stroke="#2f8f86"/>
+      <path d="M196 140 H308" stroke="#2f8f86"/>
+      <path d="M348 140 H460" stroke="#2f8f86"/>
+      <path d="M500 140 H612" stroke="#c2740c"/>
+      <path d="M652 140 H764" stroke="#c2740c"/>
+      <path d="M804 140 H916" stroke="#8b5cf6"/>
+      <path d="M956 140 H1068" stroke="#8b5cf6"/>
+    </g>
+
+    <!-- step numbers -->
+    <g font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle">
+      <circle cx="52" cy="162" r="11" fill="#2f8f86"/><text x="52" y="166">1</text>
+      <circle cx="204" cy="162" r="11" fill="#2f8f86"/><text x="204" y="166">2</text>
+      <circle cx="356" cy="162" r="11" fill="#2f8f86"/><text x="356" y="166">3</text>
+      <circle cx="508" cy="162" r="11" fill="#c2740c"/><text x="508" y="166">4</text>
+      <circle cx="660" cy="162" r="11" fill="#c2740c"/><text x="660" y="166">5</text>
+      <circle cx="812" cy="162" r="11" fill="#8b5cf6"/><text x="812" y="166">6</text>
+      <circle cx="964" cy="162" r="11" fill="#8b5cf6"/><text x="964" y="166">7</text>
+    </g>
+
+    <!-- stage text -->
+    <g font-size="15" font-weight="650" fill="#5a6673">
+      <text x="44" y="199">Goal</text>
+      <text x="196" y="199">Repo map</text>
+      <text x="348" y="199">Plan + lanes</text>
+      <text x="500" y="199">Flock</text>
+      <text x="652" y="199">Audit</text>
+      <text x="804" y="199">Merge queue</text>
+      <text x="956" y="199">Integration</text>
+    </g>
+    <g font-size="11.5">
+      <text x="44" y="217">one sentence</text>
+      <text x="44" y="230">and a repo path</text>
+
+      <text x="196" y="217">files · symbols</text>
+      <text x="196" y="230">test command</text>
+
+      <text x="348" y="217">task DAG</text>
+      <text x="348" y="230">disjoint globs</text>
+
+      <text x="500" y="217">worktree + session</text>
+      <text x="500" y="230">per ready task</text>
+
+      <text x="652" y="217">tests · lane</text>
+      <text x="652" y="230">local model verdict</text>
+
+      <text x="804" y="217">DAG order</text>
+      <text x="804" y="230">merge-tree + suite</text>
+
+      <text x="956" y="217">all passing work</text>
+      <text x="956" y="230">green tests → PR</text>
+    </g>
+
+    <!-- flow arrows -->
+    <g stroke="#6f7b89" stroke-width="1.6" marker-end="url(#arrow)">
+      <path d="M168 188 H180"/>
+      <path d="M320 188 H332"/>
+      <path d="M472 188 H484"/>
+      <path d="M624 188 H636"/>
+      <path d="M776 188 H788"/>
+      <path d="M928 188 H940"/>
+    </g>
+
+    <!-- feedback loop: audit -> flock -->
+    <path d="M708 236 L708 296 Q708 310 694 310 L570 310 Q556 310 556 296 L556 241" fill="none" stroke="#c2740c" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+    <text x="632" y="348" font-size="12" text-anchor="middle" fill="#c2740c">audit fails → exact fix instructions to the same agent, up to maxAttempts</text>
+
+    <!-- lane note -->
+    <text x="560" y="390" font-size="12.5" text-anchor="middle">Lanes are validated before anything is dispatched: tasks that can run together own disjoint globs,</text>
+    <text x="560" y="407" font-size="12.5" text-anchor="middle">so parallel agents are conflict-free by construction. Audit and merge always run on the hub.</text>
+  </g>
+</svg>
