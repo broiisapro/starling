@@ -1,11 +1,11 @@
 ## Epic 69 Handback — Security & safety review
 
-**Status:** Complete. Branch `epic/69-security-review` @ `8bf8130` (+ docs commit).
+**Status:** Complete. Branch `epic/69-security-review` @ `b377480`.
 
 **Delivered:**
 
 - **Threat model** in `docs/epic-69-security-review.md`: assets (hub repo, machine, join code, opencode server, recordings, perches), actors (LAN peer, malicious repo, misbehaving agent, malicious perch/hub), entry points and the five trust boundaries we actually test, plus the risks we deliberately accept (no TLS/L18, running a repo's tests, cloud prompts/L29, open join endpoint, token = full control).
-- **13 probe suites / 77 tests** in `tools/security/` (no network, no models, no opencode; `Bun.serve({port:0})` on loopback or throwaway git repos):
+- **13 probe suites / 78 tests** in `tools/security/` (no network, no models, no opencode; `Bun.serve({port:0})` on loopback or throwaway git repos):
   - `token.test.ts` — missing/empty/wrong token 401 on every guarded route, check-before-parse, case-insensitive acceptance, constant-time comparison.
   - `cors.test.ts` — strange origin gets no `ACAO`/credentials, `localhost:5173` works and may send `x-flock-token`.
   - `bundle-ref.test.ts` — `?ref=` option-shaped/traversal refs, shell-marker absence, bundle writes confined to `bundleDir`, repo-path leakage in errors.
@@ -50,8 +50,9 @@
 **Verification (exact commands + results):**
 
 - `bun install` — `Checked 162 installs across 221 packages (no changes) [41.00ms]` (clean worktree, no deps added).
-- `bun run test` (root) — packages half: `1435 pass, 4 skip, 0 fail — Ran 1439 tests across 175 files. [52.30s]`; web half: `426 pass, 0 fail — Ran 426 tests across 39 files. [9.61s]`.
-- `bun test tools/security` — `77 pass, 0 fail; 147 expect() calls; 13 files; [1.84s]` (29 of the 77 are `test.failing`, i.e. findings confirmed).
+- `bun run test` (root, final run on this branch) — packages half: `1437 pass, 4 skip, 0 fail — Ran 1441 tests across 175 files. [36.28s]`; web half: `426 pass, 0 fail — Ran 426 tests across 39 files. [3.48s]`.
+  - Two earlier root runs on the loaded machine (23 agents) flaked on **pre-existing, timing-sensitive tests outside this lane**, never on `tools/security`: `packages/llm/src/router.test.ts:261 "times out a slow provider"` and `apps/web/src/features/sky/sim.test.ts:516 "360 birds × 600 steps in under 250 ms"`. Both pass in isolation (`bun test packages/llm/src/router.test.ts` → 19 pass; `cd apps/web && bun test src/features/sky/sim.test.ts` → 21 pass) and the final full run was green. Flagged, not modified (AGENTS §4).
+- `bun test tools/security` — `78 pass, 0 fail; 160 expect() calls; 13 files; [2.91s]` (29 of the 78 are `test.failing`, i.e. findings confirmed).
 - `bun run check` — clean: `biome check .` → `Checked 721 files in 869ms. No fixes applied.` + `tsc --noEmit` for every workspace exited 0.
 - `bunx tsc --noEmit -p tools/security/tsconfig.json` — 0 errors (root `typecheck` only loops `packages/*`/`apps/*`, so this was run explicitly).
 - Manual repro sessions against real components confirmed each finding before it became a probe (git refs, static symlink, mDNS payload, registry replacement, authority leakage). No live model/opencode/GitHub calls were made.
