@@ -50,3 +50,5 @@
 - **Merged flock spacing:** slots are spread by total expected tasks so positions never jump, which leaves gaps at the end of a run. Packing from the left would look tighter but would shuffle every flock on each merge. Current choice favours stability; happy to switch if the demo reads better packed.
 - **Migration timing** is a fixed 3.4 s for any distance (consistent demo beat). Distance-proportional timing is a one-line change if reviewers prefer physical fidelity.
 - **`sim.ts` size** (~714 lines) exceeds the ~300-line style target; documented as a deviation. Splitting the class further would need shared mutable state plumbing; the pure pieces (boids, calm layout, geometry, choreography inputs) are already separate modules.
+
+Closes #18
