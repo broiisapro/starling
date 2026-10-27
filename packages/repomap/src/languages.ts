@@ -115,7 +115,13 @@ export function langForPath(path: string): string {
   return BY_EXTENSION[ext] ?? 'other';
 }
 
-/** Languages whose files carry `symbols` from the regex extractors in `symbols.ts`. */
+/**
+ * Languages whose files carry `symbols` from the regex extractors in `symbols.ts`.
+ *
+ * Markdown is deliberately absent: a real repo's `CHANGELOG.md`/`README.md` headings are prose, not
+ * symbols, and they crowded out the actual API in every 2026-era repo the bench touched (see
+ * `docs/epic-56-repomap-prompts.md`). Files still appear in the map and in the tree.
+ */
 export const SYMBOL_LANGUAGES: ReadonlySet<string> = new Set([
   'typescript',
   'javascript',
@@ -126,7 +132,6 @@ export const SYMBOL_LANGUAGES: ReadonlySet<string> = new Set([
   'scss',
   'sass',
   'less',
-  'markdown',
 ]);
 
 /** Lockfiles are large, generated and never useful in a prompt. */
@@ -156,34 +161,156 @@ export function isLockfile(path: string): boolean {
   return LOCKFILES.has(base);
 }
 
-/** Directories we never descend into even when git lists a committed file there. */
+/**
+ * Directories we never descend into even when git lists a committed file there.
+ *
+ * Every entry earned its place on a real repo: `vendor/` is 9,921 of moby's 13,340 files,
+ * `third_party/` and `__generated__/` are checked-in code generators' output, and the tool caches
+ * (`.turbo`, `.vercel`, `.yarn`, `.gradle`) are never source. See the real-repo bench.
+ */
 const SKIP_SEGMENTS: ReadonlySet<string> = new Set([
   'node_modules',
+  'bower_components',
+  'jspm_packages',
+  'vendor',
+  'third_party',
+  'third-party',
+  '__generated__',
   'dist',
   'build',
+  'out',
+  'obj',
   '.starling',
   '.git',
+  '.hg',
+  '.svn',
   '.next',
   '.nuxt',
   '.svelte-kit',
+  '.angular',
+  '.turbo',
+  '.vercel',
+  '.output',
+  '.parcel-cache',
+  '.rollup.cache',
+  '.yarn',
+  '.pnpm',
+  '.pnpm-store',
+  '.gradle',
+  '.idea',
+  '.terraform',
   'coverage',
   '.venv',
   'venv',
+  'site-packages',
   '__pycache__',
   '.cache',
   'target',
+  'pods',
+  'deriveddata',
 ]);
+
+/** Generated, minified or machine-translated files that are never worth a prompt line. */
+const SKIP_FILE_PATTERNS: readonly RegExp[] = [
+  /\.min\.(?:js|css)$/i,
+  /\.generated\.[^/]+$/i,
+  /\.gen\.(?:go|ts|js|py|rs)$/i,
+  /\.pb\.(?:go|ts|js)$/i,
+  /_pb2(?:_grpc)?\.py$/i,
+  /_generated\.go$/i,
+  /\.map$/i,
+  /\.mo$/i,
+  /\.pot?$/i,
+  /^\.DS_Store$/,
+];
+
+/**
+ * Extensions that are binary by definition. The mapper skips them before the `stat`/read pair, so a
+ * Django checkout's 1,263 `.mo` translation catalogues cost nothing (they used to be read and
+ * NUL-sniffed one by one).
+ */
+const BINARY_EXTENSIONS: ReadonlySet<string> = new Set([
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'avif',
+  'bmp',
+  'ico',
+  'tif',
+  'tiff',
+  'heic',
+  'woff',
+  'woff2',
+  'ttf',
+  'otf',
+  'eot',
+  'pdf',
+  'zip',
+  'gz',
+  'tgz',
+  'bz2',
+  'xz',
+  '7z',
+  'rar',
+  'tar',
+  'wasm',
+  'class',
+  'jar',
+  'so',
+  'dylib',
+  'dll',
+  'exe',
+  'o',
+  'a',
+  'lib',
+  'node',
+  'pyc',
+  'pyo',
+  'mo',
+  'bin',
+  'dat',
+  'mp3',
+  'mp4',
+  'm4a',
+  'wav',
+  'ogg',
+  'webm',
+  'mov',
+  'avi',
+  'db',
+  'sqlite',
+  'sqlite3',
+  'keystore',
+  'jks',
+  'p12',
+  'pfx',
+]);
+
+/** True when the path's extension is binary, so it can be skipped without reading it. */
+export function isBinaryPath(path: string): boolean {
+  const base = (path.split('/').at(-1) ?? '').toLowerCase();
+  const dot = base.lastIndexOf('.');
+  if (dot <= 0) return false;
+  return BINARY_EXTENSIONS.has(base.slice(dot + 1));
+}
 
 /**
  * True when a repo-relative path should be excluded from the map.
  *
  * `git ls-files -co --exclude-standard` already hides untracked ignored files, but a committed
- * `node_modules` or `dist` would still show up, so the guard is not redundant.
+ * `node_modules`, `vendor/` or `dist` would still show up, so the guard is not redundant. The check
+ * runs on the raw path list, before any file is opened, which is what keeps big checkouts fast.
  */
 export function isSkippedPath(path: string): boolean {
   const normalized = path.replace(/\\/g, '/');
   if (normalized.length === 0 || normalized.endsWith('/')) return true;
   if (isLockfile(normalized)) return true;
+  const base = normalized.split('/').at(-1) ?? '';
+  for (const pattern of SKIP_FILE_PATTERNS) {
+    if (pattern.test(base)) return true;
+  }
   const segments = normalized.split('/');
   for (const segment of segments.slice(0, -1)) {
     if (SKIP_SEGMENTS.has(segment.toLowerCase())) return true;

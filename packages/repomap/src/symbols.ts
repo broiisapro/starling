@@ -69,6 +69,8 @@ const TS_PATTERNS: readonly RegExp[] = [
   /\bexports\.([A-Za-z_$][\w$]*)\s*=/g,
   /\bmodule\.exports\.([A-Za-z_$][\w$]*)\s*=/g,
   /\bexport\s+default\s+(?!function\b|class\b|async\b)([A-Za-z_$][\w$]*)\s*;?/g,
+  // Ambient declarations (`.d.ts` packages): `export declare function`, `export declare class`.
+  /\bexport\s+declare\s+(?:async\s+)?(?:function|class|const|let|var|interface|type|enum|namespace|module|abstract\s+class)\s+([A-Za-z_$][\w$]*)/g,
 ];
 
 /** `export { a, b as c, type D }` → a, c, D (specifiers only, never the whole clause). */
@@ -101,11 +103,20 @@ const PYTHON_PATTERNS: readonly RegExp[] = [
 const GO_PATTERNS: readonly RegExp[] = [
   /^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/gm,
   /^type\s+([A-Za-z_]\w*)/gm,
+  // Package-level vars and consts are part of a Go package's API surface (`var ErrClosed = …`).
+  /^(?:var|const)\s+([A-Za-z_]\w*)/gm,
 ];
 
+/**
+ * Rust: `pub fn` methods are the API of a crate, and they are indented inside an `impl` block, so
+ * the old column-0-only patterns reported 0.7 symbols per file on serde. Private top-level items are
+ * included too — Rust keeps most of a crate private and the worker still needs the map of it.
+ */
 const RUST_PATTERNS: readonly RegExp[] = [
-  /^pub(?:\([^)]*\))?\s+(?:async\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_]\w*)/gm,
-  /^pub(?:\([^)]*\))?\s+(?:struct|enum|trait|type|const|static|mod)\s+([A-Za-z_]\w*)/gm,
+  /^\s*pub(?:\([^)]*\))?\s+(?:async\s+)?(?:unsafe\s+)?(?:const\s+)?fn\s+([A-Za-z_]\w*)/gm,
+  /^(?:pub(?:\([^)]*\))?\s+)?(?:unsafe\s+)?(?:struct|enum|trait|type|union|mod)\s+([A-Za-z_]\w*)/gm,
+  /^(?:async\s+)?(?:unsafe\s+)?(?:extern\s+"[^"]*"\s+)?fn\s+([A-Za-z_]\w*)/gm,
+  /^(?:pub(?:\([^)]*\))?\s+)?(?:const|static|macro_rules!)\s+([A-Za-z_]\w*)/gm,
 ];
 
 const CSS_BLOCK = /^([^\s{};][^{}\n;]*)\{/gm;
@@ -137,24 +148,9 @@ function cssSymbols(source: string): string[] {
   return names;
 }
 
-const MARKDOWN_HEADING = /^#{1,2}[ \t]+(.+?)[ \t]*#*[ \t]*$/gm;
-
-function markdownSymbols(source: string): string[] {
-  const hits: Hit[] = [];
-  MARKDOWN_HEADING.lastIndex = 0;
-  let match = MARKDOWN_HEADING.exec(source);
-  while (match !== null) {
-    const heading = (match[1] ?? '').replace(/[*_`]/g, '').trim();
-    hits.push({ name: heading, index: match.index });
-    if (MARKDOWN_HEADING.lastIndex === match.index) MARKDOWN_HEADING.lastIndex += 1;
-    match = MARKDOWN_HEADING.exec(source);
-  }
-  return finish(hits);
-}
-
 /**
  * Extract declared, top-level symbols from `source` for `lang`. Returns `[]` for languages without
- * an extractor (JSON, YAML, HTML, …). Order follows the file, never alphabetical.
+ * an extractor (JSON, YAML, HTML, Markdown, …). Order follows the file, never alphabetical.
  */
 export function extractSymbols(source: string, lang: string): string[] {
   if (!SYMBOL_LANGUAGES.has(lang)) return [];
@@ -173,8 +169,6 @@ export function extractSymbols(source: string, lang: string): string[] {
     case 'sass':
     case 'less':
       return cssSymbols(source);
-    case 'markdown':
-      return markdownSymbols(source);
     default:
       return [];
   }

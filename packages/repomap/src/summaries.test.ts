@@ -12,7 +12,7 @@ const d = require('./d')
 const e = await import('./e')
 import React from 'react'
 `;
-    expect(extractImportSpecifiers(source).sort()).toEqual([
+    expect(extractImportSpecifiers(source, 'typescript').sort()).toEqual([
       '../lib/b',
       './a',
       './c.js',
@@ -20,6 +20,17 @@ import React from 'react'
       './e',
       './side-effect.css',
     ]);
+  });
+
+  test('extracts relative Python imports, ignoring absolute and bare-dot forms', () => {
+    const source = `
+from .core import run
+from ..pkg import utils
+from acme.core import run
+from . import sibling
+import os
+`;
+    expect(extractImportSpecifiers(source, 'python')).toEqual(['.core', '..pkg']);
   });
 
   test('counts incoming imports with extension and index resolution', () => {

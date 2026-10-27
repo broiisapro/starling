@@ -92,13 +92,13 @@ Other files (orientation only):
 - src/features/search/index.ts · typescript · 24 B
 - src/features/shortcuts/index.ts · typescript · 24 B
 - src/features/theme/index.ts · typescript · 24 B
-- src/lib/dates.test.ts · typescript · 940 B — Tests for date helpers.
-- src/lib/dates.ts · typescript · 860 B · symbols: formatDueDate, isOverdue, sortByDueDate — Date formatting, overdue check and due-date sorting helpers.
+- src/lib/dates.test.ts · typescript · 940 B
+- src/lib/dates.ts · typescript · 860 B
 - src/lib/ids.test.ts · typescript · 360 B
-- src/lib/ids.ts · typescript · 410 B · symbols: newTodoId
-- src/store/persist.ts · typescript · 620 B · symbols: loadTodos, saveTodos — localStorage persistence with schema validation.
+- src/lib/ids.ts · typescript · 410 B
+- src/store/persist.ts · typescript · 620 B
 - src/store/todos.test.ts · typescript · 1.2 kB
-- src/ui/render.ts · typescript · 1.4 kB · symbols: render, renderItem — Renders the todo list and applies due-date badges.
+- src/ui/render.ts · typescript · 1.4 kB
 - src/ui/styles.css · css · 980 B
 - tsconfig.json · json · 340 B
 

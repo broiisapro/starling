@@ -9,9 +9,10 @@
  * map. A missing LLM, a failed call or a broken cache never fails the map.
  */
 import { readFile } from 'node:fs/promises';
-import { join, posix } from 'node:path';
+import { join } from 'node:path';
 import type { LLM, RepoFile } from '@starling/core';
 import { contentSha1, loadSummaryCache, saveSummaryCache } from './cache';
+import { resolveImportPath } from './imports';
 import { mapLimit } from './util';
 
 const SUMMARY_LIMIT = 20;
@@ -41,25 +42,26 @@ const JS_IMPORTS: readonly RegExp[] = [
   /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
 ];
 
-const RESOLVE_SUFFIXES: readonly string[] = [
-  '',
-  '.ts',
-  '.tsx',
-  '.js',
-  '.jsx',
-  '.mjs',
-  '.cjs',
-  '.py',
-  '.json',
-  '.css',
-  '/index.ts',
-  '/index.tsx',
-  '/index.js',
-  '/index.jsx',
-];
+/** `from .core import run`, `from ..pkg.utils import x`. The module part must be non-empty. */
+const PY_RELATIVE_IMPORT = /^\s*from\s+(\.{1,2}[\w.]*)\s+import\b/gm;
 
-/** Relative import specifiers declared in a source file. Non-relative (package) imports are ignored. */
-export function extractImportSpecifiers(source: string): string[] {
+/** Relative import specifiers declared in a source file. Non-relative imports are ignored. */
+export function extractImportSpecifiers(source: string, lang: string): string[] {
+  if (lang === 'python') {
+    // Only relative imports (`from .core import run`): an absolute `from acme.core` cannot be
+    // resolved without knowing the package root, and guessing produces wrong edges.
+    const specs: string[] = [];
+    PY_RELATIVE_IMPORT.lastIndex = 0;
+    let match = PY_RELATIVE_IMPORT.exec(source);
+    while (match !== null) {
+      const spec = match[1];
+      if (spec !== undefined && spec.length > 1) specs.push(spec);
+      if (PY_RELATIVE_IMPORT.lastIndex === match.index) PY_RELATIVE_IMPORT.lastIndex += 1;
+      match = PY_RELATIVE_IMPORT.exec(source);
+    }
+    return specs;
+  }
+
   const specs: string[] = [];
   for (const pattern of JS_IMPORTS) {
     pattern.lastIndex = 0;
@@ -74,15 +76,6 @@ export function extractImportSpecifiers(source: string): string[] {
   return specs;
 }
 
-function resolveImport(fromPath: string, specifier: string, known: ReadonlySet<string>): string | undefined {
-  const base = posix.resolve('/', posix.dirname(fromPath), specifier).slice(1);
-  for (const suffix of RESOLVE_SUFFIXES) {
-    const candidate = `${base}${suffix}`;
-    if (known.has(candidate)) return candidate;
-  }
-  return undefined;
-}
-
 /** Count incoming relative imports per file. Unknown targets (node_modules, aliases) are ignored. */
 export function computeIncomingCounts(
   files: readonly { path: string; imports: readonly string[] }[],
@@ -92,7 +85,7 @@ export function computeIncomingCounts(
   for (const file of files) {
     const seen = new Set<string>();
     for (const specifier of file.imports) {
-      const target = resolveImport(file.path, specifier, known);
+      const target = resolveImportPath(file.path, specifier, known);
       if (target === undefined || target === file.path || seen.has(target)) continue;
       seen.add(target);
       counts.set(target, (counts.get(target) ?? 0) + 1);
