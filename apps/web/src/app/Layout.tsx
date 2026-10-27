@@ -25,13 +25,14 @@ import { cn } from '../lib/cn';
 import { formatUsd } from '../lib/format';
 import type { DemoSpeed } from '../lib/speed';
 import type { Theme } from '../lib/theme';
+import { useWideFlock } from '../lib/viewport';
 import { KeyboardHelp } from './KeyboardHelp';
 import { RegionPlaceholder } from './RegionPlaceholder';
 import { type CentreView, TopBar } from './TopBar';
 
 export type { CentreView };
 
-const FLOCK_OPEN = '15rem';
+const FLOCK_OPEN = '16rem';
 const FLOCK_CLOSED = '3.25rem';
 const DRAWER_OPEN = '22rem';
 
@@ -80,6 +81,8 @@ export function Layout({
   const [stripOpen, setStripOpen] = useState(true);
   const [helpOpen, setHelpOpen] = useState(false);
   const reducedMotion = usePrefersReducedMotion();
+  const wideFlock = useWideFlock();
+  const compact = !wideFlock;
 
   const actions = useMemo<SelectorActions>(
     () => ({
@@ -96,9 +99,13 @@ export function Layout({
   const dag = dagProps(state, actions);
   const drawer = drawerProps(state, actions);
   const queue = queueProps(state, actions);
-  const metrics = metricsProps(state, { live: activeRunOf(state)?.status === 'running' });
+  // `live` is only passed when the engine actually says the run is running. Today `run.status` only
+  // changes at `run.finished` (no intermediate event), so a replay would otherwise claim "not live"
+  // and freeze the clock; omitting the flag lets the meter keep inferring liveness from sample age.
+  const metrics = metricsProps(state, activeRunOf(state)?.status === 'running' ? { live: true } : {});
   const flock = flockProps(state, actions, {
-    compact: true,
+    // Projector: roost cards with clickable task chips. Small laptop: one compact roost row.
+    compact,
     reducedMotion,
     onSelectTask: actions.selectTask,
   });
@@ -216,7 +223,7 @@ export function Layout({
                     The rail is ~15rem wide: the compact panel's one-row strip scrolls sideways there,
                     so the shell stacks its roosts vertically instead. Nothing inside the feature moves.
                   */}
-                  <div className="[&_[data-testid='compact-flock']]:flex-col [&_[data-testid='compact-flock']>li]:w-full">
+                  <div className="[&_[data-testid='compact-flock']]:flex-col [&_[data-testid='compact-flock']>li]:w-full [&>section>div.grid]:grid-cols-1 [&_[data-testid='roost-card']_h3]:whitespace-normal">
                     <FlockPanel {...flock} />
                   </div>
                 </ErrorBoundary>
