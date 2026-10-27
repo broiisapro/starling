@@ -12,8 +12,7 @@ export const PLAYGROUND_JOIN: JoinInfo = {
   command: 'starling perch --hub http://192.168.1.42:7777 --code STAR-LING',
 };
 
-/** The recorded launch-day run. Resolved by Vite as a raw string; not imported by the library entry. */
-const FIXTURE_IMPORT = '../../../../../fixtures/runs/sky-todo-launch-day.jsonl?raw';
+/** The recorded launch-day run is loaded lazily through `fixture-log.ts` (see that file for why). */
 
 export interface ParsedEventLog {
   events: StarlingEvent[];
@@ -103,10 +102,10 @@ export function Playground({
     }
 
     let cancelled = false;
-    void import(FIXTURE_IMPORT)
+    void import('./fixture-log')
       .then((module) => {
         if (cancelled) return;
-        const parsed = parseEventLog(module.default);
+        const parsed = parseEventLog(module.LAUNCH_DAY_JSONL);
         setEvents(parsed.events);
         setSkipped(parsed.skipped);
         setRevealed(0);

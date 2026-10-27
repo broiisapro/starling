@@ -204,6 +204,20 @@ describe('FlockPanel roost cards', () => {
     );
   });
 
+  test('the offline age keeps climbing when the shell does not pin the clock', async () => {
+    const { container } = await render(
+      <FlockPanel
+        nodes={[hubNode(), airNode({ status: 'offline', activeSessions: 0, lastSeen: Date.now() - 12_000 })]}
+        tasks={{}}
+        reducedMotion
+      />,
+    );
+    const label = () => text(one(container, '[data-testid="last-seen"]'));
+    expect(label()).toContain('12s ago');
+    await wait(1_100);
+    expect(label()).toMatch(/last seen 1[34]s ago/);
+  });
+
   test('a busy roost pulses, unless the user asked for reduced motion', async () => {
     const { container, update } = await render(
       <FlockPanel nodes={[hubNode({ status: 'busy' })]} tasks={{}} now={NOW} />,

@@ -6,6 +6,7 @@ import { isHub, sessionTotals, sortRoosts } from './format';
 import { JoinCard } from './JoinCard';
 import { RoostCard } from './RoostCard';
 import type { FlockPanelAllProps } from './types';
+import { useNow } from './use-now';
 import { usePresence } from './use-presence';
 
 /**
@@ -20,18 +21,19 @@ export function FlockPanel({
   tasks,
   compact = false,
   reducedMotion = false,
-  now = Date.now(),
+  now,
   onSelectTask,
 }: FlockPanelAllProps) {
   const roosts = useMemo(() => sortRoosts(nodes), [nodes]);
   const { entries } = usePresence(roosts, reducedMotion);
+  const clock = useNow(now);
   const totals = sessionTotals(roosts);
   const firstRoost = roosts[0];
   const onlyHub = roosts.length === 1 && firstRoost !== undefined && isHub(firstRoost);
 
   if (compact) {
     return (
-      <CompactFlock entries={entries} tasks={tasks} join={join} now={now} reducedMotion={reducedMotion} />
+      <CompactFlock entries={entries} tasks={tasks} join={join} now={clock} reducedMotion={reducedMotion} />
     );
   }
 
@@ -75,7 +77,7 @@ export function FlockPanel({
             key={node.id}
             node={node}
             tasks={tasks}
-            now={now}
+            now={clock}
             reducedMotion={reducedMotion}
             leaving={leaving}
             onSelectTask={onSelectTask}
