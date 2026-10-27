@@ -1,0 +1,98 @@
+name: Epic
+description: One epic = one branch = one worktree = one PR. Epic issues are normally created by .orchestrator/bin/gh-bootstrap.sh from .orchestrator/epics.tsv.
+title: "Epic NN: "
+labels: ["epic"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Epics are planned by the Orchestrator in `.orchestrator/epics.tsv` and mirrored to
+        GitHub by `gh-bootstrap.sh`. Use this form only for an epic that is **not** in the
+        sheet yet (bug-bash sheets, follow-ups) — the Orchestrator will add the row.
+
+  - type: input
+    id: epic-number
+    attributes:
+      label: Epic number
+      description: Two digits, matching the prompt filename. New epics take the next free number in their wave.
+      placeholder: "69"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: wave
+    attributes:
+      label: Wave
+      options: ["wave-0", "wave-1", "wave-2", "wave-3"]
+    validations:
+      required: true
+
+  - type: dropdown
+    id: machine
+    attributes:
+      label: Machine
+      description: Which laptop runs this epic. Keep the two laptops' load roughly balanced.
+      options: ["machine:mbp", "machine:air", "either"]
+    validations:
+      required: true
+
+  - type: input
+    id: lane
+    attributes:
+      label: Lane
+      description: The paths this epic may write. Comma-separated globs, relative to the repo root.
+      placeholder: "packages/planner, evals/planner"
+    validations:
+      required: true
+
+  - type: input
+    id: depends
+    attributes:
+      label: Depends on
+      description: Epic numbers or checkpoints (C1, C2). Use `-` for none.
+      placeholder: "00, 02"
+    validations:
+      required: true
+
+  - type: input
+    id: prompt
+    attributes:
+      label: Prompt path
+      description: Where the self-contained prompt lives, or will live.
+      placeholder: ".orchestrator/prompts/wave-3/69-example.md"
+    validations:
+      required: false
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: What exists after this epic that did not before. Specific and auditable.
+      placeholder: |
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: dod
+    attributes:
+      label: Definition of done
+      description: Literal, runnable steps. The auditor checks the diff against these.
+      value: |
+        - [ ] prompt written
+        - [ ] spawned
+        - [ ] PR open
+        - [ ] audited
+        - [ ] merged
+        - [ ] tagged `epic-NN-complete`
+    validations:
+      required: true
+
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this epic must not touch. Lanes are the law.
+    validations:
+      required: false
