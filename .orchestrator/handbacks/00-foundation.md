@@ -52,3 +52,5 @@
 - `MockWorkspace` is a file-map model, not a git simulator; conflict prediction is scripted. Real `git merge-tree` behaviour belongs to the workspace epic.
 - The recorded run is synthetic. It exercises the event contract but is not evidence of real engine behaviour; regenerate once recording exists.
 - Issue #1 is linked as `Closes #1`; if the orchestrator wants a different tracking issue, relink at merge time.
+
+Closes #1
