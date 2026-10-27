@@ -25,6 +25,7 @@
       "dependencies": {
         "@starling/core": "workspace:*",
         "hono": "4.13.14",
+        "zod": "4.6.7",
       },
     },
     "apps/web": {
