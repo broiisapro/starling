@@ -1,0 +1,47 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderStatus renders the run header, task table and cost meter (non-TTY snapshot) 1`] = `
+"Starling run  01jd2run00000000000000000
+goal      Add dark mode, live search and a help overlay
+status    running  ·  1:02
+branch    starling/000000/integration
+repo      examples/sky-todo (base main)
+started   2023-11-14 22:13:20Z
+plan      Three lane-disjoint tasks: theme, then search, then the help overlay.
+model     deepseek/deepseek-v4.1-flash
+
+  ████████░░░░░░░░░░░░░░░░ 33%  ✔ 1 merged  ✘ 0 failed
+
+TASK    STATUS     NODE    ATT  TIME  VERDICT
+theme   ✔ merged   hub       1  0:30  ✔ Definition of done met.
+search  ◐ running  m2-air    1  0:30  —
+help    · pending  —         0  0.0s  —
+
+tokens  api 8.0k in / 2.0k out  ·  local 4.0k in / 800 out
+cost    api $0.012  ·  local $0  ·  saved $0.004  (4 local calls)
+
+constraints  No new runtime dependencies"
+`;
+
+exports[`renderStatus colours the status cells on a TTY 1`] = `
+"\x1B[1mStarling run\x1B[22m  01jd2run00000000000000000
+\x1B[2mgoal\x1B[22m      Add dark mode, live search and a help overlay
+\x1B[2mstatus\x1B[22m    \x1B[36mrunning\x1B[39m  \x1B[2m·\x1B[22m  1:02
+\x1B[2mbranch\x1B[22m    starling/000000/integration
+\x1B[2mrepo\x1B[22m      examples/sky-todo \x1B[2m(base main)\x1B[22m
+\x1B[2mstarted\x1B[22m   2023-11-14 22:13:20Z
+\x1B[2mplan\x1B[22m      Three lane-disjoint tasks: theme, then search, then the help overlay.
+\x1B[2mmodel\x1B[22m     deepseek/deepseek-v4.1-flash
+
+  \x1B[2m████████░░░░░░░░░░░░░░░░ 33%\x1B[22m  \x1B[32m✔ 1 merged\x1B[39m  \x1B[2m✘ 0 failed\x1B[22m
+
+TASK    STATUS     NODE    ATT  TIME  VERDICT
+theme   \x1B[32m✔ merged\x1B[39m   hub       1  0:30  \x1B[32m✔ Definition of done met.\x1B[39m
+search  \x1B[36m◐ running\x1B[39m  m2-air    1  0:30  \x1B[2m—\x1B[22m
+help    \x1B[90m· pending\x1B[39m  —         0  0.0s  \x1B[2m—\x1B[22m
+
+\x1B[2mtokens\x1B[22m  api 8.0k in / 2.0k out  \x1B[2m·\x1B[22m  local 4.0k in / 800 out
+\x1B[2mcost\x1B[22m    api $0.012  \x1B[2m·\x1B[22m  local $0  \x1B[2m·\x1B[22m  saved $0.004  \x1B[2m(4 local calls)\x1B[22m
+
+\x1B[2mconstraints\x1B[22m  No new runtime dependencies"
+`;

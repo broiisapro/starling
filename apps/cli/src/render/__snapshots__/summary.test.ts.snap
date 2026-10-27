@@ -1,0 +1,13 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderSummary renders a finished-run box (non-TTY snapshot) 1`] = `
+"╭────────────────────────────────────────────────────────────────────────────╮
+│ ✔ run finished in 6:12                                                     │
+│ ✔ 3 merged  ·  ✘ 0 failed  ·  0 conflicts                                  │
+│ api $0.012  ·  local $0  ·  saved $0.004                                   │
+│ branch starling/000000/integration                                         │
+│                                                                            │
+│ All three tasks merged. One audit failure on theme was fixed on attempt 2. │
+│ 🐦                                                                         │
+╰────────────────────────────────────────────────────────────────────────────╯"
+`;

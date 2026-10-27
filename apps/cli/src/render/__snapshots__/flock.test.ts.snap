@@ -1,0 +1,25 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderFlock renders the roster and the join command (non-TTY snapshot) 1`] = `
+"Flock  ·  2 nodes  ·  2 online  ·  11 free session slots
+
+NODE    KIND    PLATFORM      SESSIONS  LOCAL MODELS     LATENCY  STATUS
+hub     local   darwin/arm64       1/8  qwen3.6:35b-a3b      1ms  ◐ busy
+m2-air  remote  darwin/arm64       1/5  —                   18ms  ◐ busy
+
+Join this flock
+  starling perch --hub http://localhost:7777 --code STAR-LING
+  code STAR-LING   hub http://localhost:7777"
+`;
+
+exports[`renderFlock colours node statuses on a TTY 1`] = `
+"\x1B[1mFlock\x1B[22m  \x1B[2m·\x1B[22m  2 nodes  \x1B[2m·\x1B[22m  2 online  \x1B[2m·\x1B[22m  11 free session slots
+
+NODE    KIND    PLATFORM      SESSIONS  LOCAL MODELS     LATENCY  STATUS
+\x1B[36mhub\x1B[39m     local   darwin/arm64       1/8  qwen3.6:35b-a3b      1ms  \x1B[36m◐ busy\x1B[39m
+m2-air  remote  darwin/arm64       1/5  \x1B[2m—\x1B[22m                   18ms  \x1B[36m◐ busy\x1B[39m
+
+\x1B[1mJoin this flock\x1B[22m
+  \x1B[36mstarling perch --hub http://localhost:7777 --code STAR-LING\x1B[39m
+  \x1B[2mcode\x1B[22m STAR-LING   \x1B[2mhub\x1B[22m http://localhost:7777"
+`;

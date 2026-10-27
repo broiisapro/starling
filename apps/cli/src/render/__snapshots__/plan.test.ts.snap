@@ -1,0 +1,53 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderPlan renders a task table, lane matrix and health checks (non-TTY snapshot) 1`] = `
+"Starling plan  ·  3 tasks  ·  deepseek/deepseek-v4.1-flash
+goal     Add dark mode, live search and a help overlay
+summary  Three lane-disjoint tasks: theme, then search, then the help overlay.
+
+  ✔ acyclic   ✔ lanes disjoint   ✔ definitions of done
+
+TASK      TITLE                    DEPENDS  OWNS                                      EST
+  theme   Dark mode with a toggle  —        src/features/theme/**, src/ui/styles.css  15m
+  search  Live search filtering    —        src/features/search/**                    12m
+  help    Help overlay             search   src/features/help/**                      8m
+
+Lane matrix
+LANE     theme   search   help
+theme    ·       ✓        ✓
+search   ✓       ·        ✓
+help     ✓       ✓        ·
+  ✓ lanes disjoint   ✘ globs overlap   · same task   (overlaps between dependent tasks never run together)
+
+Locked decisions
+  · Vanilla TypeScript, no UI framework
+  · Tests live beside their source
+
+✔ No issues — the DAG is ready to fly."
+`;
+
+exports[`renderPlan colours status glyphs on a TTY 1`] = `
+"\x1B[1mStarling plan\x1B[22m\x1B[2m · dry run\x1B[22m  \x1B[2m·\x1B[22m  3 tasks  \x1B[2m·\x1B[22m  deepseek/deepseek-v4.1-flash
+\x1B[2mgoal\x1B[22m     Add dark mode, live search and a help overlay
+\x1B[2msummary\x1B[22m  Three lane-disjoint tasks: theme, then search, then the help overlay.
+
+  \x1B[32m✔ acyclic\x1B[39m   \x1B[32m✔ lanes disjoint\x1B[39m   \x1B[32m✔ definitions of done\x1B[39m
+
+TASK      TITLE                    DEPENDS  OWNS                                      EST
+  theme   Dark mode with a toggle  —        src/features/theme/**, src/ui/styles.css  15m
+  search  Live search filtering    —        src/features/search/**                    12m
+  help    Help overlay             search   src/features/help/**                      8m
+
+\x1B[1mLane matrix\x1B[22m
+LANE     theme   search   help
+theme    \x1B[2m·\x1B[22m       \x1B[32m✓\x1B[39m        \x1B[32m✓\x1B[39m
+search   \x1B[32m✓\x1B[39m       \x1B[2m·\x1B[22m        \x1B[32m✓\x1B[39m
+help     \x1B[32m✓\x1B[39m       \x1B[32m✓\x1B[39m        \x1B[2m·\x1B[22m
+\x1B[2m  ✓ lanes disjoint   ✘ globs overlap   · same task   (overlaps between dependent tasks never run together)\x1B[22m
+
+\x1B[1mLocked decisions\x1B[22m
+  \x1B[2m·\x1B[22m Vanilla TypeScript, no UI framework
+  \x1B[2m·\x1B[22m Tests live beside their source
+
+\x1B[32m✔ No issues — the DAG is ready to fly.\x1B[39m"
+`;
