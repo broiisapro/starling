@@ -73,7 +73,10 @@ export function MetricsPanel({
           <div className="min-w-[7.5rem]">
             <p className="text-[12px] uppercase tracking-[0.1em] text-slate-400">Agents active</p>
             <div className="flex items-end gap-2">
-              <span className="text-[17px] font-semibold leading-5 tracking-tight tabular-nums text-sky-200" data-testid="metrics-agents">
+              <span
+                className="text-[17px] font-semibold leading-5 tracking-tight tabular-nums text-sky-200"
+                data-testid="metrics-agents"
+              >
                 {agentsNow}
               </span>
               <SparklineChart

@@ -48,7 +48,10 @@ export function Panel({
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-hairline px-[var(--spacing-panel)] py-2.5">
           <div className="min-w-0">
             {title !== undefined ? (
-              <h2 id={headingId} className="truncate text-heading font-semibold tracking-[-0.02em] text-ink-1">
+              <h2
+                id={headingId}
+                className="truncate text-heading font-semibold tracking-[-0.02em] text-ink-1"
+              >
                 {title}
               </h2>
             ) : null}

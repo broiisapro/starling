@@ -148,12 +148,7 @@ export function TopBar({
         <Badge
           tone={status.tone}
           className="gap-1.5"
-          icon={
-            <span
-              className={cn('pulse-dot h-1.5 w-1.5 rounded-full', status.dot)}
-              aria-hidden="true"
-            />
-          }
+          icon={<span className={cn('pulse-dot h-1.5 w-1.5 rounded-full', status.dot)} aria-hidden="true" />}
         >
           <span className="font-semibold tracking-[0.12em] uppercase">{status.label}</span>
         </Badge>
