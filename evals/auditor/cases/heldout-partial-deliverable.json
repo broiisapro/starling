@@ -1,0 +1,37 @@
+{
+  "name": "heldout-partial-deliverable",
+  "title": "Undo exists but the disabled state was never built (held out)",
+  "heldOut": true,
+  "task": {
+    "key": "undo",
+    "title": "Undo the last delete, with a disabled-state button",
+    "goal": "Let people undo the last deleted todo and disable the undo button when there is nothing to undo.",
+    "deliverables": ["Cmd+Z restores the last deleted todo", "The undo button is disabled when the history is empty"],
+    "outOfScope": ["Redo", "Changing the store's persistence format"],
+    "definitionOfDone": [
+      "Cmd+Z restores the last deleted todo",
+      "The undo button is disabled when the history is empty",
+      "Colocated tests cover the restore and the disabled state"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/undo/**"], "reads": ["src/store/todos.ts", "src/ui/slots.ts"] },
+    "estimateMin": 25
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/undo/index.ts", "added": 26, "removed": 0 },
+      { "path": "src/features/undo/index.test.ts", "added": 15, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/undo/index.ts b/src/features/undo/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/undo/index.ts\n@@ -0,0 +1,26 @@\n+import { defineFeature } from '../registry'\n+\n+let lastDeleted: { id: string; title: string } | null = null\n+\n+export function rememberDeleted(todo: { id: string; title: string }): void {\n+  lastDeleted = todo\n+}\n+\n+export function undo(store: { add(todo: { id: string; title: string }): void }): boolean {\n+  if (lastDeleted === null) return false\n+  store.add(lastDeleted)\n+  lastDeleted = null\n+  return true\n+}\n+\n+export default defineFeature({\n+  id: 'undo',\n+  register({ slots, store }) {\n+    slots.register({\n+      id: 'undo-action',\n+      slot: 'toolbar',\n+      render: () => {\n+        const button = document.createElement('button')\n+        button.textContent = 'Undo'\n+        button.addEventListener('click', () => undo(store))\n+        document.addEventListener('keydown', (event) => {\n+          if (event.metaKey && event.key === 'z') undo(store)\n+        })\n+        return button\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/features/undo/index.test.ts b/src/features/undo/index.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/undo/index.test.ts\n@@ -0,0 +1,15 @@\n+import { expect, test } from 'bun:test'\n+import { rememberDeleted, undo } from './index'\n+\n+test('undo restores the last deleted todo', () => {\n+  const added: { id: string; title: string }[] = []\n+  rememberDeleted({ id: 't1', title: 'buy milk' })\n+  expect(undo({ add: (todo) => added.push(todo) })).toBe(true)\n+  expect(added).toEqual([{ id: 't1', title: 'buy milk' }])\n+})\n+\n+test('undo with an empty history is a no-op', () => {\n+  expect(undo({ add: () => {} })).toBe(false)\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/undo/index.ts", "src/features/undo/index.test.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["definition-of-done"],
+    "mustMention": [["undo"], ["disabled", "disable"]],
+    "referenceFix": "Implement the missing DoD item: disable the undo button while the history is empty (set button.disabled in render and update it after each undo), add a test for the disabled state in src/features/undo/index.test.ts, then re-run bun test.",
+    "rationale": "The restore path and its tests exist, but the disabled-state requirement has no code and no test. Two of three DoD items are done, so the task is not finished."
+  }
+}

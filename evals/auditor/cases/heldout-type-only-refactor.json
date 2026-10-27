@@ -1,0 +1,33 @@
+{
+  "name": "heldout-type-only-refactor",
+  "title": "A type-only refactor that adds no tests (held out)",
+  "heldOut": true,
+  "task": {
+    "key": "stats-types",
+    "title": "Reuse the store's Todo type in the stats helpers",
+    "goal": "Replace the local StatsRow shape with a Pick of the store's Todo type. No runtime change.",
+    "deliverables": ["src/features/stats/types.ts derives StatsRow from Todo"],
+    "outOfScope": ["Changing percentDone's behaviour", "Touching the store"],
+    "definitionOfDone": [
+      "StatsRow is derived from the shared Todo type",
+      "No runtime behaviour changes",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/stats/**"], "reads": ["src/store/todos.ts"] },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [{ "path": "src/features/stats/types.ts", "added": 3, "removed": 6 }],
+    "patch": "diff --git a/src/features/stats/types.ts b/src/features/stats/types.ts\nindex 1111111..2222222 100644\n--- a/src/features/stats/types.ts\n+++ b/src/features/stats/types.ts\n@@ -1,12 +1,9 @@\n-export interface StatsRow {\n-  id: string\n-  title: string\n-  done: boolean\n-}\n+import type { Todo } from '../../store/todos'\n+\n+export type StatsRow = Pick<Todo, 'id' | 'title' | 'done'>\n \n export interface StatsSummary {\n   total: number\n   done: number\n   percent: number\n }\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/stats/types.ts"],
+  "expected": {
+    "pass": true,
+    "laneViolations": [],
+    "failingChecks": [],
+    "mustMention": [],
+    "rationale": "Types are erased at runtime: the diff only replaces a duplicated shape with a Pick of the store's type, so no new test is required and demanding one would be a false fail."
+  }
+}

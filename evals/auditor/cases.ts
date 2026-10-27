@@ -21,6 +21,19 @@ export function loadAuditorCases(dir: string = AUDITOR_CASES_DIR): AuditorCase[]
   });
 }
 
+/** The twelve seeded cases (the tuning set). */
+export function seededAuditorCases(cases: AuditorCase[] = loadAuditorCases()): AuditorCase[] {
+  return cases.filter((testCase) => !testCase.heldOut);
+}
+
+/**
+ * The held-out cases, added before tuning and reported separately: they exist to catch a prompt that
+ * memorised the seeded twelve (Epic 44).
+ */
+export function heldOutAuditorCases(cases: AuditorCase[] = loadAuditorCases()): AuditorCase[] {
+  return cases.filter((testCase) => testCase.heldOut);
+}
+
 export function findAuditorCase(cases: AuditorCase[], name: string): AuditorCase {
   const found = cases.find((testCase) => testCase.name === name);
   if (found === undefined) {

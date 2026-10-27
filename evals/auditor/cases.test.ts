@@ -1,13 +1,26 @@
 import { describe, expect, test } from 'bun:test';
 import type { AuditorCase } from './case';
-import { assertAuditorCaseConsistent, loadAuditorCases } from './cases';
+import {
+  assertAuditorCaseConsistent,
+  heldOutAuditorCases,
+  loadAuditorCases,
+  seededAuditorCases,
+} from './cases';
 
 const cases = loadAuditorCases();
 
 describe('auditor cases', () => {
-  test('twelve seeded cases load with unique names', () => {
-    expect(cases.length).toBe(12);
+  test('twelve seeded cases plus four held-out cases load with unique names', () => {
+    expect(cases.length).toBe(16);
+    expect(seededAuditorCases(cases).length).toBe(12);
+    expect(heldOutAuditorCases(cases).length).toBe(4);
     expect(new Set(cases.map((entry) => entry.name)).size).toBe(cases.length);
+  });
+
+  test('held-out cases are named heldout- so a reader can spot them', () => {
+    for (const entry of heldOutAuditorCases(cases)) {
+      expect(entry.name.startsWith('heldout-')).toBe(true);
+    }
   });
 
   test('the answer key spans both verdicts, with false-pass traps and false-fail traps', () => {
