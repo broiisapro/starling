@@ -68,15 +68,20 @@ Closes #30.
   - `syncPlan: 7 issues created`
   - `syncPlan again (numbers restored): 0 created, same 7 numbers`
   - `syncPlan a third time (markers only): 0 created, no duplicates (7 issues)`
-  - issues: theme #38 https://github.com/broiisapro/starling-sandbox/issues/38 (closed),
-    search #39 …/issues/39 (closed), csv-export #40, shortcuts #41, due-badges #42, dates-fix #43,
-    help-overlay #44 (open, untouched on purpose)
+  - issues (sandbox repo, numbers are not starling issues):
+    https://github.com/broiisapro/starling-sandbox/issues/38 (theme, closed),
+    https://github.com/broiisapro/starling-sandbox/issues/39 (search, closed),
+    https://github.com/broiisapro/starling-sandbox/issues/40 (csv-export),
+    https://github.com/broiisapro/starling-sandbox/issues/41 (shortcuts),
+    https://github.com/broiisapro/starling-sandbox/issues/42 (due-badges),
+    https://github.com/broiisapro/starling-sandbox/issues/43 (dates-fix),
+    https://github.com/broiisapro/starling-sandbox/issues/44 (help-overlay, open, untouched on purpose)
   - task PRs: https://github.com/broiisapro/starling-sandbox/pull/45 and
     https://github.com/broiisapro/starling-sandbox/pull/46 (both auto-`MERGED` once their commits landed
     on the integration branch), final PR: https://github.com/broiisapro/starling-sandbox/pull/47
   - `Running teardown…` → `Sandbox clean: broiisapro/starling-sandbox (repo kept)` (exit 0)
   - the PR bodies were checked live: verdict table with durations, ticked DoD with evidence, API/local
-    usage table, `Node: hub`, `Closes #38`, footer `run [crjd12](…issues?q=label%3Astarling%3Arun-crjd12)`.
+    usage table, `Node: hub`, a Closes line for sandbox issue 38, footer `run [crjd12](…issues?q=label%3Astarling%3Arun-crjd12)`.
 - `bun run test` (root):
   - packages/CLI/server/skills/integrations/tools/evals: `1394 pass, 4 skip, 0 fail` — `Ran 1398 tests
     across 163 files`
