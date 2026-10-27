@@ -7,9 +7,11 @@ export interface RenderDoctorOptions {
   width?: number;
   /** e.g. `darwin/arm64 · bun 1.4.4` */
   banner?: string;
+  /** Print the parallel-agent suggestion under the checks (default true). */
+  showCapacity?: boolean;
 }
 
-/** Pretty ✔/✘/! report with a fix hint under every non-ok check. */
+/** Pretty ✔/✘/! report with a one-line fix under every non-ok check. */
 export function renderDoctor(result: DoctorResult, options: RenderDoctorOptions): string {
   const { palette } = options;
   const width = Math.max(60, options.width ?? 100);
@@ -26,7 +28,7 @@ export function renderDoctor(result: DoctorResult, options: RenderDoctorOptions)
     const name = check.name.padEnd(nameWidth);
     lines.push(`${icon} ${palette.bold(name)}  ${truncate(check.detail, width - nameWidth - 4)}`);
     if (check.hint !== undefined) {
-      lines.push(`  ${' '.repeat(nameWidth)}  ${palette.dim(`hint: ${check.hint}`)}`);
+      lines.push(`  ${' '.repeat(nameWidth)}  ${palette.dim(`fix: ${check.hint}`)}`);
     }
   }
 
@@ -39,6 +41,15 @@ export function renderDoctor(result: DoctorResult, options: RenderDoctorOptions)
       : palette.dim('! 0 warnings'),
   ];
   lines.push(parts.join(palette.dim('  ·  ')));
+
+  if (options.showCapacity !== false && result.suggestedMaxParallel !== undefined) {
+    lines.push(
+      palette.dim(
+        `maxParallel ${result.suggestedMaxParallel} suggested (one worker ≈ 2 GB RAM and one core, hub keeps one)`,
+      ),
+    );
+  }
+
   if (!result.ok) {
     lines.push(palette.dim('Fix the ✘ items above, then re-run `starling doctor`.'));
   } else {

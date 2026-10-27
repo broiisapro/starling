@@ -1,6 +1,6 @@
 // Bun Snapshot v1, https://bun.sh/docs/test/snapshots
 
-exports[`renderDoctor renders every check, hint and the totals (non-TTY snapshot) 1`] = `
+exports[`renderDoctor renders every check, fix and the totals (non-TTY snapshot) 1`] = `
 "Starling doctor  ·  darwin/arm64 · bun 1.4.4
 
 ✔ bun       1.4.4 (needs ≥ 1.3)
@@ -10,7 +10,7 @@ exports[`renderDoctor renders every check, hint and the totals (non-TTY snapshot
 ✔ gh        authenticated
 ✔ config    defaults (no starling.config.yaml yet — run \`starling init\`)
 ! ollama    not reachable at http://127.0.0.1:11434/api/tags (optional)
-            hint: ollama serve
+            fix: ollama serve
 ✔ ram       12.0 GB free of 32 GB
 
 ✔ 7 ok  ·  ✘ 0 failed  ·  ! 1 warning

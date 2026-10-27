@@ -169,6 +169,26 @@ describe('commander surface', () => {
     expect(captured.options).toEqual({});
   });
 
+  test('doctor parses --json', async () => {
+    const { captured } = await parse(['doctor', '--json']);
+    expect(captured.options).toMatchObject({ json: true });
+  });
+
+  test('init parses --force, --yes, --dry-run and --max-parallel', async () => {
+    const { captured } = await parse(['init', '--force', '--yes', '--dry-run', '--max-parallel', '3']);
+    expect(captured.options).toMatchObject({
+      force: true,
+      yes: true,
+      dryRun: true,
+      maxParallel: 3,
+    });
+  });
+
+  test('init --no-flock turns flock off', async () => {
+    const { captured } = await parse(['init', '--no-flock']);
+    expect(captured.options.flock).toBe(false);
+  });
+
   test('init parses --force and --profile', async () => {
     const { captured } = await parse(['init', '--force', '--profile', 'local']);
     expect(captured.options).toMatchObject({ force: true, profile: 'local' });
