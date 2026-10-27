@@ -250,7 +250,7 @@ approve. It also teaches the agent to report by exception and to end with the in
 
 ## Demo and replay
 
-Every run can be recorded and replayed byte-for-byte, with no network and no model:
+Every run can be recorded and replayed event-for-event, with its original timing, no network and no model:
 
 ```bash
 bun run starling replay fixtures/runs/sky-todo-launch-day.jsonl --speed 4
