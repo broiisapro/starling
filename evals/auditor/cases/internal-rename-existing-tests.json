@@ -1,0 +1,39 @@
+{
+  "name": "internal-rename-existing-tests",
+  "title": "A behaviour-preserving rename that updates the existing tests",
+  "task": {
+    "key": "store-rename",
+    "title": "Rename setQuery to setSearchQuery internally",
+    "goal": "Rename the internal store setter and update every caller and test.",
+    "deliverables": ["src/store/todos.ts exports setSearchQuery", "No public behaviour changes"],
+    "outOfScope": ["New filtering behaviour"],
+    "definitionOfDone": [
+      "Every caller uses setSearchQuery",
+      "Existing tests are updated and pass",
+      "No behaviour change"
+    ],
+    "dependsOn": [],
+    "lane": {
+      "owns": ["src/store/todos.ts", "src/store/todos.test.ts", "src/features/search/index.ts"],
+      "reads": ["src/ui/filters.ts"]
+    },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [
+      { "path": "src/store/todos.ts", "added": 2, "removed": 2 },
+      { "path": "src/store/todos.test.ts", "added": 2, "removed": 2 },
+      { "path": "src/features/search/index.ts", "added": 1, "removed": 1 }
+    ],
+    "patch": "diff --git a/src/store/todos.ts b/src/store/todos.ts\nindex bbbbbbb..ccccccc 100644\n--- a/src/store/todos.ts\n+++ b/src/store/todos.ts\n@@ -40,7 +40,7 @@ export interface TodoStore {\n-  setQuery(query: string): void\n+  setSearchQuery(query: string): void\n   install(target: Window): void\n }\n\ndiff --git a/src/store/todos.test.ts b/src/store/todos.test.ts\nindex ddddddd..eeeeeee 100644\n--- a/src/store/todos.test.ts\n+++ b/src/store/todos.test.ts\n@@ -12,7 +12,7 @@ describe('store', () => {\n-  test('setQuery filters visible todos', () => {\n-    store.setQuery('milk')\n+  test('setSearchQuery filters visible todos', () => {\n+    store.setSearchQuery('milk')\n     expect(store.visible()).toHaveLength(1)\n\ndiff --git a/src/features/search/index.ts b/src/features/search/index.ts\nindex fffffff..1111111 100644\n--- a/src/features/search/index.ts\n+++ b/src/features/search/index.ts\n@@ -9,7 +9,7 @@ export default defineFeature({\n     input.addEventListener('input', () => {\n-      store.setQuery(input.value)\n+      store.setSearchQuery(input.value)\n       refresh()\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/store/todos.ts", "src/store/todos.test.ts", "src/features/search/index.ts"],
+  "expected": {
+    "pass": true,
+    "laneViolations": [],
+    "failingChecks": [],
+    "mustMention": [],
+    "rationale": "Rename-only change. The existing tests are updated in the same lane and still cover the behaviour, so demanding a brand-new test file would be a false fail."
+  }
+}

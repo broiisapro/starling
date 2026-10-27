@@ -1,0 +1,32 @@
+{
+  "name": "scope-creep-refactor",
+  "title": "A search feature that also refactors the shared id helper",
+  "task": {
+    "key": "search",
+    "title": "Live search filtering",
+    "goal": "Filter the visible todo list as the user types.",
+    "deliverables": ["Toolbar search input", "Clearing the field restores every row"],
+    "outOfScope": ["Refactoring shared helpers"],
+    "definitionOfDone": ["Typing filters on every keystroke", "bun test passes"],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/search/**"], "reads": ["src/ui/filters.ts", "src/ui/slots.ts"] },
+    "estimateMin": 15
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/search/index.ts", "added": 26, "removed": 0 },
+      { "path": "src/lib/ids.ts", "added": 6, "removed": 4 }
+    ],
+    "patch": "diff --git a/src/features/search/index.ts b/src/features/search/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/search/index.ts\n@@ -0,0 +1,26 @@\n+import { defineFeature } from '../registry'\n+\n+export default defineFeature({\n+  id: 'search',\n+  register({ slots, filters, refresh }) {\n+    slots.register({\n+      id: 'search',\n+      slot: 'toolbar',\n+      render: () => {\n+        const input = document.createElement('input')\n+        input.placeholder = 'Search'\n+        input.addEventListener('input', () => {\n+          filters.set('query', input.value.trim().toLowerCase())\n+          refresh()\n+        })\n+        return input\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/lib/ids.ts b/src/lib/ids.ts\nindex 9999999..aaaaaaa 100644\n--- a/src/lib/ids.ts\n+++ b/src/lib/ids.ts\n@@ -1,6 +1,8 @@\n-export function newTodoId(): string {\n-  return Math.random().toString(36).slice(2, 10)\n-}\n+const ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789'\n+\n+export function newTodoId(): string {\n+  return Array.from({ length: 8 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join('')\n+}\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/search/index.ts", "src/lib/ids.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": ["src/lib/ids.ts"],
+    "failingChecks": ["lane"],
+    "mustMention": [["lane"], ["ids.ts", "revert"]],
+    "referenceFix": "Revert src/lib/ids.ts: the ids refactor is outside the task lane (src/features/search/**). Keep the feature and its tests inside src/features/search/** and propose the id change as its own task.",
+    "rationale": "The search feature is fine, but the branch also rewrites a shared helper. That is scope creep and a guaranteed conflict with any parallel task touching ids."
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "name": "partial-csv-quoting",
+  "title": "CSV export exists but silently skips RFC 4180 quoting",
+  "task": {
+    "key": "csv-export",
+    "title": "CSV export with correct quoting",
+    "goal": "Add CSV export with correct RFC 4180 quoting.",
+    "deliverables": [
+      "Export CSV toolbar button",
+      "Fields containing a comma, a quote or a newline are quoted",
+      "Tests for commas, quotes, newlines and the header row"
+    ],
+    "outOfScope": ["XLSX export"],
+    "definitionOfDone": [
+      "Fields with commas, quotes or newlines are quoted per RFC 4180",
+      "Tests cover comma, quote, newline and the header row",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/export/**"], "reads": ["src/store/todos.ts", "src/ui/slots.ts"] },
+    "estimateMin": 20
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/export/index.ts", "added": 20, "removed": 0 },
+      { "path": "src/features/export/index.test.ts", "added": 10, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/export/index.ts b/src/features/export/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/export/index.ts\n@@ -0,0 +1,20 @@\n+import { defineFeature } from '../registry'\n+\n+export function toCsv(rows: string[][]): string {\n+  return rows.map((row) => row.join(',')).join('\\r\\n')\n+}\n+\n+export default defineFeature({\n+  id: 'export',\n+  register({ slots, store }) {\n+    slots.register({\n+      id: 'export-csv',\n+      slot: 'toolbar',\n+      render: () => {\n+        const button = document.createElement('button')\n+        button.textContent = 'Export CSV'\n+        button.addEventListener('click', () => downloadCsv(store.all()))\n+        return button\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/features/export/index.test.ts b/src/features/export/index.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/export/index.test.ts\n@@ -0,0 +1,10 @@\n+import { expect, test } from 'bun:test'\n+import { toCsv } from './index'\n+\n+test('exports a simple row', () => {\n+  expect(toCsv([['id', 'title'], ['1', 'milk']])).toBe('id,title\\r\\n1,milk')\n+})\n+\n+test('exports the header row', () => {\n+  expect(toCsv([['id', 'title']])).toBe('id,title')\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/export/index.ts", "src/features/export/index.test.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["definition-of-done", "tests"],
+    "mustMention": [["comma"], ["quote"], ["newline", "CRLF", "RFC 4180"]],
+    "referenceFix": "Implement RFC 4180 quoting: fields containing a comma, a double quote or a newline must be wrapped in quotes with inner quotes doubled. Add tests for a comma, an embedded quote, a newline and the header row.",
+    "rationale": "There are tests and they are green, but they only cover the trivial path. The DoD's whole point - commas, quotes and newlines - is unimplemented and untested."
+  }
+}

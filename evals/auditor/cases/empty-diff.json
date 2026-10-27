@@ -1,0 +1,30 @@
+{
+  "name": "empty-diff",
+  "title": "The branch has no changes at all",
+  "task": {
+    "key": "stats",
+    "title": "Completion stats in the footer",
+    "goal": "Show done / total and a percentage in the footer.",
+    "deliverables": ["Footer slot item with done / total", "Empty state reads 0% complete"],
+    "outOfScope": ["Changing the store"],
+    "definitionOfDone": [
+      "Footer shows 0% for an empty list",
+      "Footer updates after a toggle or a remove",
+      "Colocated tests cover 0%, partial and 100%",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/stats/**"], "reads": ["src/store/todos.ts", "src/ui/slots.ts"] },
+    "estimateMin": 15
+  },
+  "diff": { "files": [], "patch": "", "truncated": false },
+  "changedFiles": [],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["tests", "definition-of-done"],
+    "mustMention": [["no changes", "nothing", "empty"], ["implement", "stats"]],
+    "referenceFix": "The branch has no changes: implement the stats footer in src/features/stats/index.ts, add colocated tests and commit before requesting another audit.",
+    "rationale": "An empty diff means the agent stopped before doing the work. There is nothing to audit, so it cannot pass."
+  }
+}

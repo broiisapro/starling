@@ -1,0 +1,39 @@
+{
+  "name": "clean-tag-count-with-tests",
+  "title": "A clean feature diff with meaningful colocated tests",
+  "task": {
+    "key": "tag-count",
+    "title": "Distinct tag count in the footer",
+    "goal": "Show how many distinct tags are in use in the footer.",
+    "deliverables": [
+      "src/features/tag-count/index.ts registers a footer slot item",
+      "Wording is singular for one tag and plural otherwise"
+    ],
+    "outOfScope": ["Changing the store"],
+    "definitionOfDone": [
+      "An empty list reads 0 tags in use",
+      "Two todos sharing a tag read 1 tag in use",
+      "Colocated tests cover empty, shared and plural cases",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/tag-count/**"], "reads": ["src/store/todos.ts", "src/ui/slots.ts"] },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/tag-count/index.ts", "added": 24, "removed": 0 },
+      { "path": "src/features/tag-count/index.test.ts", "added": 28, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/tag-count/index.ts b/src/features/tag-count/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/tag-count/index.ts\n@@ -0,0 +1,24 @@\n+import { defineFeature } from '../registry'\n+\n+export function tagLabel(tags: string[][]): string {\n+  const distinct = new Set(tags.flat()).size\n+  return distinct === 1 ? '1 tag in use' : `${distinct} tags in use`\n+}\n+\n+export default defineFeature({\n+  id: 'tag-count',\n+  register({ slots, store }) {\n+    slots.register({\n+      id: 'tag-count',\n+      slot: 'footer',\n+      render: () => {\n+        const node = document.createElement('span')\n+        node.textContent = tagLabel(store.all().map((todo) => todo.tags))\n+        return node\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/features/tag-count/index.test.ts b/src/features/tag-count/index.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/tag-count/index.test.ts\n@@ -0,0 +1,28 @@\n+import { describe, expect, test } from 'bun:test'\n+import { tagLabel } from './index'\n+\n+describe('tagLabel', () => {\n+  test('an empty list reads 0 tags in use', () => {\n+    expect(tagLabel([])).toBe('0 tags in use')\n+  })\n+\n+  test('one tag shared by two todos is singular', () => {\n+    expect(tagLabel([['home'], ['home']])).toBe('1 tag in use')\n+  })\n+\n+  test('two distinct tags is plural', () => {\n+    expect(tagLabel([['home'], ['work']])).toBe('2 tags in use')\n+  })\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/tag-count/index.ts", "src/features/tag-count/index.test.ts"],
+  "expected": {
+    "pass": true,
+    "laneViolations": [],
+    "failingChecks": [],
+    "mustMention": [],
+    "rationale": "A new feature folder with colocated tests, every changed file inside the lane, and a green suite. Nothing to fix."
+  }
+}

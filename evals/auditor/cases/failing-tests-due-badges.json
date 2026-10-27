@@ -1,0 +1,32 @@
+{
+  "name": "failing-tests-due-badges",
+  "title": "The new badge test fails, so the suite is red",
+  "task": {
+    "key": "due-badges",
+    "title": "Due-date badges on todo rows",
+    "goal": "Render a due-date badge per row using the fixed date helpers.",
+    "deliverables": ["item-badges slot item", "Overdue badges carry an is-overdue class"],
+    "outOfScope": ["Editing src/ui/render.ts"],
+    "definitionOfDone": ["Future, overdue and missing due dates all render correctly", "bun test passes"],
+    "dependsOn": ["dates-fix"],
+    "lane": { "owns": ["src/features/due-dates/**"], "reads": ["src/lib/dates.ts", "src/ui/slots.ts"] },
+    "estimateMin": 15
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/due-dates/index.ts", "added": 22, "removed": 0 },
+      { "path": "src/features/due-dates/index.test.ts", "added": 14, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/due-dates/index.ts b/src/features/due-dates/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/due-dates/index.ts\n@@ -0,0 +1,22 @@\n+import { relativeDays } from '../../lib/dates'\n+import { defineFeature } from '../registry'\n+\n+export function badgeText(due: string): string {\n+  return relativeDays(due)\n+}\n+\n+export default defineFeature({\n+  id: 'due-dates',\n+  register({ slots }) {\n+    slots.register({\n+      id: 'due-badge',\n+      slot: 'item-badges',\n+      render: (todo) => {\n+        const node = document.createElement('span')\n+        node.className = 'due-badge'\n+        node.textContent = todo.due ? badgeText(todo.due) : ''\n+        return node\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/features/due-dates/index.test.ts b/src/features/due-dates/index.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/due-dates/index.test.ts\n@@ -0,0 +1,14 @@\n+import { expect, test } from 'bun:test'\n+import { badgeText } from './index'\n+\n+test('a todo due in three days says in 3 days', () => {\n+  const due = new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10)\n+  expect(badgeText(due)).toBe('in 3 days')\n+})\n+\n+test('no due date renders nothing', () => {\n+  expect(badgeText('')).toBe('')\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/due-dates/index.ts", "src/features/due-dates/index.test.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["tests"],
+    "mustMention": [["failing", "fail"], ["due", "date"]],
+    "referenceFix": "bun test fails: the badge says '3 days ago' for a todo due in three days. Fix the relativeDays call so future due dates read 'in 3 days', then re-run the suite.",
+    "rationale": "Tests were added and they do assert behaviour, but one assertion fails. A red suite means the deliverable is not done."
+  }
+}

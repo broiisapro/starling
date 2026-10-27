@@ -1,0 +1,36 @@
+{
+  "name": "trivial-assertion-tests",
+  "title": "Tests were added but they assert true instead of the behaviour",
+  "task": {
+    "key": "title-count",
+    "title": "Open-task count in the browser tab title",
+    "goal": "Keep document.title in sync with the number of open todos.",
+    "deliverables": ["Store subscription that updates document.title", "Empty state reads Sky Todo"],
+    "outOfScope": ["Changing the header layout"],
+    "definitionOfDone": [
+      "document.title reads Sky Todo (2 open) with two open todos",
+      "Tests assert both the empty and the non-empty titles",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/title-count/**"], "reads": ["src/store/todos.ts"] },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/title-count/index.ts", "added": 18, "removed": 0 },
+      { "path": "src/features/title-count/index.test.ts", "added": 8, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/title-count/index.ts b/src/features/title-count/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/title-count/index.ts\n@@ -0,0 +1,18 @@\n+import { defineFeature } from '../registry'\n+\n+export function titleFor(open: number): string {\n+  return open === 0 ? 'Sky Todo' : `Sky Todo (${open} open)`\n+}\n+\n+export default defineFeature({\n+  id: 'title-count',\n+  register({ store }) {\n+    const sync = () => {\n+      document.title = titleFor(store.all().filter((todo) => !todo.done).length)\n+    }\n+    store.subscribe(sync)\n+    sync()\n+  },\n+})\n+\ndiff --git a/src/features/title-count/index.test.ts b/src/features/title-count/index.test.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/title-count/index.test.ts\n@@ -0,0 +1,8 @@\n+import { expect, test } from 'bun:test'\n+\n+test('title count works', () => {\n+  expect(true).toBe(true)\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/title-count/index.ts", "src/features/title-count/index.test.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["definition-of-done"],
+    "mustMention": [["assert"], ["title"]],
+    "referenceFix": "Replace the placeholder expect(true) test with assertions on document.title for 0 open and 2 open todos. A test that asserts true proves nothing about the title.",
+    "rationale": "A test file exists, so a naive tests-added check passes, but it asserts true and never mentions the title behaviour the DoD requires."
+  }
+}

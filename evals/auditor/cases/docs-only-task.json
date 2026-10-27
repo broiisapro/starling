@@ -1,0 +1,35 @@
+{
+  "name": "docs-only-task",
+  "title": "A docs-only task with no tests, which must still pass",
+  "task": {
+    "key": "slot-docs",
+    "title": "Document the slot API in the feature README",
+    "goal": "Document every slot, its purpose and a minimal registration example.",
+    "deliverables": [
+      "src/features/README.md lists every slot name",
+      "A copy-pasteable defineFeature example"
+    ],
+    "outOfScope": ["Changing slot behaviour", "Touching runtime code"],
+    "definitionOfDone": [
+      "README lists toolbar, footer, header-right and item-badges",
+      "Every example matches the current signature",
+      "No runtime code changes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/README.md"], "reads": ["src/ui/slots.ts", "src/features/registry.ts"] },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [{ "path": "src/features/README.md", "added": 18, "removed": 2 }],
+    "patch": "diff --git a/src/features/README.md b/src/features/README.md\nindex 7777777..8888888 100644\n--- a/src/features/README.md\n+++ b/src/features/README.md\n@@ -12,4 +12,20 @@\n ## Slots\n \n-Slots are places.\n+Slots are named places in the shell. A feature registers an item; it never edits the shell.\n+\n+| Slot          | Where it renders              |\n+| ------------- | ----------------------------- |\n+| `toolbar`     | Above the list, right side    |\n+| `footer`      | Below the list                |\n+| `header-right`| Top bar, right of the title   |\n+| `item-badges` | Inline, after a todo's title  |\n+\n+```ts\n+export default defineFeature({\n+  id: 'hello',\n+  register({ slots }) {\n+    slots.register({ id: 'hello', slot: 'footer', render: () => document.createTextNode('hi') })\n+  },\n+})\n+```\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/README.md"],
+  "expected": {
+    "pass": true,
+    "laneViolations": [],
+    "failingChecks": [],
+    "mustMention": [],
+    "rationale": "Docs-only task: the DoD asks for accurate documentation, not a test, and the diff stays inside src/features/README.md. Failing it for missing tests would be a false fail."
+  }
+}

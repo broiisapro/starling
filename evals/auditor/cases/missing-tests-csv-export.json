@@ -1,0 +1,37 @@
+{
+  "name": "missing-tests-csv-export",
+  "title": "CSV export shipped without the tests the DoD requires",
+  "task": {
+    "key": "csv-export",
+    "title": "CSV export with quoting tests",
+    "goal": "Add CSV export with tests for quoting and commas.",
+    "deliverables": [
+      "Export CSV toolbar button",
+      "RFC 4180 output with a header row",
+      "Tests for commas and embedded quotes"
+    ],
+    "outOfScope": ["XLSX export"],
+    "definitionOfDone": [
+      "Toolbar button downloads sky-todo-YYYY-MM-DD.csv",
+      "Tests cover a title with a comma and one with an embedded quote",
+      "bun test passes"
+    ],
+    "dependsOn": [],
+    "lane": { "owns": ["src/features/export/**"], "reads": ["src/store/todos.ts", "src/ui/slots.ts"] },
+    "estimateMin": 20
+  },
+  "diff": {
+    "files": [{ "path": "src/features/export/index.ts", "added": 34, "removed": 0 }],
+    "patch": "diff --git a/src/features/export/index.ts b/src/features/export/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/export/index.ts\n@@ -0,0 +1,34 @@\n+import { defineFeature } from '../registry'\n+\n+export function toCsv(rows: string[][]): string {\n+  return rows.map((row) => row.join(',')).join('\\r\\n')\n+}\n+\n+export default defineFeature({\n+  id: 'export',\n+  register({ slots, store }) {\n+    slots.register({\n+      id: 'export-csv',\n+      slot: 'toolbar',\n+      render: () => {\n+        const button = document.createElement('button')\n+        button.textContent = 'Export CSV'\n+        button.addEventListener('click', () => {\n+          const rows = [\n+            ['id', 'title', 'done', 'createdAt', 'due', 'tags'],\n+            ...store.all().map((todo) => [todo.id, todo.title, String(todo.done), todo.createdAt, todo.due ?? '', todo.tags.join(';')]),\n+          ]\n+          const blob = new Blob([toCsv(rows)], { type: 'text/csv' })\n+          const url = URL.createObjectURL(blob)\n+          const link = document.createElement('a')\n+          link.href = url\n+          link.download = 'sky-todo.csv'\n+          link.click()\n+          URL.revokeObjectURL(url)\n+        })\n+        return button\n+      },\n+    })\n+  },\n+})\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/export/index.ts"],
+  "expected": {
+    "pass": false,
+    "laneViolations": [],
+    "failingChecks": ["tests", "definition-of-done"],
+    "mustMention": [["test"], ["comma", "quote"]],
+    "referenceFix": "Add colocated tests in src/features/export/index.test.ts: one title with a comma, one with an embedded double quote, a newline and the header row. Then re-run bun test.",
+    "rationale": "The feature works for the happy path but the DoD explicitly requires tests for commas and quotes; no test file was added."
+  }
+}
