@@ -1,6 +1,6 @@
 ## Epic 49 Handback — Robustness + engine ownership
 
-**Status:** Complete. Branch `epic/49-robustness` @ `fcc3a9d` (rebase may add commits).
+**Status:** Complete. Branch `epic/49-robustness` (PR head), rebased on `origin/main`.
 
 **Delivered:**
 - **One opencode client.** `packages/runner/src/opencode/client.ts` is the single V2 REST client: added
