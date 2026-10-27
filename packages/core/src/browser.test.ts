@@ -13,15 +13,15 @@ import { join } from 'node:path';
  */
 const ENTRY = join(import.meta.dir, 'browser.ts');
 
-/** The only core modules allowed in a browser bundle. */
+/** The only core modules allowed in a browser bundle (compared by file name). */
 const ALLOWED_SOURCES = [
-  'src/browser.ts',
-  'src/contracts.ts',
-  'src/errors.ts',
-  'src/glob.ts',
-  'src/handshake.ts',
-  'src/ids.ts',
-  'src/metrics.ts',
+  'browser.ts',
+  'contracts.ts',
+  'errors.ts',
+  'glob.ts',
+  'handshake.ts',
+  'ids.ts',
+  'metrics.ts',
 ];
 
 describe('@starling/core/browser', () => {
@@ -49,8 +49,12 @@ describe('@starling/core/browser', () => {
     }
     expect(external, 'browser bundle must not leave anything external (node:, bun:, …)').toEqual([]);
 
-    const coreSources = Object.keys(inputs).filter((path) => path.startsWith('src/'));
-    expect(coreSources.sort()).toEqual([...ALLOWED_SOURCES].sort());
+    // `bun test` may run from the repo root or the package dir, so compare by file name.
+    const coreSources = Object.keys(inputs)
+      .filter((path) => !path.includes('node_modules'))
+      .map((path) => path.split('/').pop() ?? path)
+      .sort();
+    expect(coreSources).toEqual([...ALLOWED_SOURCES].sort());
 
     for (const output of result.outputs) {
       const text = await output.text();
