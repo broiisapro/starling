@@ -118,9 +118,17 @@ export interface SseOptions {
   fetch?: typeof fetch;
   onData: (data: string) => void;
   onError?: (err: StarlingError) => void;
+  /** Called once each time a stream response arrives, including reconnects. */
+  onOpen?: () => void;
   /** Delay before reconnecting after the stream ends or fails. */
   reconnectMs?: number;
   signal?: AbortSignal;
+  /**
+   * Resume point for the first connection. Every `id:` line the perch sends becomes the
+   * `Last-Event-ID` header on the next reconnect (ARCHITECTURE §1: a dropped stream must not lose
+   * `session.idle`).
+   */
+  lastEventId?: string;
 }
 
 export interface SseSubscription {
@@ -149,6 +157,7 @@ async function readSse(
   body: ReadableStream<Uint8Array>,
   onData: (data: string) => void,
   isClosed: () => boolean,
+  onId?: (id: string) => void,
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -175,9 +184,13 @@ async function readSse(
           flushEvent();
         } else if (line.startsWith('data:')) {
           dataLines.push(line.slice(5).replace(/^ /, ''));
+        } else if (line.startsWith('id:')) {
+          // Event ids are what make `Last-Event-ID` resume work. Keep every one we see: the last id
+          // before a disconnect is the resume point.
+          onId?.(line.slice(3).trim());
         }
-        // `event:`, `id:`, `retry:` and keep-alive comments are intentionally ignored: the payload
-        // is always a whole AgentEvent.
+        // `event:`, `retry:` and keep-alive comments are intentionally ignored: the payload is always
+        // a whole AgentEvent.
         newline = buffer.indexOf('\n');
       }
     }
@@ -202,6 +215,8 @@ export function subscribeSse(opts: SseOptions): SseSubscription {
   const onClose = (): void => controller.abort();
   opts.signal?.addEventListener('abort', onClose, { once: true });
   let closed = false;
+  /** Resume point: updated from `id:` lines and replayed as `Last-Event-ID` after a drop. */
+  let lastEventId = opts.lastEventId;
 
   const close = (): void => {
     if (closed) return;
@@ -213,14 +228,21 @@ export function subscribeSse(opts: SseOptions): SseSubscription {
   const loop = async (): Promise<void> => {
     while (!closed) {
       try {
-        const res = await fetchFn(opts.url, {
-          headers: tokenHeaders(opts.token),
-          signal: controller.signal,
-        });
+        const headers = tokenHeaders(opts.token);
+        if (lastEventId !== undefined) headers['last-event-id'] = lastEventId;
+        const res = await fetchFn(opts.url, { headers, signal: controller.signal });
         if (!res.ok) throw statusError(res.status, `GET ${opts.url}`, '');
         if (res.body === null)
           throw new StarlingError('NODE_OFFLINE', `${opts.url} has no event stream body`);
-        await readSse(res.body, opts.onData, () => closed);
+        opts.onOpen?.();
+        await readSse(
+          res.body,
+          opts.onData,
+          () => closed,
+          (id) => {
+            if (id.length > 0) lastEventId = id;
+          },
+        );
       } catch (err) {
         if (closed) break;
         const mapped = networkError(err, 'perch event stream');

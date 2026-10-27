@@ -56,6 +56,18 @@ describe('capacity scheduler', () => {
     expect(rankNodes(nodes).map((n) => n.id)).toEqual(['amy', 'bob', 'zed']);
   });
 
+  test('orders nodes with no measured latency by id, not by heartbeat order', () => {
+    // A perch does not report latency (only the hub's RemoteNode measures it), so the id tie-break
+    // has to work when both latencies are unknown. Subtracting two infinities used to produce NaN and
+    // leave the array in registry order.
+    const nodes = [
+      makeNodeInfo({ id: 'perch-2', kind: 'remote', maxSessions: 1, activeSessions: 0 }),
+      makeNodeInfo({ id: 'perch-1', kind: 'remote', maxSessions: 1, activeSessions: 0 }),
+    ];
+    expect(rankNodes(nodes).map((node) => node.id)).toEqual(['perch-1', 'perch-2']);
+    expect(createScheduler().pick(nodes, task)).toBe('perch-1');
+  });
+
   test('returns undefined when no node has capacity', () => {
     const nodes = [
       makeNodeInfo({ id: 'hub', maxSessions: 2, activeSessions: 2 }),
