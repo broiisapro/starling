@@ -103,6 +103,9 @@ export function createRegistry(options: RegistryOptions): FlockRegistry {
       const timedOut: string[] = [];
       for (const [id, entry] of entries) {
         if (entry.info.status === 'offline') continue;
+        // A local node lives in this very process: there is no heartbeat to miss, so timing it out
+        // would drop the hub from its own roster (and its own scheduler) after `offlineAfterMs`.
+        if (entry.info.kind === 'local') continue;
         if (now - entry.info.lastSeen <= offlineAfterMs) continue;
         entry.info = { ...entry.info, status: 'offline', activeSessions: 0 };
         timedOut.push(id);

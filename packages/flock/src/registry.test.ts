@@ -72,6 +72,18 @@ describe('node registry', () => {
     expect(events.filter((event) => event.type === 'left')).toHaveLength(1);
   });
 
+  test('never sweeps the hub’s own local node, which has no heartbeat to miss', () => {
+    const { registry, events, clock } = fixture(1_000);
+    registry.add(
+      new MockNode({ id: 'hub' }),
+      makeNodeInfo({ id: 'hub', kind: 'local', maxSessions: 8, lastSeen: clock.now() }),
+    );
+    clock.advance(60_000);
+    expect(registry.sweep()).toEqual([]);
+    expect(registry.list()[0]?.status).toBe('online');
+    expect(events.some((event) => event.type === 'left')).toBe(false);
+  });
+
   test('a heartbeat revives a timed-out node instead of giving it a new id', () => {
     const { registry, events, node, info, clock } = fixture(1_000);
     registry.add(node, info);
