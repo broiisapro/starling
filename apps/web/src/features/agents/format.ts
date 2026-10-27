@@ -31,8 +31,3 @@ export function formatTokens(count: number): string {
   if (count < 1_000_000) return `${(count / 1000).toFixed(count < 10_000 ? 1 : 0)}k`;
   return `${(count / 1_000_000).toFixed(1)}M`;
 }
-
-export function truncate(text: string, max: number): string {
-  if (text.length <= max) return text;
-  return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
-}

@@ -18,11 +18,11 @@ export interface ReplaySlice {
   merges: MergeResult[];
 }
 
-export function emptySlice(): ReplaySlice {
+function emptySlice(): ReplaySlice {
   return { tasks: {}, events: [], verdicts: [], merges: [] };
 }
 
-export function applyEvent(slice: ReplaySlice, event: StarlingEvent): void {
+function applyEvent(slice: ReplaySlice, event: StarlingEvent): void {
   switch (event.type) {
     case 'run.created': {
       slice.runId = event.runId;

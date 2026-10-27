@@ -2,7 +2,7 @@ import './test-env';
 import { describe, expect, test } from 'bun:test';
 import { makeAgentEvent } from '@starling/core/testing';
 import { buildTimeline, toolResultDetail } from './activity';
-import { formatCost, formatDuration, formatTokens, truncate } from './format';
+import { formatCost, formatDuration, formatTokens } from './format';
 import { inlineParts, parseMarkdownLite } from './MarkdownLite';
 import { computeWindow, isAtBottom, VIRTUALIZE_AFTER } from './windowing';
 
@@ -214,12 +214,10 @@ describe('formatters', () => {
     expect(formatCost(1.239)).toBe('$1.24');
   });
 
-  test('tokens and truncation', () => {
+  test('tokens', () => {
     expect(formatTokens(999)).toBe('999');
     expect(formatTokens(1_240)).toBe('1.2k');
     expect(formatTokens(12_400)).toBe('12k');
     expect(formatTokens(2_400_000)).toBe('2.4M');
-    expect(truncate('short', 20)).toBe('short');
-    expect(truncate('x'.repeat(30), 10)).toHaveLength(10);
   });
 });

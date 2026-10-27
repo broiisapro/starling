@@ -1,7 +1,7 @@
 import './test-env';
 import { describe, expect, test } from 'bun:test';
 import type { DiffSummary } from '@starling/core';
-import { classifyPatchLine, diffFiles, parsePatch, patchStats } from './diff';
+import { classifyPatchLine, diffFiles, parsePatch } from './diff';
 
 const PATCH = [
   'diff --git a/src/lib/dates.ts b/src/lib/dates.ts',
@@ -50,11 +50,6 @@ describe('parsePatch', () => {
 
   test('returns an empty list for an empty patch', () => {
     expect(parsePatch('')).toEqual([]);
-    expect(patchStats('')).toEqual({ added: 0, removed: 0 });
-  });
-
-  test('patchStats totals across files', () => {
-    expect(patchStats(PATCH)).toEqual({ added: 4, removed: 1 });
   });
 });
 

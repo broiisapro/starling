@@ -103,13 +103,3 @@ export function diffFiles(diff: DiffSummary | undefined): DiffFileView[] {
   }
   return result;
 }
-
-export function patchStats(patch: string): { added: number; removed: number } {
-  let added = 0;
-  let removed = 0;
-  for (const file of parsePatch(patch)) {
-    added += file.added;
-    removed += file.removed;
-  }
-  return { added, removed };
-}
