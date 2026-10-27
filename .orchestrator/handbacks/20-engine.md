@@ -1,6 +1,6 @@
 ## Epic 20 Handback — Engine state machine
 
-**Status:** Complete. Branch `epic/20-engine` @ `PENDING_SHA`. Closes #14.
+**Status:** Complete. Branch `epic/20-engine` @ `3e5802c` (engine code; docs follow). Closes #14.
 
 **Delivered:**
 - `createEngine(deps: EngineDeps): EngineApi` (`packages/engine/src/engine.ts`) with `start`, `cancel`,
@@ -22,10 +22,11 @@
 - Budget cap (stop dispatch + warn once, drain running work, cancel the undispatched tail), metrics
   with a 1 s throttle + 5 s heartbeat and core's `estimateSavedUsd`, cancel/abort semantics, and a
   deterministic or `writer`-model run summary.
-- 113 engine tests across 12 files: golden `task.status` trace over the sky-todo fixture, fix loop,
+- 114 engine tests across 12 files: golden `task.status` trace over the sky-todo fixture, fix loop,
   attempt exhaustion + dependent cancellation, merge conflict, tests-failed, node death mid-task and
-  mid-audit, node join, `maxParallel` and registry capacity curves, budget, dry run, cancel, abortTask,
-  writer, metrics throttle/heartbeat, transitions/state/nodes/metrics/summary/agent-event units.
+  mid-audit, node join, `maxParallel` and registry capacity curves, budget, dry run, cancel (including
+  cancel during planning), abortTask, writer, metrics throttle/heartbeat, transitions/state/nodes/
+  metrics/summary/agent-event units, empty plans and two concurrent runs.
 - `docs/epic-20-engine.md` with the exact exported signatures and a server/CLI usage snippet.
 
 **Key design decisions:**
@@ -42,13 +43,14 @@
   leaving it `ready` forever (a wedged run is worse than a loud failure).
 - Local vs API usage is classified from the `session.started` model and the provider config (a
   provider with no `apiKeyEnv` is local), so Ollama/llama.cpp/lent perch models meter at $0.
+- A final PR is opened only when at least one task merged; a fully failed run has nothing to propose.
 - `strictTransitions` and `timers` are additive optional deps for deterministic tests.
 
 **Verification (exact commands + results):**
 - `bun install` (worktree): `Checked 133 installs across 192 packages (no changes) [22.00ms]`
-- `bun test packages/engine` ×3, identical: `113 pass / 0 fail / Ran 113 tests across 12 files.`
-  (154 ms, 180 ms, 212 ms)
-- `bun run test` (root): `298 pass / 0 fail / 1195 expect() calls / Ran 298 tests across 48 files. [453.00ms]`
+- `bun test packages/engine` ×3, identical: `114 pass / 0 fail / Ran 114 tests across 12 files.`
+  (200 ms, 173 ms, 207 ms)
+- `bun run test` (root): `299 pass / 0 fail / 1200 expect() calls / Ran 299 tests across 48 files. [448.00ms]`
 - `bun run typecheck`: exit 0 (every `packages/*` and `apps/*` project).
 - `bunx biome check packages/engine`: clean.
 - `bun run check`: fails **only** on pre-existing `tools/local-models/smoke.ts` (10 Biome format/import

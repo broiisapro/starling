@@ -124,6 +124,8 @@ Migration never increments it.
 - **Budget drains, then cancels the tail.** Strictly "let running tasks finish" would leave the run
   non-terminal forever. Cancelling the undispatched remainder (with a warn log) is the only way the
   CLI's `waitForFinish` and the dashboard can conclude. Documented as a deviation below.
+- **`finish` opens a final PR only when something merged.** A fully failed run has nothing to propose;
+  the `run.finished` summary and metrics still report every failure.
 - **Metrics are throttled in the publisher, not the caller.** Every state change calls `touch()`
   (cheap recompute); only the publisher knows about the 1 s window and the dirty flag. Timers are
   injectable (`timers`) so the 5 s heartbeat is testable without waiting.
@@ -274,6 +276,8 @@ const engine = createEngine({ /* one mock per port, strictTransitions: true */ }
 - **`Tracker.openTaskPR` is not called.** The engine's flow only needs `syncPlan`, `onMerged` and
   `openFinalPR`; per-task PR bodies depend on the worker handback parser (Epic 13) and GitHub mode.
   Left for the GitHub epic.
+- **`openFinalPR` is only called when at least one task merged.** A run where every task failed has
+  no integration-branch content to propose; opening an empty PR would be noise.
 - **`merging → fixing` on `tests-failed` uses a synthesised `AuditVerdict`.** `PromptCompiler.fixer`
   only accepts a verdict, and inventing one with the merger's evidence keeps the interface unchanged.
 - **`RunDriver` is the one large file (~830 lines).** All pure logic was extracted (`state`, `nodes`,
