@@ -13,6 +13,7 @@ export * from './errors';
 export * from './events';
 export * from './exec';
 export * from './glob';
+export * from './handshake';
 export * from './ids';
 export * from './metrics';
 export * from './ports';
