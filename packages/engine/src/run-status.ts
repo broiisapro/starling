@@ -3,7 +3,9 @@
  *
  * The engine cannot edit `packages/core`, so it **feature-detects** the event: it builds the candidate
  * shapes and keeps the first one core's `StarlingEventSchema` accepts (the schema is the contract's
- * own truth). Until the field lands nothing is published — a replay stays exactly as valid as before.
+ * own truth). Since C2 core accepts `{ from, to, run }`, so every status change is published; against
+ * an older core the probe still yields `undefined` and nothing goes on the bus, which keeps replays
+ * valid either way.
  *
  * `nodeName` rides on the task object as an additive property (core's `TaskRunSchema` ignores unknown
  * keys on save), so the UI can show "M2 Air" today and a future core field will simply take over.
