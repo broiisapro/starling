@@ -48,6 +48,8 @@ export interface RemoteNode extends ExecutionNode {
   readonly url: string;
   /** Close the event stream and drop listeners. Idempotent. */
   close(): void;
+  /** Resolves once a `/perch/events` stream is open (or immediately if it already is). */
+  eventsReady(): Promise<void>;
   /** The last event-stream failure, for `starling doctor` style diagnostics. */
   lastEventError(): StarlingError | undefined;
 }
@@ -74,6 +76,8 @@ export function createRemoteNode(options: RemoteNodeOptions): RemoteNode {
   let cached: NodeInfo = { ...options.info };
   let sse: SseSubscription | undefined;
   let eventError: StarlingError | undefined;
+  let streamOpen = false;
+  const streamWaiters: Array<() => void> = [];
   const listeners = new Set<(event: AgentEvent) => void>();
   const sessions = new Map<string, TaskHandle>();
 
@@ -97,6 +101,10 @@ export function createRemoteNode(options: RemoteNodeOptions): RemoteNode {
       token,
       fetch: fetchFn,
       reconnectMs: options.reconnectMs,
+      onOpen: () => {
+        streamOpen = true;
+        for (const waiter of streamWaiters.splice(0)) waiter();
+      },
       onData: dispatch,
       onError: (err) => {
         eventError = err;
@@ -107,6 +115,7 @@ export function createRemoteNode(options: RemoteNodeOptions): RemoteNode {
   const stopEvents = (): void => {
     sse?.close();
     sse = undefined;
+    streamOpen = false;
   };
 
   const node: RemoteNode = {
@@ -222,6 +231,15 @@ export function createRemoteNode(options: RemoteNodeOptions): RemoteNode {
       stopEvents();
       listeners.clear();
       sessions.clear();
+    },
+
+    eventsReady() {
+      if (streamOpen) return Promise.resolve();
+      startEvents();
+      if (streamOpen) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        streamWaiters.push(resolve);
+      });
     },
 
     lastEventError() {

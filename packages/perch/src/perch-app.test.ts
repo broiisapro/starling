@@ -328,6 +328,35 @@ describe('Perch API', () => {
     expect(events.every((event) => event.runId === 'run-1')).toBe(true);
   });
 
+  test('SSE replays buffered events when a client resumes with Last-Event-ID', async () => {
+    const { url } = setup();
+    // No client is attached yet: the perch still logs every event, so a client that comes back after
+    // a Wi-Fi blip can ask for "everything after N" and not lose `session.idle`.
+    await startTask(url);
+    await Bun.sleep(40);
+
+    const controller = new AbortController();
+    cleanups.push(() => controller.abort());
+    const fromStart = await fetch(`${url}/perch/events`, {
+      headers: { ...authHeaders(), 'last-event-id': '0' },
+      signal: controller.signal,
+    });
+    const full = await readSseText(fromStart, (seen) => seen.includes('session.idle'));
+    expect(full).toContain('id: 1');
+    expect(full).toContain('"kind":"session.idle"');
+
+    const resumeController = new AbortController();
+    cleanups.push(() => resumeController.abort());
+    const resumed = await fetch(`${url}/perch/events`, {
+      headers: { ...authHeaders(), 'last-event-id': '3' },
+      signal: resumeController.signal,
+    });
+    const tail = await readSseText(resumed, (seen) => seen.includes('session.idle'));
+    expect(tail).not.toContain('id: 1\n');
+    expect(tail).toContain('id: 4');
+    expect(tail).toContain('"kind":"session.idle"');
+  });
+
   test('SSE sends keep-alive comments on an idle stream', async () => {
     const { url } = setup({ keepAliveMs: 10 });
     const sse = await openSse(`${url}/perch/events`);

@@ -1,5 +1,4 @@
 import {
-  type AgentEvent,
   type Clock,
   type EventBus,
   type ExecutionNode,
@@ -14,6 +13,7 @@ import { type Context, Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { type ZodType, z } from 'zod';
 import { FLOCK_TOKEN_HEADER, tokensMatch } from './auth';
+import { createEventLog } from './event-log';
 
 export interface PerchAppDeps {
   /** The local `ExecutionNode` this perch exposes (Epic 30's `LocalNode` in production). */
@@ -65,6 +65,11 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   const keepAliveMs = deps.keepAliveMs ?? 15_000;
   const handles = new Map<string, TaskHandle>();
   const results = new Map<string, TaskResult>();
+  /** One backlog for the whole perch: every `/perch/events` client reads the same event ids. */
+  const events = createEventLog();
+  const unsubscribeNode = deps.node.onEvent((event) => {
+    events.append(event);
+  });
   const app = new Hono();
 
   const log = (level: 'debug' | 'info' | 'warn' | 'error', msg: string, key?: string): void => {
@@ -194,27 +199,32 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
     return c.json({ ok: true });
   });
 
-  app.get('/perch/events', (c) =>
-    streamSSE(c, async (stream) => {
-      let closed = false;
-      let notify: (() => void) | undefined;
-      let keepAlive: ReturnType<typeof setInterval> | undefined;
-      const queue: AgentEvent[] = [];
+  app.get('/perch/events', (c) => {
+    // `Last-Event-ID` is the resume point after a dropped stream (ARCHITECTURE §1). No header means a
+    // fresh client and, like the locked API says, a live stream: replaying history to a new subscriber
+    // would duplicate events it never asked for.
+    const resume = parseLastEventId(c.req.header('last-event-id'));
 
-      const unsubscribe = deps.node.onEvent((event) => {
-        queue.push(event);
-        notify?.();
-      });
+    return streamSSE(c, async (stream) => {
+      let closed = false;
+      let wake: (() => void) | undefined;
+      let keepAlive: ReturnType<typeof setInterval> | undefined;
+      let cursor = resume === undefined ? events.nextId() : resume + 1;
+
+      const wakeUp = (): void => {
+        wake?.();
+      };
+      const unsubscribe = events.onChange(wakeUp);
 
       const stop = (): void => {
         if (closed) return;
         closed = true;
         if (keepAlive !== undefined) clearInterval(keepAlive);
         unsubscribe();
-        notify?.();
+        wakeUp();
       };
       // Register the abort listener before the first await: a client that disappears immediately
-      // must still unsubscribe the node listener and clear the keep-alive.
+      // must still unsubscribe the log listener and clear the keep-alive.
       stream.onAbort(stop);
 
       // Flush headers immediately. Bun's `fetch` does not resolve until the first byte arrives, and
@@ -230,23 +240,24 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
 
       try {
         while (!closed) {
-          const event = queue.shift();
-          if (event === undefined) {
+          const entry = events.since(cursor - 1);
+          if (entry === undefined) {
             await new Promise<void>((resolve) => {
-              notify = resolve;
+              wake = resolve;
             });
-            notify = undefined;
+            wake = undefined;
             continue;
           }
-          await stream.writeSSE({ data: JSON.stringify(event) });
+          cursor = entry.id + 1;
+          await stream.writeSSE({ id: String(entry.id), data: JSON.stringify(entry.event) });
         }
       } catch {
         // A write after disconnect rejects. That is a normal end of stream, not a perch error.
       } finally {
         stop();
       }
-    }),
-  );
+    });
+  });
 
   app.notFound((c) =>
     c.json(errorBody('not-found', `no perch route for ${c.req.method} ${c.req.path}`), 404),
@@ -267,6 +278,7 @@ export function createPerchApp(deps: PerchAppDeps): PerchApp {
   return Object.assign(app, {
     handles: () => [...handles.values()],
     close: async (): Promise<void> => {
+      unsubscribeNode();
       const running = [...handles.values()];
       const outcomes = await Promise.allSettled(running.map((handle) => deps.node.abort(handle)));
       outcomes.forEach((outcome, index) => {
@@ -316,4 +328,12 @@ function unknownTask(c: Context): Response {
     { error: { code: 'unknown-task', message: 'this perch has no session for that run/task' } },
     404,
   );
+}
+
+/** `Last-Event-ID: 41` → 41. Anything non-numeric (or absent) means "start live". */
+function parseLastEventId(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return undefined;
+  return Number(trimmed);
 }

@@ -25,8 +25,10 @@ interface FakePerch {
     cleanup: number;
     sseAttempts: number;
     sseConnections: number;
+    /** `Last-Event-ID` header of every `/perch/events` attempt, in order. */
+    resumeFrom: Array<string | undefined>;
   };
-  emit(event: AgentEvent): void;
+  emit(event: AgentEvent, id?: number): void;
   closeEvents(): void;
   stop(): void;
 }
@@ -54,6 +56,7 @@ function startFakePerch(options: FakePerchOptions = {}): FakePerch {
     cleanup: 0,
     sseAttempts: 0,
     sseConnections: 0,
+    resumeFrom: [],
   };
   let sse: ReadableStreamDefaultController<Uint8Array> | undefined;
 
@@ -67,7 +70,10 @@ function startFakePerch(options: FakePerchOptions = {}): FakePerch {
     async fetch(req) {
       const url = new URL(req.url);
       const path = url.pathname;
-      if (path === '/perch/events') calls.sseAttempts += 1;
+      if (path === '/perch/events') {
+        calls.sseAttempts += 1;
+        calls.resumeFrom.push(req.headers.get('last-event-id') ?? undefined);
+      }
       if (!authorized(req)) return json({ error: 'bad join code' }, 401);
 
       if (path === '/perch/info') {
@@ -146,8 +152,9 @@ function startFakePerch(options: FakePerchOptions = {}): FakePerch {
   return {
     url: `http://127.0.0.1:${server.port}`,
     calls,
-    emit(event) {
-      sse?.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+    emit(event, id) {
+      const lines = id === undefined ? '' : `id: ${id}\n`;
+      sse?.enqueue(encoder.encode(`${lines}data: ${JSON.stringify(event)}\n\n`));
     },
     closeEvents() {
       sse?.close();
@@ -355,6 +362,47 @@ describe('RemoteNode against a fake perch', () => {
       perch.emit(makeAgentEvent({ kind: 'text', sessionId: 'ses_fake_1' }));
       await Bun.sleep(30);
       expect(events).toEqual(['text']);
+    } finally {
+      unsubscribe();
+      node.close();
+      perch.stop();
+    }
+  });
+
+  test('the event stream resumes from Last-Event-ID after a drop', async () => {
+    const perch = startFakePerch();
+    const node = createRemoteNode({
+      url: perch.url,
+      token: TOKEN,
+      info: makeNodeInfo({ id: 'air', kind: 'remote' }),
+      reconnectMs: 10,
+    });
+    const events: string[] = [];
+    const unsubscribe = node.onEvent((event) => events.push(event.kind));
+    try {
+      // `eventsReady()` resolves when the stream is actually open, so a caller cannot race the first
+      // event (the loopback E2E starts tasks only after this).
+      await node.eventsReady();
+      expect(perch.calls.sseConnections).toBe(1);
+      expect(perch.calls.resumeFrom).toEqual([undefined]);
+
+      perch.emit(makeAgentEvent({ kind: 'text', sessionId: 'ses_fake_1' }), 41);
+      await Bun.sleep(20);
+      expect(events).toEqual(['text']);
+
+      perch.closeEvents();
+      await Bun.sleep(60);
+      expect(perch.calls.sseConnections).toBe(2);
+      // The reconnect carries the last id the perch sent; a fresh connection would not.
+      expect(perch.calls.resumeFrom).toEqual([undefined, '41']);
+
+      perch.emit(makeAgentEvent({ kind: 'session.idle', sessionId: 'ses_fake_1' }), 42);
+      await Bun.sleep(30);
+      expect(events).toEqual(['text', 'session.idle']);
+
+      // Already open, so a second call resolves without another connection.
+      await node.eventsReady();
+      expect(perch.calls.sseConnections).toBe(2);
     } finally {
       unsubscribe();
       node.close();
