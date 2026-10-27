@@ -2,6 +2,8 @@
 
 **Status:** Complete. Branch `epic/49-robustness` (PR head), rebased on `origin/main`.
 
+Closes #36.
+
 **Delivered:**
 - **One opencode client.** `packages/runner/src/opencode/client.ts` is the single V2 REST client: added
   `generate()`, `sessionInfo()`, `deleteSession()`, per-request signals, `Retry-After` parsing and a
