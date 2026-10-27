@@ -31,6 +31,7 @@ export {
 } from './hooks';
 export { MetricsPanel } from './MetricsPanel';
 export { MOTION_CSS } from './motion';
+export { replayMetrics } from './replay';
 export { SparklineChart } from './SparklineChart';
 export type { SparklineGeometry, SparklineOptions, SparklinePoint } from './sparkline';
 export { seriesFromHistory, sparklineGeometry } from './sparkline';

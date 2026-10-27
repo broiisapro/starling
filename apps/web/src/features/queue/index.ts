@@ -27,3 +27,5 @@ export type { MergeQueueProps } from './handshake';
 export { MergeQueue } from './MergeQueue';
 export type { StatusStyle } from './palette';
 export { NEUTRAL_CHIP, STATUS_STYLE } from './palette';
+export type { QueueReplayState } from './replay';
+export { replayQueue } from './replay';
