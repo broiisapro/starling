@@ -41,6 +41,16 @@ export interface OpencodeClientOptions {
 }
 
 /**
+ * A completion is a *model call*, not a control-plane request: on opencode 2.1.2 a planner turn took
+ * well over the shared client's 10 s default, and the first C2 run died on exactly that
+ * ("POST /api/experimental/generate could not be reached" after ~10 s). The router's own timeout is
+ * 120 s, so the client must not be the tighter of the two.
+ */
+const DEFAULT_COMPLETION_TIMEOUT_MS = 120_000;
+
+export { DEFAULT_COMPLETION_TIMEOUT_MS };
+
+/**
  * The stateless route reports no token totals at all (its response schema carries `data.text` and
  * nothing else), so a call on that path has no usage to report. The `LLM` port's `TokenUsage` is
  * three numbers, which leaves two honest options: invent nothing and say so, or invent zeros and
@@ -98,7 +108,7 @@ export function createOpencodeCompletionClient(opts: OpencodeClientOptions): Ope
     baseUrl: opts.baseUrl,
     ...(opts.password === undefined ? {} : { password: opts.password }),
     ...(opts.fetch === undefined ? {} : { fetch: opts.fetch }),
-    ...(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs }),
+    timeoutMs: opts.timeoutMs ?? DEFAULT_COMPLETION_TIMEOUT_MS,
   });
 
   /**

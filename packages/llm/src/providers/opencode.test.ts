@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { StarlingError } from '@starling/core';
-import { createOpencodeCompletionClient } from './opencode.ts';
+import { createOpencodeCompletionClient, DEFAULT_COMPLETION_TIMEOUT_MS } from './opencode.ts';
 
 /**
  * Bun's native fetch.
@@ -206,6 +206,38 @@ describe('createOpencodeCompletionClient (V2 REST)', () => {
       if (error instanceof StarlingError) {
         expect(error.code).toBe('LLM_ERROR');
         expect(error.details?.reason).toBe('opencode');
+      }
+    });
+
+    test('gives a generation more time than the client’s control-plane default', () => {
+      // Regression guard: the shared client defaults to 10 s, which killed the first C2 run — a
+      // planner completion takes longer. The provider must pass its own (120 s) default.
+      expect(DEFAULT_COMPLETION_TIMEOUT_MS).toBeGreaterThanOrEqual(60_000);
+    });
+
+    test('honours an explicit per-call timeout', async () => {
+      const server = startFakeOpencode(async (req) => {
+        if (req.path === STATELESS) {
+          await Bun.sleep(200);
+          return { body: { data: { text: 'late but fine' } } };
+        }
+        return sessionOnly(req);
+      });
+      try {
+        const patient = createOpencodeCompletionClient({
+          baseUrl: server.baseUrl,
+          fetch: NATIVE_FETCH,
+        });
+        expect((await patient.complete(REQUEST)).text).toBe('late but fine');
+
+        const impatient = createOpencodeCompletionClient({
+          baseUrl: server.baseUrl,
+          fetch: NATIVE_FETCH,
+          timeoutMs: 20,
+        });
+        await expect(impatient.complete(REQUEST)).rejects.toMatchObject({ code: 'LLM_ERROR' });
+      } finally {
+        server.close();
       }
     });
   });
