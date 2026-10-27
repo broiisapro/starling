@@ -114,6 +114,7 @@ export function createDevFlock(bus: EventBus): FlockHub {
     name: 'MacBook Pro',
     maxSessions: 8,
     localModels: [],
+    lastSeen: Date.now(),
   });
   const air = makeNodeInfo({
     id: 'air',
@@ -126,6 +127,7 @@ export function createDevFlock(bus: EventBus): FlockHub {
     cpuCores: 8,
     localModels: ['qwen3.6:8b'],
     latencyMs: 14,
+    lastSeen: Date.now(),
   });
   const registry = new MockRegistry([
     { node: new MockNode({ id: 'hub', info: { kind: 'local', name: 'MacBook Pro' } }), info: hub },
