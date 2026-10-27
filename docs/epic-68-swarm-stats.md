@@ -92,6 +92,14 @@ to Epic 41 (FIX REQUEST below); the landing site (Epic 59) reads the same JSON (
   `packages/core/src/index.ts` directly (the package's public entry) instead of duplicating the exec
   helper. Filed as a FIX REQUEST rather than editing the root `package.json`, which this lane does
   not own.
+- **No `Intl` on the About page (fix 1).** `features/about/format.ts` builds timestamps, clocks and
+  grouped counts from UTC parts (`getUTCDate`/`getUTCHours`/`getUTCMinutes` + a month-name array and
+  a hundreds-grouping regex). `Intl.DateTimeFormat('en-GB', …)` renders the date-time connector as
+  "at" under ICU 74 (macOS) and ", " under ICU 76 (Linux): the same commit produced "27 Oct at 15:18
+  UTC" locally and "27 Oct, 15:18 UTC" in CI, so the test passed on one OS and failed on the other.
+  Hand-rolled output is identical everywhere, and `about-timezone.test.ts` proves it by running the
+  formatters in child Bun processes under `TZ=UTC`, `TZ=America/Toronto` and
+  `TZ=Europe/Istanbul` + `tr_TR.UTF-8`.
 
 ## Interfaces for future epics
 
@@ -125,6 +133,7 @@ to Epic 41 (FIX REQUEST below); the landing site (Epic 59) reads the same JSON (
 - **Durations need branches or logs.** If both the epic branch and the agent log are gone, duration is
   `undefined` (table shows "—"); squash commits alone only prove when the merge happened.
 - **The x-axis is UTC.** Fine for a one-day project; a multi-day run would want day separators.
+  The labels are formatted by hand from UTC parts (no `Intl`), so they read the same on every OS.
 - **Line counts include fixtures, generated files and lockfile churn.** "+129,808" is honest but not
   "hand-written source lines"; a `--exclude-lockfiles` view is deferred.
 - **`gh` needs auth and network.** The collector takes ~3s with `gh` (one call) and fails soft; CI

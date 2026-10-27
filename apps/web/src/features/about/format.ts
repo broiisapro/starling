@@ -2,17 +2,30 @@
  * Small display formatters for the About page.
  *
  * Kept separate from the components so the numbers are testable and so every number on the page
- * goes through the same "—" empty state. Locale is pinned to `en-US` so the page reads the same on
- * every demo laptop (the rest of the dashboard does not localise either).
+ * goes through the same "—" empty state.
+ *
+ * Everything here is hand-rolled on purpose: no `Intl`, no `toLocale*`. `Intl.DateTimeFormat`
+ * output depends on the ICU version baked into the runtime, so `en-GB` renders a date-time
+ * connector as "at" on macOS/ICU 74 and as ", " on Linux/ICU 76 — the same page, two different
+ * strings, and a test that only passes on one of them. Building the string from UTC parts keeps
+ * the page (and CI) identical everywhere.
  */
-
-const COUNT = new Intl.NumberFormat('en-US');
 
 export const EMPTY = '—';
 
-/** `12345` → `12,345`. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
+}
+
+/** `12345` → `12,345` (comma grouping, no locale lookup). */
 export function formatCount(value: number): string {
-  return Number.isFinite(value) ? COUNT.format(value) : EMPTY;
+  if (!Number.isFinite(value)) return EMPTY;
+  const sign = value < 0 ? '-' : '';
+  const [whole = '0', fraction] = String(Math.abs(value)).split('.');
+  const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return fraction === undefined ? `${sign}${grouped}` : `${sign}${grouped}.${fraction}`;
 }
 
 /** `+12,345` / `−678` (typographic minus, matching the handbacks). */
@@ -38,33 +51,22 @@ export function formatHours(ms: number | undefined): string {
   return `${hours >= 10 ? Math.round(hours) : Math.round(hours * 10) / 10}h`;
 }
 
-const TIME = new Intl.DateTimeFormat('en-GB', {
-  day: '2-digit',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'UTC',
-});
-
-/** `2026-10-27T15:18:16Z` → `27 Oct, 15:18 UTC`; the project fits in one day, so no year. */
+/** `2026-10-27T15:18:16Z` → `27 Oct at 15:18 UTC`; the project fits in one day, so no year. */
 export function formatTimestamp(iso: string | undefined): string {
   if (iso === undefined) return EMPTY;
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return EMPTY;
-  return `${TIME.format(ms)} UTC`;
+  const date = new Date(ms);
+  const month = MONTHS[date.getUTCMonth()];
+  if (month === undefined) return EMPTY;
+  return `${pad2(date.getUTCDate())} ${month} at ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())} UTC`;
 }
-
-const CLOCK = new Intl.DateTimeFormat('en-GB', {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZone: 'UTC',
-});
 
 /** `HH:MM` UTC, used for the timeline's x-axis ticks. */
 export function formatClock(ms: number): string {
-  return Number.isFinite(ms) ? CLOCK.format(ms) : EMPTY;
+  if (!Number.isFinite(ms)) return EMPTY;
+  const date = new Date(ms);
+  return `${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
 }
 
 /** Handback status → short human label; in-flight epics are "pending", not "missing". */

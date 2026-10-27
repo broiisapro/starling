@@ -42,6 +42,11 @@
 
 **Dependencies added:** none.
 
+**Fix 1 (same branch, same PR) — locale-independent formatting:**
+- `features/about/format.ts` no longer uses `Intl`: `formatTimestamp` builds `DD Mon at HH:MM UTC` from `getUTCDate`/`getUTCMonth`/`getUTCHours`/`getUTCMinutes`, `formatClock` from the UTC hour/minute, and `formatCount` groups with a `\B(?=(\d{3})+(?!\d))` regex. `Intl.DateTimeFormat('en-GB')` renders the connector as "at" on macOS (ICU 74) and ", " on Linux (ICU 76), so `about-pure.test.ts` passed locally and failed in CI on exactly this string. `tools/stats` had no `Intl`/`toLocale*` call to change (it only emits ISO strings via `toISOString`).
+- New `features/about/about-timezone.test.ts` (3 tests): the same probe module runs in child Bun processes under `TZ=UTC`, `TZ=America/Toronto` and `TZ=Europe/Istanbul` + `tr_TR.UTF-8`, asserting byte-identical output plus the exact expected strings; a second test pins UTC-part behaviour at day/hour boundaries and a third covers count grouping (0, 999, 1,000, 1,234,567, negatives, decimals, `Infinity`). Mutation check: swapping `getUTCHours` for `getHours` makes the TZ test fail with "27 Oct at 11:18 UTC", so the guard is real.
+- Verification after the fix: `cd apps/web && bun test` → **439 pass / 0 fail** (436 before, +3); `bun run test` (root) → packages/cli/skills/tools/evals **1371 pass / 4 skip / 0 fail**, apps/web **439 pass / 0 fail**; `bun run check` → `Checked 732 files … No fixes applied` and the `tsc --noEmit` loop clean.
+
 **CONTRACT REQUESTS:** none (no `packages/core` change needed; types live in the collector and are consumed type-only).
 
 **FIX REQUESTS (changes needed in lanes I do not own):**
