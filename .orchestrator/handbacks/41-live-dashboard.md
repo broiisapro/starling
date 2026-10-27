@@ -96,3 +96,5 @@
 - **`/api/config/public` resolves env per request.** A running process that changes `STARLING_LLM_PROFILE` after composition will show the new value while the engine keeps the old routes; acceptable for a dev hub, but worth knowing.
 - **Auto-follow replaces an explicit selection when a newer run starts.** That is the control-room reading of the requirement; a "pin" toggle is the escape hatch if it proves surprising on stage.
 - **`dev-live` adds a `diff` to `audit.verdict` payloads.** It is dev-only and documented; the strict contract is untouched, and real recordings never contain it.
+
+Closes #28
