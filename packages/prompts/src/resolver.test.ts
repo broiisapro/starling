@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { isStarlingError } from '@starling/core';
-import { conflictingTasks, createPromptCompiler } from './index.ts';
+import { conflictingTasks, createPromptCompiler, DEFAULT_MAX_HUNK_CHARS } from './index.ts';
 import { helpOverlayConflict, skyTodoContext, unattributedConflict } from './testing/context.ts';
 
 const ctx = skyTodoContext('help-overlay');
@@ -47,8 +47,17 @@ describe('resolver prompt — sky-todo fixture', () => {
     for (const deliverable of search.deliverables) expect(prompt).toContain(deliverable);
   });
 
+  test("carries the other side's definition of done, not just its deliverables", () => {
+    const search = ctx.plan.tasks.find((task) => task.key === 'search');
+    if (search === undefined) throw new Error('fixture plan has no search task');
+    const otherSide = prompt.slice(prompt.indexOf('## The other side'), prompt.indexOf('## Rules'));
+    expect(otherSide).toContain('**Definition of done**');
+    for (const item of search.definitionOfDone) expect(otherSide).toContain(item);
+  });
+
   test('sets the both-sides-survive rules', () => {
     expect(prompt).toContain('Preserve both behaviours');
+    expect(prompt).toContain('Keep both sets of tests');
     expect(prompt).toContain('Never drop one side’s work');
     expect(prompt).toContain("Do not delete or weaken either side's tests");
     expect(prompt).toContain('Do not `git merge --abort`');
@@ -75,6 +84,55 @@ describe('resolver prompt — sky-todo fixture', () => {
     expect(compact).toContain('src/features/search/index.ts');
     expect(compact).toContain('Live search filtering');
     expect(compact).not.toContain('this is real engineering, not marker deletion');
+  });
+});
+
+describe('resolver prompt — conflict hunks', () => {
+  const hunk = [
+    '--- src/features/search/index.ts',
+    '<<<<<<< HEAD',
+    'export const matcher = (q: string) => q.length > 0',
+    '=======',
+    'export const matcher = (q: string) => q.trim().length > 0',
+    '>>>>>>> starling/9w0x1y/help-overlay',
+  ].join('\n');
+
+  test('renders the trimmed hunks in a fence under their own heading', () => {
+    const withHunks = createPromptCompiler().resolver(ctx, conflict, { hunks: [hunk] });
+    expect(withHunks).toContain('## Conflict hunks (trimmed)');
+    expect(withHunks).toContain('```text');
+    expect(withHunks).toContain('--- src/features/search/index.ts');
+    expect(withHunks).toContain('export const matcher = (q: string) => q.length > 0');
+    expect(withHunks).toContain('export const matcher = (q: string) => q.trim().length > 0');
+    // The hunks come after the file list and before the task intent.
+    expect(withHunks.indexOf('## Conflict hunks')).toBeGreaterThan(withHunks.indexOf('## Conflicted files'));
+    expect(withHunks.indexOf('## Conflict hunks')).toBeLessThan(withHunks.indexOf("## Your task's intent"));
+  });
+
+  test('omits the section entirely when the merger captured no hunks', () => {
+    const bare = createPromptCompiler().resolver(ctx, conflict, { hunks: [] });
+    expect(bare).not.toContain('## Conflict hunks');
+    expect(bare).toBe(prompt);
+  });
+
+  test('drops blank hunk entries instead of fenced whitespace', () => {
+    const spaced = createPromptCompiler().resolver(ctx, conflict, { hunks: ['   ', ''] });
+    expect(spaced).not.toContain('## Conflict hunks');
+  });
+
+  test('clamps a huge hunk and marks the cut', () => {
+    const huge = `--- src/features/search/index.ts\n${'x'.repeat(DEFAULT_MAX_HUNK_CHARS * 2)}`;
+    const clamped = createPromptCompiler().resolver(ctx, conflict, { hunks: [huge] });
+    expect(clamped.length).toBeLessThan(huge.length + 10_000);
+    expect(clamped).toContain('…');
+  });
+
+  test('the hunks survive the compact style too', () => {
+    const compact = createPromptCompiler({ style: 'compact' }).resolver(ctx, conflict, {
+      hunks: [hunk],
+    });
+    expect(compact).toContain('## Conflict hunks (trimmed)');
+    expect(compact).toContain('>>>>>>> starling/9w0x1y/help-overlay');
   });
 });
 
