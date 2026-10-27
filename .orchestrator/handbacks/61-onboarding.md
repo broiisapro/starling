@@ -23,8 +23,12 @@
 **Verification (exact commands + results):**
 - `bun install` (worktree): `Checked 162 installs across 221 packages (no changes)`.
 - `bun run test` (root, both halves):
-  - packages: ` 1420 pass` / ` 0 fail` / `Ran 1424 tests across 163 files. [36.15s]`
-  - web: ` 426 pass` / ` 0 fail` / `Ran 426 tests across 39 files. [6.55s]`
+  - packages: ` 1420 pass` / ` 0 fail` / `Ran 1424 tests across 163 files. [41.90s]`
+  - web: ` 425 pass` / ` 1 fail` on the first full run, then ` 426 pass` / ` 0 fail` on two clean re-runs
+    (`Ran 426 tests across 39 files`). The single failure is the wall-clock perf test
+    `performance > 360 birds × 600 steps in under 250 ms` in `apps/web/src/features/sky/sim.test.ts`
+    (Epic 24/32's lane, untouched by me) — it trips when ~20 parallel agents are hammering this
+    machine, and passes on an idle re-run. Not introduced by this epic; flagged, not fixed (out of lane).
 - `bun run check`: `Checked 707 files in 224ms. No fixes applied.` + the per-workspace `tsc --noEmit` loop with no output (clean).
 - Real `bun run starling doctor` on this machine (while ~20 other agents were building, hence the honest low RAM figure):
 ```
@@ -96,3 +100,5 @@ Also touched, inside the feature but not named in the lane list (call it out for
 - `suggestMaxParallel` counts RAM only in 2 GB units and knows nothing about model size; `--fully-open` with a 20 GB local model needs a much smaller number. The rule-of-thumb line is printed so a user can correct it.
 - `tools/local-models/results/recommendation.json` does not exist on this machine (Epic 28 never ran a real benchmark), so the recommended-model branch is exercised only by fixtures here.
 - `hostIdentity()` gained a `bun` field (`{platform, arch, bun}`); it is CLI-internal, but anyone importing it should know the shape changed.
+- Pre-existing flake to watch on `main` (not mine, not fixed — outside my lane): the 250 ms boids
+  budget in `apps/web/src/features/sky/sim.test.ts` fails under heavy machine load.
