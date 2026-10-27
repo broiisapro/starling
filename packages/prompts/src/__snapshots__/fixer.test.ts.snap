@@ -1,0 +1,86 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`fixer prompt — sky-todo fixture matches the committed snapshot 1`] = `
+"# Starling fixer — theme (audit attempt 1 failed)
+
+Your previous attempt on \`starling/9w0x1y/theme\` failed the audit. You are still in the same worktree with your work in place, so fix what is listed below and finish again — do not start over.
+
+## What the audit found
+
+**Failed checks**
+
+- \`tests\` — bun test: 1 failing test in src/features/theme
+- \`definition-of-done\` — Missing: toggle persists across reloads
+
+**Passed checks:** \`lane\`
+
+**Audit summary:** The toggle works, but nothing proves the choice survives a reload.
+
+The checks above are the whole reason this attempt failed. Ignore anything else that looks improvable.
+
+**Lane violations:** none — the lane check passed.
+
+## Fix instructions
+
+Add a test that mounts initTheme() twice with a stubbed localStorage and asserts the second mount reads data-theme="dark". Keep the change inside src/features/theme/**.
+
+Follow these instructions literally. They were written after the auditor read your diff.
+
+## Rules
+
+- Fix only what is listed above. Do not redo work that already passed, and do not refactor beyond the fix.
+- The same lane rules apply: you may change only \`src/features/theme/**\`, \`src/ui/styles.css\`.
+- Commit on the same branch \`starling/9w0x1y/theme\`. Do not push, merge, rebase or switch branches.
+- Run \`bun test\` again and keep the whole suite green.
+- If a check is wrong, say so in \`notes\` with evidence. Never delete or weaken a test to make it pass.
+
+## Your task (unchanged, for reference)
+
+Add a dark theme and a toggle in the header that remembers the choice across reloads.
+
+**Deliverables**
+
+- [ ] src/features/theme/index.ts exports initTheme() and toggles a data-theme attribute
+- [ ] The toggle button lives in the header and persists the choice in localStorage
+- [ ] Dark tokens added to src/ui/styles.css under [data-theme="dark"]
+
+**Out of scope — do not do these**
+
+- Do not change the light theme's default colours
+- No new dependencies
+
+**Definition of done — Starling checks every item**
+
+1. bun test passes
+2. The theme survives a reload
+3. The toggle is reachable by keyboard and has an aria-label
+
+**Dependencies:** none — you start from the integration branch, so your work must stand on its own.
+
+## Your lane
+
+You may create or modify **only** files matching these globs:
+
+- \`src/features/theme/**\`
+- \`src/ui/styles.css\`
+
+You may read anything, but these are the files that matter:
+
+- \`src/main.ts\`
+- \`index.html\`
+
+**Lane violations fail the audit.** When you go idle Starling diffs your branch against the integration branch. Any changed file outside these globs is a lane violation and fails the audit — including a "one-line fix" in a sibling's file. If you genuinely need a change outside your lane, describe it in your handback notes instead of making it.
+
+## Finish line
+
+End your final message with exactly this block. Starling parses it; a missing or unparseable block counts as a partial result:
+
+<<<STARLING_HANDBACK
+{"status":"<complete|partial>","summary":"<one line>","filesChanged":["<paths>"],"testsAdded":["<test files>"],"notes":"<optional>"}
+STARLING_HANDBACK>>>
+
+- Replace every \`<…>\` placeholder. The template is an example, not a valid handback.
+- \`status\` is \`"complete"\` only when every definition-of-done item is met; otherwise use \`"partial"\`.
+- \`filesChanged\` lists every file you changed; \`testsAdded\` lists every test file you added or extended.
+- Keep \`summary\` to one line. Valid JSON only: no comments, no trailing commas. No fence is needed."
+`;
