@@ -10,6 +10,7 @@
       "!fixtures",
       "!.orchestrator",
       "!AGENTS.md",
+      "!opencode.json",
       "!starling.config.example.yaml",
       "!**/*.jsonl",
       "!**/bun.lock"
