@@ -25,7 +25,7 @@ while true; do
   printf "%-24s %-9s %-7s %-6s %-44s %s\n" "EPIC" "AGENT" "COMMITS" "DIRTY" "LAST COMMIT" "PR"
   printf "%-24s %-9s %-7s %-6s %-44s %s\n" "────" "─────" "───────" "─────" "───────────" "──"
   total=0; withpr=0
-  for f in "$DIR"/[0-9][0-9]-*.md; do
+  for f in "$DIR"/[0-9][0-9]*-*.md; do
     base="$(basename "$f" .md)"; case "$base" in *.fix*) continue;; esac
     total=$((total+1)); wt="$WT_ROOT/$base"; branch="epic/$base"
     if pgrep -f "_logs/run-${base}.sh" >/dev/null 2>&1; then alive="🟢 working"; else alive="⚪ idle"; fi

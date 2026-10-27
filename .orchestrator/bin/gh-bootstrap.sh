@@ -297,6 +297,7 @@ while IFS=$'\t' read -r nn slug title wave machine lane depends; do
       url=""; num=""
     else
       url="$(gh issue create "$@" --milestone "Wave ${wave}" 2>"$TMP/err-${nn}.txt")"
+      sleep "${GH_CREATE_SLEEP:-2}"   # GitHub secondary rate limit on content creation
       if [ -z "$url" ]; then
         fail "issue '${full_title}': $(head -2 "$TMP/err-${nn}.txt" | tr '\n' ' ')"
         continue

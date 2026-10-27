@@ -7,6 +7,7 @@
 #   <wave>     number: runs every .orchestrator/prompts/wave-<wave>/NN-slug.md
 #              or "checkpoint-C1" etc: runs .orchestrator/prompts/checkpoint-C1.md on main
 #   --only     comma list of epic numbers to launch (default: all in the wave)
+#   --range    A-B: only epics numbered A..B inclusive (e.g. --range 100-149), combinable with --only
 #   --machine  mbp|air: only launch epics assigned to this laptop in .orchestrator/epics.tsv
 #   --mode     bg (default): headless background agents, logs in ../starling-wt/_logs/ (watch: watch-wave.sh <wave>)
 #              terminal: one Terminal/iTerm window per agent · tmux: one tmux window per agent
@@ -16,7 +17,7 @@
 #              run (default): headless `opencode run`, output tee'd to ../starling-wt/_logs/ (always used for bg)
 #   --resume   instead of NN-slug.md, run the newest NN-slug.fixK.md for each selected epic (worktree must exist)
 #   --continue reuse each epic's existing worktree and tell the agent to CONTINUE its original assignment from where it stopped
-#   (every agent also auto-resumes up to 3x by itself after provider/transport errors such as 'socket closed' or 'at capacity')
+#   (every agent also auto-resumes up to 9x, with backoff, by itself after provider/transport errors such as 'socket closed' or 'at capacity')
 #   --dry-run  print what would happen
 #
 # Env: STARLING_DEV_MODEL (bootstrap-mbp.sh saves it in .orchestrator/local.env)
@@ -32,10 +33,11 @@ WT_ROOT="$(cd "$REPO_ROOT/.." && pwd)/starling-wt"
 LOG_DIR="$WT_ROOT/_logs"
 
 WAVE="${1:-}"; shift || true
-ONLY=""; MODE=""; UI=""; RESUME=0; DRY=0; MACHINE=""; CONT=0
+RANGE=""; ONLY=""; MODE=""; UI=""; RESUME=0; DRY=0; MACHINE=""; CONT=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --only) ONLY="$2"; shift 2;;
+    --range) RANGE="$2"; shift 2;;
     --machine) MACHINE="$2"; shift 2;;
     --mode) MODE="$2"; shift 2;;
     --ui) UI="$2"; shift 2;;
@@ -97,14 +99,14 @@ printf '\033]0;🐦 epic ${name}\007'
 FIRST="Your assignment is the file ${prompt} in this worktree. Read it completely, then read AGENTS.md and .orchestrator/ARCHITECTURE.md, then execute the assignment end to end. Do not stop to ask questions: decide, document, continue. Finish by opening the PR as AGENTS.md section 6 describes."
 CONT="You are RESUMING epic ${name} after an interruption (provider or transport error, or a restart). Your assignment is the file ${prompt} in this worktree: re-read it. Your earlier work is already here: run git log --oneline origin/main..HEAD and git status first, keep everything that is good, and continue from where it stopped without redoing finished work. Finish exactly as the assignment and AGENTS.md section 6 describe (epic doc, handback, PR)."
 MSG="\$FIRST"; [ "${CONT}" = 1 ] && MSG="\$CONT"
-for attempt in 1 2 3 4; do
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
   echo "=== \$(date) :: ${name} :: model ${MODEL} :: ui ${UI} :: attempt \$attempt ===" >> "$LOG_DIR/${name}.log"
   START=\$(wc -c < "$LOG_DIR/${name}.log")
   ${cmd}
   gh pr list --head "epic/${name}" --state all --json number --jq '.[0].number' 2>/dev/null | grep -q '[0-9]' && break
   tail -c +\$((START+1)) "$LOG_DIR/${name}.log" | tail -c 4000 | sed \$'s/\\x1b\\[[0-9;?]*[A-Za-z]//g' | grep -qiE '^Error: .*(socket connection was closed|capacity|upstream request failed|ECONNRESET|rate.?limit|429|50[0-9]|timed out|fetch failed)' || break
-  echo "--- ${name}: transient provider/transport error, auto-resuming in 60s (attempt \$attempt) ---" >> "$LOG_DIR/${name}.log"
-  sleep \${ORCH_RETRY_SLEEP:-60}; MSG="\$CONT"
+  echo "--- ${name}: transient provider/transport error, auto-resuming (attempt \$attempt) ---" >> "$LOG_DIR/${name}.log"
+  W=\$(( \${ORCH_RETRY_SLEEP:-60} * attempt )); [ \$W -gt 300 ] && W=300; sleep \$W; MSG="\$CONT"   # linear backoff, capped at 5 min
 done
 echo "--- epic ${name}: opencode exited at \$(date) ---" >> "$LOG_DIR/${name}.log"
 osascript -e 'display notification "Agent for epic ${name} finished. Check its PR." with title "🐦 Starling" sound name "Glass"' >/dev/null 2>&1 || true
@@ -173,11 +175,15 @@ DIR=".orchestrator/prompts/wave-${WAVE}"
 
 # ── pass 1: select epics + prepare worktrees ──────────────────
 NAMES=(); WTS=(); PROMPTS=()
-for f in "$REPO_ROOT/$DIR"/[0-9][0-9]-*.md; do
+for f in "$REPO_ROOT/$DIR"/[0-9][0-9]*-*.md; do
   base="$(basename "$f" .md)"
   case "$base" in *.fix*) continue;; esac
   nn="${base%%-*}"
   if [ -n "$ONLY" ] && ! echo ",$ONLY," | grep -q ",$nn,"; then continue; fi
+  if [ -n "$RANGE" ]; then
+    lo="${RANGE%-*}"; hi="${RANGE#*-}"
+    [ "$((10#$nn))" -lt "$((10#$lo))" ] || [ "$((10#$nn))" -gt "$((10#$hi))" ] && continue
+  fi
   if [ -n "$MACHINE" ]; then
     assigned="$(awk -F'\t' -v n="$nn" '$1==n {print $5}' "$REPO_ROOT/.orchestrator/epics.tsv")"
     [ "$assigned" != "$MACHINE" ] && continue
@@ -213,7 +219,7 @@ i=0
 while [ "$i" -lt "$TOTAL" ]; do
   launch "${NAMES[$i]}" "${WTS[$i]}" "${PROMPTS[$i]}" "$i" "$TOTAL"
   i=$((i+1))
-  sleep 2   # stagger the API burst
+  sleep "${ORCH_STAGGER:-3}"   # stagger the API burst
 done
 
 echo "✨ ${TOTAL} starling(s) in the air.${ORCH_OPENCODE_FLAGS:+ (each on a private opencode server: ${ORCH_OPENCODE_FLAGS})}"
