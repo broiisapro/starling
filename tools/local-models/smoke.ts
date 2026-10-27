@@ -26,21 +26,22 @@
  * candidates.json, so `bun tools/local-models/smoke.ts` needs no flags on either laptop.
  */
 
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import type { Snapshot } from "./host";
-import { hardware, shell, slug, snapshot } from "./host";
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { AUDIT_SYSTEM, buildAuditUser, VERDICT_SCHEMA } from './audit-request';
+import type { Snapshot } from './host';
+import { hardware, shell, slug, snapshot } from './host';
 import {
   type CallOptions,
-  type Verdict,
   callNative,
   callV1,
   isLoaded,
   now,
   ollamaVersion,
   round,
+  type Verdict,
   validateVerdict,
-} from "./ollama";
+} from './ollama';
 
 // ── args ────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -53,31 +54,31 @@ function arg(name: string, fallback: string): string {
 }
 
 const HERE = dirname(new URL(import.meta.url).pathname);
-const HOST = arg("host", process.env.OLLAMA_HOST ?? "http://127.0.0.1:11434").replace(/\/+$/, "");
-const KEEP_ALIVE = arg("keep-alive", "5m");
-const MAX_TOKENS = Number(arg("max-tokens", "2000"));
-const THINK = arg("think", "on") !== "off";
+const HOST = arg('host', process.env.OLLAMA_HOST ?? 'http://127.0.0.1:11434').replace(/\/+$/, '');
+const KEEP_ALIVE = arg('keep-alive', '5m');
+const MAX_TOKENS = Number(arg('max-tokens', '2000'));
+const THINK = arg('think', 'on') !== 'off';
 
 function defaultModel(): string {
   const fromEnv = process.env.STARLING_LOCAL_MODEL;
   if (fromEnv) return fromEnv;
   try {
-    const candidates = JSON.parse(readFileSync(join(HERE, "candidates.json"), "utf8")) as {
+    const candidates = JSON.parse(readFileSync(join(HERE, 'candidates.json'), 'utf8')) as {
       profiles: Record<string, { primary: string }>;
     };
-    const ramGb = Math.round(Number(shell(["sysctl", "-n", "hw.memsize"]).trim()) / 1073741824);
-    if (ramGb < 12) return "qwen3.5:4b";
-    const profile = ramGb >= 24 ? "mbp" : "air";
-    return candidates.profiles[profile]?.primary ?? "qwen3.8:27b-mlx";
+    const ramGb = Math.round(Number(shell(['sysctl', '-n', 'hw.memsize']).trim()) / 1073741824);
+    if (ramGb < 12) return 'qwen3.5:4b';
+    const profile = ramGb >= 24 ? 'mbp' : 'air';
+    return candidates.profiles[profile]?.primary ?? 'qwen3.8:27b-mlx';
   } catch {
-    return "qwen3.8:27b-mlx";
+    return 'qwen3.8:27b-mlx';
   }
 }
 
-const MODEL = arg("model", defaultModel());
+const MODEL = arg('model', defaultModel());
 const OUT = arg(
-  "out",
-  join(HERE, "results", `smoke-${slug(hardware().hostname)}-${slug(MODEL)}${THINK ? "" : "-nothink"}.json`),
+  'out',
+  join(HERE, 'results', `smoke-${slug(hardware().hostname)}-${slug(MODEL)}${THINK ? '' : '-nothink'}.json`),
 );
 
 // ── the fake diff under audit ───────────────────────────────────────────
@@ -94,41 +95,20 @@ index 1a2b3c4..5d6e7f8 100644
 `;
 
 const DEFINITION_OF_DONE = [
-  "formatDate returns YYYY-MM-DD in local time (no timezone suffix, no time component)",
-  "a unit test covers a single-digit month and a single-digit day",
-  "no other exported API changes",
+  'formatDate returns YYYY-MM-DD in local time (no timezone suffix, no time component)',
+  'a unit test covers a single-digit month and a single-digit day',
+  'no other exported API changes',
 ];
 
-const VERDICT_SCHEMA = {
-  type: "object",
-  properties: {
-    pass: { type: "boolean", description: "true only if every definition-of-done item is satisfied" },
-    summary: { type: "string", description: "one or two sentences: what was checked and what is wrong" },
-    fixInstructions: { type: "string", description: "exact, actionable steps for the coding agent; omit when pass is true" },
-  },
-  required: ["pass", "summary"],
-  additionalProperties: false,
-} as const;
+// The request shape is shared with the benchmark (audit-request.ts): one schema, one auditor
+// system prompt, so `bun tools/local-models/bench.ts` scores models on exactly what smoke.ts sends.
+const SYSTEM = AUDIT_SYSTEM;
 
-const SYSTEM = [
-  "You are Starling's auditor. You judge one coding agent's diff against a definition of done.",
-  "Be strict and literal: if a definition-of-done item is not visible in the diff, it is not done.",
-  "Reply with a single JSON object and nothing else.",
-].join(" ");
-
-const USER = [
-  "GOAL: format dates for the UI without a time component.",
-  "",
-  "DEFINITION OF DONE:",
-  ...DEFINITION_OF_DONE.map((d, i) => `${i + 1}. ${d}`),
-  "",
-  "DIFF:",
-  "```diff",
-  DIFF.trimEnd(),
-  "```",
-  "",
-  "Return {pass, summary, fixInstructions}.",
-].join("\n");
+const USER = buildAuditUser({
+  goal: 'format dates for the UI without a time component.',
+  definitionOfDone: DEFINITION_OF_DONE,
+  diff: DIFF,
+});
 
 const CALL: CallOptions = {
   host: HOST,
@@ -148,36 +128,39 @@ console.log(`🐦 smoke: ${MODEL} @ ${HOST}`);
 console.log(`   host ${hardware().hostname} · bun ${Bun.version}`);
 
 const version = await ollamaVersion(HOST);
-if (version === "unreachable") {
+if (version === 'unreachable') {
   console.error(`\n✘ Ollama is not answering at ${HOST}. Run tools/local-models/setup.sh first.`);
   process.exit(1);
 }
 const alreadyLoaded = await isLoaded(HOST, MODEL);
 const before = snapshot(MODEL);
-console.log(`   ollama ${version} · model ${alreadyLoaded ? "already resident" : "cold"}`);
-console.log(`   before: wired ${before.wiredMb ?? "?"} MB, free ${before.freePercent ?? "?"}%`);
+console.log(`   ollama ${version} · model ${alreadyLoaded ? 'already resident' : 'cold'}`);
+console.log(`   before: wired ${before.wiredMb ?? '?'} MB, free ${before.freePercent ?? '?'}%`);
 
 const t0 = now();
 let cold = await callV1(CALL);
 const coldTotalMs = now() - t0;
-let transport: "v1-json_schema" | "api-chat-format" = "v1-json_schema";
+let transport: 'v1-json_schema' | 'api-chat-format' = 'v1-json_schema';
 let fallbackNote: string | undefined;
 
-if (cold.error || cold.text.trim() === "") {
-  fallbackNote = cold.error ?? "empty completion from /v1/chat/completions";
+if (cold.error || cold.text.trim() === '') {
+  fallbackNote = cold.error ?? 'empty completion from /v1/chat/completions';
   console.log(`   ! v1 failed: ${fallbackNote.slice(0, 140)}`);
-  console.log("   → falling back to /api/chat with format:<schema>");
+  console.log('   → falling back to /api/chat with format:<schema>');
   const native = await callNative(CALL);
   if (native.error) {
     console.error(`\n✘ both transports failed. /api/chat: ${native.error}`);
     process.exit(1);
   }
-  transport = "api-chat-format";
+  transport = 'api-chat-format';
   cold = { text: native.text, timing: native.timing, status: 200 };
 }
 
 // Warm pass on the native endpoint: exact tokens/s and a load-free TTFT.
-const warm = transport === "v1-json_schema" ? await callNative(CALL) : { text: cold.text, timing: cold.timing, error: undefined };
+const warm =
+  transport === 'v1-json_schema'
+    ? await callNative(CALL)
+    : { text: cold.text, timing: cold.timing, error: undefined };
 const after: Snapshot = snapshot(MODEL);
 
 const { parsed, checks } = validateVerdict(cold.text, { expectPass: false });
@@ -196,12 +179,12 @@ if (
       `warm ${warm.timing.completionTokens} on /api/chat); disable reasoning via the native endpoint.`,
   );
 }
-if (transport === "v1-json_schema" && cold.timing.completionTokens === MAX_TOKENS) {
+if (transport === 'v1-json_schema' && cold.timing.completionTokens === MAX_TOKENS) {
   notes.push(`cold completion hit max_tokens (${MAX_TOKENS}): the verdict was truncated.`);
 }
 
 const result = {
-  kind: "starling.local-model.smoke",
+  kind: 'starling.local-model.smoke',
   schemaVersion: 1,
   startedAt,
   finishedAt: new Date().toISOString(),
@@ -212,8 +195,8 @@ const result = {
   transport,
   ...(fallbackNote ? { fallbackNote } : {}),
   request: {
-    endpoint: transport === "v1-json_schema" ? "/v1/chat/completions" : "/api/chat",
-    responseFormat: "json_schema",
+    endpoint: transport === 'v1-json_schema' ? '/v1/chat/completions' : '/api/chat',
+    responseFormat: 'json_schema',
     schema: VERDICT_SCHEMA,
     system: SYSTEM,
     user: USER,
@@ -254,26 +237,34 @@ writeFileSync(OUT, `${JSON.stringify(result, null, 2)}\n`);
 // ── report ──────────────────────────────────────────────────────────────
 const c = result.timings.cold;
 const w = result.timings.warm;
-console.log("");
+console.log('');
 console.log(`   transport        ${transport}`);
-console.log(`   cold  ttft       ${c.ttftMs ?? "n/a"} ms   total ${c.totalMs} ms   (pays the model load)`);
-console.log(`   warm  ttft       ${w.ttftMs ?? "n/a"} ms   total ${w.totalMs} ms   load ${w.loadDurationMs ?? 0} ms`);
-console.log(`   tokens/s         ${w.tokensPerSec ?? c.tokensPerSec ?? "n/a"} (${w.tokensPerSecSource ?? c.tokensPerSecSource ?? "n/a"})`);
-console.log(`   tokens           ${w.completionTokens ?? c.completionTokens ?? "n/a"}`);
-console.log(`   resident         ${after.residentSize ?? "?"} (ollama ps)`);
+console.log(`   cold  ttft       ${c.ttftMs ?? 'n/a'} ms   total ${c.totalMs} ms   (pays the model load)`);
 console.log(
-  `   memory           wired ${before.wiredMb ?? "?"} → ${after.wiredMb ?? "?"} MB, ` +
-    `free ${before.freePercent ?? "?"}% → ${after.freePercent ?? "?"}%, ollama RSS ${after.ollamaRssMb} MB`,
+  `   warm  ttft       ${w.ttftMs ?? 'n/a'} ms   total ${w.totalMs} ms   load ${w.loadDurationMs ?? 0} ms`,
 );
-if (after.ollamaPs) for (const line of after.ollamaPs.split("\n")) console.log(`     ${line}`);
-console.log("");
-console.log(`   verdict          ${parsed ? JSON.stringify(parsed) : "(unparseable)"}`);
-for (const chk of checks) console.log(`   ${chk.ok ? "✔" : "✘"} ${chk.name} — ${chk.detail}`);
+console.log(
+  `   tokens/s         ${w.tokensPerSec ?? c.tokensPerSec ?? 'n/a'} (${w.tokensPerSecSource ?? c.tokensPerSecSource ?? 'n/a'})`,
+);
+console.log(`   tokens           ${w.completionTokens ?? c.completionTokens ?? 'n/a'}`);
+console.log(`   resident         ${after.residentSize ?? '?'} (ollama ps)`);
+console.log(
+  `   memory           wired ${before.wiredMb ?? '?'} → ${after.wiredMb ?? '?'} MB, ` +
+    `free ${before.freePercent ?? '?'}% → ${after.freePercent ?? '?'}%, ollama RSS ${after.ollamaRssMb} MB`,
+);
+if (after.ollamaPs) for (const line of after.ollamaPs.split('\n')) console.log(`     ${line}`);
+console.log('');
+console.log(`   verdict          ${parsed ? JSON.stringify(parsed) : '(unparseable)'}`);
+for (const chk of checks) console.log(`   ${chk.ok ? '✔' : '✘'} ${chk.name} — ${chk.detail}`);
 if (notes.length) {
-  console.log("");
+  console.log('');
   for (const n of notes) console.log(`   note: ${n}`);
 }
-console.log("");
+console.log('');
 console.log(`   wrote ${OUT}`);
-console.log(allOk ? "\n✨ smoke passed: a valid, sane JSON verdict from a local model." : "\n✘ smoke failed: see the checks above.");
+console.log(
+  allOk
+    ? '\n✨ smoke passed: a valid, sane JSON verdict from a local model.'
+    : '\n✘ smoke failed: see the checks above.',
+);
 process.exit(allOk ? 0 : 1);
