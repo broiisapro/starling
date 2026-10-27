@@ -181,6 +181,14 @@ export const TaskRunSchema = z.object({
   prUrl: z.string().optional(),
   lastVerdict: AuditVerdictSchema.optional(),
   nodeId: z.string().optional(),
+  /**
+   * Human-readable name of the node that ran (or is running) this task, e.g. `Moksh's MacBook Pro`.
+   *
+   * Additive in Wave 2 (Epic 40) at the dashboard's request: three panels were resolving
+   * `nodeId` → display name in their selectors, which is a display concern leaking into prop
+   * building. Optional so recorded runs from before the field stay valid.
+   */
+  nodeName: z.string().optional(),
 });
 export type TaskRun = z.infer<typeof TaskRunSchema>;
 
@@ -327,6 +335,7 @@ export const StarlingEventTypeSchema = z.enum([
   'node.left',
   'node.stats',
   'task.migrated',
+  'run.status',
   'run.finished',
 ]);
 export type StarlingEventType = z.infer<typeof StarlingEventTypeSchema>;
@@ -410,6 +419,16 @@ export const StarlingEventSchema = z.discriminatedUnion('type', [
     type: z.literal('task.migrated'),
     ...envelope,
     payload: z.object({ taskKey: z.string(), fromNode: z.string(), toNode: z.string(), reason: z.string() }),
+  }),
+  // Run-level status changes (`mapping` → `planning` → `planned` → `running` → `finished`).
+  // Additive in Wave 2 (Epic 40): the dashboard's run picker had no intermediate signal, so it
+  // showed `mapping` for the whole run. The engine publishes this (Epic 49 wires the publishing);
+  // `run.created` and `run.finished` keep carrying the first and last snapshot, so a consumer that
+  // ignores this arm still converges.
+  z.object({
+    type: z.literal('run.status'),
+    ...envelope,
+    payload: z.object({ from: RunStatusSchema, to: RunStatusSchema, run: RunSchema }),
   }),
   z.object({
     type: z.literal('run.finished'),

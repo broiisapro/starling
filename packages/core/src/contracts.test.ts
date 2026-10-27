@@ -235,3 +235,43 @@ describe('audit contracts (C1 additions)', () => {
     expect(parsed.type).toBe('audit.verdict');
   });
 });
+
+/**
+ * Wave 2 (Epic 40) additive contracts: the C1 handbacks asked for `TaskRun.nodeName`, a run-level
+ * status event, and two optional props. They are additive, so every old recorded run/event must
+ * still parse.
+ */
+describe('wave 2 additions', () => {
+  test('TaskRunSchema accepts an optional nodeName and keeps old runs valid', () => {
+    const task = makeRun().tasks.t1 ?? Object.values(makeRun().tasks)[0];
+    expect(task).toBeDefined();
+    if (task === undefined) return;
+    expect(TaskRunSchema.parse(task).nodeName).toBeUndefined();
+    expect(TaskRunSchema.parse({ ...task, nodeName: "Moksh's MacBook Pro" }).nodeName).toBe(
+      "Moksh's MacBook Pro",
+    );
+    expect(TaskRunSchema.safeParse({ ...task, nodeName: 7 }).success).toBe(false);
+  });
+
+  test('run.status is part of the event union and carries from/to plus a run snapshot', () => {
+    const run = makeRun({ status: 'running' });
+    const event = {
+      type: 'run.status' as const,
+      runId: run.id,
+      ts: BASE_TS,
+      payload: { from: 'planned' as const, to: 'running' as const, run },
+    };
+    const parsed = StarlingEventSchema.parse(event);
+    expect(parsed.type).toBe('run.status');
+    if (parsed.type !== 'run.status') return;
+    expect(parsed.payload.from).toBe('planned');
+    expect(parsed.payload.to).toBe('running');
+    expect(parsed.payload.run.id).toBe(run.id);
+
+    const bad = StarlingEventSchema.safeParse({
+      ...event,
+      payload: { ...event.payload, to: 'levitating' },
+    });
+    expect(bad.success).toBe(false);
+  });
+});

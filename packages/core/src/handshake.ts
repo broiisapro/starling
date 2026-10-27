@@ -80,6 +80,12 @@ export interface SkyViewProps {
   selectedTask?: string;
   onSelectTask(key: string): void;
   reducedMotion?: boolean;
+  /**
+   * True when the sky is off-screen (the shell keeps both centre views mounted for instant
+   * switching). The flock should glide, not animate: no rAF loop, no cursor churn.
+   * Additive in Wave 2 (Epic 40) at the dashboard's request (C1 handback, request 3).
+   */
+  paused?: boolean;
 }
 
 export interface DagViewProps {
@@ -102,6 +108,8 @@ export interface MergeQueueProps {
   plan?: Plan;
   tasks: Record<string, TaskRun>;
   merges: MergeResult[];
+  /** Selected task key, so the queue board can highlight the card the other views are showing. */
+  selectedTask?: string;
   onSelectTask(key: string): void;
 }
 

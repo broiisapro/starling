@@ -109,6 +109,10 @@ describe('the §8 handshake lives in core', () => {
       onSelectTask: () => undefined,
       reducedMotion: true,
     };
+    // Wave 2 (Epic 40): `paused` lets the shell stop the sky's rAF while the DAG is on screen.
+    const skyPaused: SkyViewProps = { ...sky, paused: true };
+    expect(skyPaused.paused).toBe(true);
+    expect(sky.paused).toBeUndefined();
     const dag: DagViewProps = { plan: run.plan, tasks: run.tasks, onSelectTask: () => undefined };
     const drawer: AgentDrawerProps = {
       events: [],
@@ -116,6 +120,13 @@ describe('the §8 handshake lives in core', () => {
       onClose: () => undefined,
     };
     const queue: MergeQueueProps = {
+      plan: run.plan,
+      tasks: run.tasks,
+      merges: [],
+      selectedTask: 'theme',
+      onSelectTask: () => undefined,
+    };
+    const queueOld: MergeQueueProps = {
       plan: run.plan,
       tasks: run.tasks,
       merges: [],
@@ -131,6 +142,8 @@ describe('the §8 handshake lives in core', () => {
     expect(dag.selectedTask).toBeUndefined();
     expect(drawer.events).toEqual([]);
     expect(queue.merges).toEqual([]);
+    expect(queue.selectedTask).toBe('theme');
+    expect(queueOld.selectedTask).toBeUndefined();
     expect(metrics.live).toBe(true);
     expect(metricsOld.live).toBeUndefined();
     expect(flock.onSelectTask).toBeDefined();
