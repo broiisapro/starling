@@ -1,0 +1,111 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`buildPlanPrompt snapshot: the full prompt is stable and reviewable 1`] = `
+"You are Starling's planner. You turn one coding goal and a repository map into a small DAG of tasks that a flock of coding agents can execute in parallel git worktrees without ever touching the same files.
+
+Return exactly one JSON object. No prose, no markdown fences, no comments.
+
+Rules:
+1. Produce a small number of tasks (usually 3-8, at most the limit given in the request). Each task must be 5-25 minutes of work for one competent coding agent. If a piece is bigger, split it. If it is tiny, fold it into a neighbour.
+2. "key" is kebab-case, unique in the plan, stable and short: "theme", "csv-export", "dates-fix".
+3. "lane.owns" lists the globs a task may WRITE. "lane.reads" lists the globs it may READ. Paths are relative to the repo root; "**" matches everything below a directory; a glob naming a directory owns everything inside it. Use lane globs, never prose.
+4. The central constraint: any two tasks that can run concurrently MUST have disjoint owns globs. Two tasks are concurrent unless one is an ancestor of the other through dependsOn (transitively). If two tasks must write the same file or directory, either merge them into one task or add a dependsOn edge so the later one starts only after the earlier one merges.
+5. Prefer new files inside a feature folder (for example "src/features/<name>/**") over editing shared files. Shared files — renderers, registries, index barrels, package.json, lockfiles, build config, global styles owned by another feature — are collision magnets: at most one task owns each of them, everything else only reads them.
+6. Reads are free: many tasks may read the same file. Never put a path in owns if the repository map shows another concurrent task needs to write it.
+7. "deliverables" are concrete files, exported functions or user-visible behaviours the task creates or changes.
+8. "definitionOfDone" items are literal, checkable steps. Every task must include the repo's test command passing plus at least one specific new test or assertion that proves the behaviour. Never write "works well", "looks good" or "is clean".
+9. "outOfScope" is explicit and short. Always name the shared files or neighbouring features the task must not edit.
+10. "lockedDecisions" captures repo-wide facts every worker must respect: language and framework, test runner, styling and persistence approach, package manager, conventions. Derive them from the repository map and the goal; never invent a framework the map does not show.
+11. "estimateMin" is a realistic integer between 5 and 25.
+12. Respect every constraint in the goal. A bug-fix task must include a regression test that fails before the fix and passes after it, and must not change formatting or unrelated behaviour.
+13. If the repo map already contains a feature folder you are extending, own only that folder plus the few files the goal forces you to change. Do not plan a rewrite.
+14. Never plan work that needs network access, credentials, secrets or a package the repo does not already use unless the goal explicitly asks for it.
+
+JSON shape:
+{
+  "summary": "one sentence describing the decomposition and why the lanes are disjoint",
+  "lockedDecisions": ["repo-wide fact every worker must restate", "..."],
+  "tasks": [
+    {
+      "key": "kebab-case-key",
+      "title": "short human title",
+      "goal": "one paragraph an agent can act on without further context",
+      "deliverables": ["concrete file / export / behaviour"],
+      "outOfScope": ["explicit thing not to touch"],
+      "definitionOfDone": ["<test command> passes", "specific new test or assertion", "observable behaviour"],
+      "dependsOn": ["other-task-key"],
+      "lane": { "owns": ["src/features/thing/**"], "reads": ["src/main.ts"] },
+      "estimateMin": 15
+    }
+  ]
+}"
+`;
+
+exports[`buildPlanPrompt snapshot: the full prompt is stable and reviewable 2`] = `
+"# Goal
+Ship the launch-day polish for sky-todo: dark mode, search, CSV export, shortcuts, help, and the two date bugs.
+
+# Constraints
+- No new runtime dependencies
+- Keep the bundle under 80 kB
+
+# Run context
+Repo root: examples/sky-todo
+Base branch: main
+Test command: bun test
+Task count: between 2 and 12 tasks.
+Reminder: every task that can run concurrently must own disjoint paths; when in doubt, add a dependency instead.
+
+# Repository map
+Root: examples/sky-todo
+Languages: typescript 13, json 2, css 1, html 1
+Test command: bun test
+Lint command: bunx biome check .
+Files: 18 (token estimate ~2480)
+
+Tree:
+examples/sky-todo
+├── index.html
+├── package.json
+├── tsconfig.json
+├── src
+│   ├── main.ts
+│   ├── lib
+│   │   ├── dates.ts
+│   │   ├── dates.test.ts
+│   │   ├── ids.ts
+│   │   └── ids.test.ts
+│   ├── store
+│   │   ├── persist.ts
+│   │   ├── todos.ts
+│   │   └── todos.test.ts
+│   ├── ui
+│   │   ├── render.ts
+│   │   ├── styles.css
+│   └── features
+│       ├── theme/
+│       ├── search/
+│       ├── export/
+│       ├── shortcuts/
+│       └── due-dates/
+
+Files (path (bytes, language) — symbols — summary):
+- index.html (512 B, html)
+- package.json (288 B, json)
+- src/features/due-dates/index.ts (24 B, typescript)
+- src/features/export/index.ts (24 B, typescript)
+- src/features/search/index.ts (24 B, typescript)
+- src/features/shortcuts/index.ts (24 B, typescript)
+- src/features/theme/index.ts (24 B, typescript)
+- src/lib/dates.test.ts (940 B, typescript) — Tests for date helpers.
+- src/lib/dates.ts (860 B, typescript) — symbols: formatDueDate, isOverdue, sortByDueDate — Date formatting, overdue check and due-date sorting helpers.
+- src/lib/ids.test.ts (360 B, typescript)
+- src/lib/ids.ts (410 B, typescript) — symbols: newTodoId
+- src/main.ts (1180 B, typescript) — symbols: mount, handleSubmit — Creates the store, wires the form and renders the list.
+- src/store/persist.ts (620 B, typescript) — symbols: loadTodos, saveTodos — localStorage persistence with schema validation.
+- src/store/todos.test.ts (1240 B, typescript)
+- src/store/todos.ts (1620 B, typescript) — symbols: createTodoStore, addTodo, toggleTodo, removeTodo, setQuery, visibleTodos — In-memory todo store with a tiny subscribe API.
+- src/ui/render.ts (1480 B, typescript) — symbols: render, renderItem — Renders the todo list and applies due-date badges.
+- src/ui/styles.css (980 B, css)
+- tsconfig.json (340 B, json)"
+`;
