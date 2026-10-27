@@ -1,0 +1,198 @@
+// Bun Snapshot v1, https://bun.sh/docs/test/snapshots
+
+exports[`renderTaskIssue snapshot 1`] = `
+"<!-- starling:run=01jd2k7m3p4q5r6s7t8v9w0x2z task=theme -->
+
+**Run** \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · **Task** \`theme\` · **Estimate** 15 min
+
+### Run goal
+
+Add dark mode and live search to sky-todo
+
+### Task goal
+
+Add a dark theme and a toggle in the header that remembers the choice across reloads.
+
+### Deliverables
+
+- src/features/theme/index.ts exports initTheme()
+- The toggle persists the choice in localStorage
+
+### Definition of done
+
+- [ ] bun test passes
+- [ ] The theme survives a reload
+- [ ] The toggle has an aria-label
+
+### Lane
+
+- **Owns:** \`src/features/theme/**\`, \`src/ui/styles.css\`
+- **Reads:** \`src/main.ts\`, \`index.html\`
+
+### Out of scope
+
+- Do not change the light theme's default colours
+
+### Dependencies
+
+_None — this task can start immediately._
+
+---
+<sub>Planned by Starling 🐦. Editing this issue does not change the plan.</sub>
+"
+`;
+
+exports[`renderTaskPRBody snapshot with verdict, handback and notes 1`] = `
+"<!-- starling:run=01jd2k7m3p4q5r6s7t8v9w0x2z task=theme -->
+
+## Dark mode with a toggle
+
+Add a dark theme and a toggle in the header that remembers the choice across reloads.
+
+### Notes
+
+Engine note: rebased onto the integration branch.
+
+### Audit verdict
+
+**Pass** ✅ on attempt 2 · auditor \`ollama/qwen3.6:35b-a3b\`
+
+Definition of done met on the second attempt.
+
+| Check | Result | Detail |
+| --- | --- | --- |
+| \`tests\` | ✅ | bun test: 14 pass |
+| \`lane\` | ✅ | no violations |
+
+**Lane violations:** _None._
+
+### Agent handback
+
+**Status:** complete
+
+Theme toggles and persists across reloads.
+
+**Files changed**
+
+- src/features/theme/index.ts
+
+**Tests added**
+
+- src/features/theme/index.test.ts
+
+**Notes**
+
+Used a data-theme attribute.
+
+### Usage
+
+| | Tokens |
+| --- | ---: |
+| Input | 1,200 |
+| Output | 340 |
+| Cached input | 200 |
+
+**Cost:** $0.0004 · **Attempts:** 2
+
+Closes #100
+
+---
+<sub>Branch \`starling/9w0x2z/theme\` · run \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · created by Starling 🐦</sub>
+"
+`;
+
+exports[`renderTaskPRBody snapshot without a verdict 1`] = `
+"<!-- starling:run=01jd2k7m3p4q5r6s7t8v9w0x2z task=theme -->
+
+## Dark mode with a toggle
+
+Add a dark theme and a toggle in the header that remembers the choice across reloads.
+
+### Audit verdict
+
+_No audit verdict recorded yet._
+
+### Usage
+
+| | Tokens |
+| --- | ---: |
+| Input | 1,200 |
+| Output | 340 |
+| Cached input | 200 |
+
+**Cost:** $0.0004 · **Attempts:** 2
+
+---
+<sub>Branch \`starling/9w0x2z/theme\` · run \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · created by Starling 🐦</sub>
+"
+`;
+
+exports[`renderFinalPRBody snapshot 1`] = `
+"# Add dark mode and live search to sky-todo
+
+**Run** \`01jd2k7m3p4q5r6s7t8v9w0x2z\` · **Status** running · **Base** \`main\` · **Integration** \`starling/9w0x2z/integration\`
+
+Two lane-disjoint changes: a theme and a search filter.
+
+## Tasks
+
+| Task | Title | Status | Attempts | Cost |
+| --- | --- | --- | ---: | ---: |
+| \`theme\` | Dark mode with a toggle ([PR](https://github.com/acme/sky-todo/pull/1)) | ✅ merged | 2 | $0.0004 |
+| \`search\` | Live search filtering | ❌ failed | 3 | $0.0001 |
+
+**1 merged · 1 failed · 2 planned**
+
+## Cost
+
+| | Input | Output | Cached | USD |
+| --- | ---: | ---: | ---: | ---: |
+| API | 1,700 | 460 | 200 | $0.0005 |
+| Local | 9,000 | 1,200 | 0 | $0.0000 |
+
+**Saved vs API:** $0.0034 across 6 local calls · **Elapsed:** 12m 34s
+
+---
+<sub>One goal in, a murmuration out. Created by Starling 🐦</sub>
+"
+`;
+
+exports[`renderMergedComment snapshot for a pass 1`] = `
+"### ✅ Merged
+
+\`theme\` — Dark mode with a toggle is on \`starling/9w0x2z/integration\`.
+
+**Pass** on attempt 2 · auditor \`ollama/qwen3.6:35b-a3b\`
+
+Definition of done met on the second attempt.
+
+| Check | Result | Detail |
+| --- | --- | --- |
+| \`tests\` | ✅ | bun test: 14 pass |
+| \`lane\` | ✅ | no violations |
+
+Attempts: 2 · Cost: $0.0004
+
+<sub>Closed by Starling 🐦.</sub>
+"
+`;
+
+exports[`renderMergedComment snapshot for a failure 1`] = `
+"### Merged
+
+\`search\` — Live search filtering is on \`starling/9w0x2z/integration\`.
+
+**Fail** on attempt 3 · auditor \`ollama/qwen3.6:35b-a3b\`
+
+Search mutates the store instead of reading visibleTodos.
+
+| Check | Result | Detail |
+| --- | --- | --- |
+| \`tests\` | ❌ | bun test: 2 fail |
+| \`lane\` | ❌ | wrote outside the lane |
+
+Attempts: 3 · Cost: $0.0001
+
+<sub>Closed by Starling 🐦.</sub>
+"
+`;
