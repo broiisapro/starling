@@ -183,6 +183,21 @@ export function createFlockHub(options: FlockHubOptions): FlockHub {
 
     heartbeat(input) {
       const stored = options.registry.list().find((candidate) => candidate.id === input.nodeId);
+
+      if (input.info.status === 'offline') {
+        // Graceful stop: `starling perch` sends one last heartbeat with `status: 'offline'` because the
+        // locked Perch API has no deregister route. Treat it as an immediate leave instead of waiting
+        // up to `offlineAfterMs` for the sweep — the engine can reschedule the perch's tasks now.
+        if (stored === undefined) return;
+        options.registry.remove(input.nodeId, 'perch-stopped');
+        const node = remoteNodes.get(input.nodeId);
+        if (node !== undefined && 'close' in node && typeof node.close === 'function') {
+          (node as ExecutionNode & { close(): void }).close();
+        }
+        remoteNodes.delete(input.nodeId);
+        return;
+      }
+
       const known = options.registry.touch(input.nodeId, {
         ...input.info,
         url: input.info.url ?? stored?.url,

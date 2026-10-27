@@ -86,6 +86,32 @@ describe('FlockHub', () => {
     await hub.close();
   });
 
+  test('a heartbeat with status offline is an immediate leave, not a 15 s timeout', async () => {
+    const { clock, registry, events, code } = fixture();
+    const hub = createFlockHub({
+      registry,
+      hubUrl: 'http://hub:7777',
+      code,
+      bundleDir: await tempDir(),
+      clock,
+    });
+    const info = makeNodeInfo({ id: 'air', kind: 'remote', name: 'M2 Air', lastSeen: 0 });
+    await hub.register({ url: 'http://10.0.0.5:7778', info });
+    expect(registry.get('air')).toBeDefined();
+
+    // This is exactly what `startPerch.stop()` sends: one last heartbeat with status offline.
+    hub.heartbeat({ nodeId: 'air', info: { ...info, status: 'offline' } });
+
+    expect(registry.list()).toHaveLength(0);
+    expect(events.at(-1)).toMatchObject({ type: 'left', reason: 'perch-stopped' });
+    expect(events.at(-1)?.node).toMatchObject({ id: 'air', status: 'offline', activeSessions: 0 });
+
+    // A late offline heartbeat for an id we already forgot must not invent a node or throw.
+    hub.heartbeat({ nodeId: 'ghost', info: { ...info, id: 'ghost', status: 'offline' } });
+    expect(registry.list()).toHaveLength(0);
+    await hub.close();
+  });
+
   test('re-registering a perch at a new URL replaces the stale RemoteNode', async () => {
     const { clock, registry, events, code } = fixture();
     const hub = createFlockHub({
