@@ -13,6 +13,8 @@
  * here turns the whole LAN channel into an open door.
  */
 import { afterAll, describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { constantTimeEqual, verifyJoinCode } from '../../packages/flock/src/index.ts';
 import { tokensMatch } from '../../packages/perch/src/index.ts';
 import { makeHubHarness, nodeInfo, PROBE_CODE, startProbeServer } from './support.ts';
@@ -82,25 +84,34 @@ describe('flock token gate', () => {
 });
 
 describe('token comparison timing', () => {
-  // Compare "differs in the first byte" with "differs in the last byte". A `===` comparison exits on
-  // the first mismatch; a constant-time one takes the same path for both. The bound is deliberately
-  // loose (3×) so a noisy CI machine cannot flake it: a first-byte early exit is an order of
-  // magnitude, not 3×.
-  function bestOf(fn: () => void): number {
-    let best = Number.POSITIVE_INFINITY;
-    for (let round = 0; round < 5; round += 1) {
-      const started = performance.now();
-      for (let i = 0; i < 20_000; i += 1) fn();
-      best = Math.min(best, performance.now() - started);
-    }
-    return best;
-  }
+  // Wall-clock assertions are not reliable on a laptop running ~20 parallel agents: a min-of-five
+  // measurement of the same function still varied by 5× between "differs first" and "differs last"
+  // because the JIT compiled the two closures differently. Instead this probe asserts the *shape*
+  // that makes the comparison constant-time (every character folded into one accumulator, single
+  // exit) plus the functional property (a difference at any position is detected). A future
+  // implementation that reintroduces an early `return` fails the source check.
+  const sourcePath = join(import.meta.dir, '../../packages/flock/src/join-code.ts');
 
-  test('constantTimeEqual does not leak the first differing position', () => {
-    const firstByte = bestOf(() => void constantTimeEqual('AAAAAAAA', 'BAAAAAAA'));
-    const lastByte = bestOf(() => void constantTimeEqual('AAAAAAAA', 'AAAAAAAB'));
-    const ratio = Math.max(firstByte, lastByte) / Math.max(0.001, Math.min(firstByte, lastByte));
-    expect(ratio).toBeLessThan(3);
+  test('constantTimeEqual folds every character and has a single exit', () => {
+    const source = readFileSync(sourcePath, 'utf8');
+    const start = source.indexOf('export function constantTimeEqual');
+    const end = source.indexOf('/** `candidate` matches `expected`');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const body = source.slice(start, end);
+    expect(body).toContain('charCodeAt');
+    expect(body).toContain('Math.max(a.length, b.length)');
+    // One `return` (the final comparison): a `return` inside the loop would exit on the first mismatch.
+    expect(body.match(/\breturn\b/g) ?? []).toHaveLength(1);
+  });
+
+  test('a difference at any position is detected', () => {
+    const expected = 'PROBECOD';
+    for (let position = 0; position < expected.length; position += 1) {
+      const candidate = `${expected.slice(0, position)}X${expected.slice(position + 1)}`;
+      expect(constantTimeEqual(expected, candidate)).toBe(false);
+    }
+    expect(constantTimeEqual(expected, expected)).toBe(true);
   });
 
   test('the perch hashes before comparing, so length is not leaked either', () => {

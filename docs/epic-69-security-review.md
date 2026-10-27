@@ -10,7 +10,7 @@ precise fix handed to the epic that owns it.
 This epic writes no production code. Its deliverable is:
 
 1. a threat model (below),
-2. 13 probe suites / 77 tests in `tools/security/`, 29 of which are `test.failing` because they
+2. 13 probe suites / 78 tests in `tools/security/`, 29 of which are `test.failing` because they
    **find** an issue (`bun run test` stays green; a fix turns the probe red and that is the prompt to
    promote it to a regression test),
 3. 11 findings with severity, owner and an exact fix (`FIX REQUEST`s in the handback).
@@ -186,9 +186,12 @@ more than one probe).
   broadcasts, can collide with the demo, and is flaky in CI). `startPerch` receives an injected
   `MdnsAdvertiser`, which is the same seam the perch's own tests use; the payload asserted is exactly
   what `createBonjourAdvertiser` would publish.
-- **Timing probe has a 3× bound, not a statistical test.** A first-byte-early-exit is an order of
-  magnitude, and a tight bound would flake on a loaded laptop with 20 agents. The probe also asserts
-  the length-independent path (`tokensMatch`) directly.
+- **The timing probe is structural, not statistical.** A wall-clock comparison of "differs first"
+  vs "differs last" still varied 5× between the two call sites (the JIT compiles them differently)
+  on a laptop running ~20 agents, so a ratio assertion is a flake generator. The probe instead
+  asserts the property that makes the comparison constant-time — every character folded into one
+  accumulator, exactly one `return` — plus a functional check that a difference at every position
+  is detected, and the length-independent SHA-256 path in `tokensMatch`.
 - **`exec-argv.test.ts` allowlists two `bash -c` sites.** Banning the pattern outright would fail on
   the auditor/merger, which legitimately run repo test commands. The probe instead asserts the
   allowed set and that neither expression is request-derived. A new site fails the probe on purpose.
