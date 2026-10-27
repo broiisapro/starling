@@ -8,7 +8,9 @@ set -uo pipefail
 . "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 cd "$(git rev-parse --show-toplevel)" || exit 1
 ROOT="$(pwd)"; WT_ROOT="$(cd .. && pwd)/starling-wt"
-[ $# -eq 0 ] && { echo "usage: close-epic.sh NN [NN...]"; exit 1; }
+REBASE=0
+if [ "${1:-}" = "--rebase" ]; then REBASE=1; shift; fi   # rebase each branch onto latest main first; on conflicting hunks keep main's side (-X ours). Only when Claude says so.
+[ $# -eq 0 ] && { echo "usage: close-epic.sh [--rebase] NN [NN...]"; exit 1; }
 
 # keep orchestrator tooling edits from blocking pulls
 if [ -n "$(git status --porcelain -- .orchestrator AGENTS.md opencode.json .gitignore)" ]; then
@@ -21,11 +23,20 @@ for nn in "$@"; do
   base="$(basename "$f" .md)"; branch="epic/$base"; wt="$WT_ROOT/$base"
   pr="$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')"
   [ -z "$pr" ] && { echo "✘ $nn: no open PR for $branch"; continue; }
+  if [ "$REBASE" = 1 ]; then
+    [ -d "$wt" ] || git worktree add -q "$wt" "$branch"
+    git fetch -q origin
+    if git -C "$wt" rebase -q -X ours origin/main && git -C "$wt" push -q --force-with-lease origin HEAD; then
+      echo "• rebased $base onto latest main"; sleep 5
+    else
+      git -C "$wt" rebase --abort 2>/dev/null; echo "✘ $nn: rebase failed; skipped (tell Claude)"; continue
+    fi
+  fi
   if [ -d "$wt" ]; then
     git worktree remove "$wt" || { echo "✘ $nn: worktree has uncommitted changes; skipped (tell Claude)"; continue; }
   fi
   echo "🐦 merging $base (PR #$pr)…"
-  gh pr merge "$pr" --squash --delete-branch || { echo "✘ $nn: merge failed (conflict?). Tell Claude."; continue; }
+  gh pr merge "$pr" --squash --delete-branch || { sleep 10; gh pr merge "$pr" --squash --delete-branch; } || { echo "✘ $nn: merge failed (conflict?). Tell Claude."; continue; }
   git pull -q --ff-only origin main || { echo "✘ could not fast-forward main"; exit 1; }
   title="$(gh pr view "$pr" --json title --jq .title)"
   git tag -a "epic-${nn}-complete" -m "${title} (PR #${pr})" HEAD && git push -q origin "epic-${nn}-complete"

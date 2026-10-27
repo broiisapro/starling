@@ -1,0 +1,56 @@
+# Epic 53: Web: launch a run + run history
+
+**Wave 2a · Branch `epic/53-web-launch` · Issue: find it with `gh issue list --search "Epic 53 in:title"` · Model: DeepSeek V4.1 Flash · Budget: 60–120 min of autonomous work**
+
+## Where you are
+Starling (`.orchestrator/PRD.md`) is an open-source, open-weight-first harness. It turns one coding goal into a lane-safe task DAG, runs a flock of opencode agents in parallel git worktrees on this laptop and on other laptops ("perches"), audits each result, and merges everything through a queue, shown live in a murmuration dashboard.
+
+**Waves 0, 1 and checkpoint C1 are merged** (tags `epic-00-complete` … `epic-34-complete`). Every package is now a **real, tested implementation** (≈ 1,785 tests, all green):
+- `@starling/core`: contracts, ports and handshake types, plus `@starling/core/browser` and `@starling/core/testing`.
+- `@starling/llm`, `repomap`, `planner`, `prompts`, `workspace`, `runner` (opencode V2 REST client + `createOpencodeRunner`), `auditor`, `merger`, `github`, `store`, `engine` (`createEngine`), `flock` (`createLocalNode`, `createRemoteNode`, `createFlockHub`, registry, scheduler, mDNS), `perch` (`createPerchApp`, `startPerch`).
+- `apps/server` (`createApp`, `startServer`), `apps/cli` (all commands; `compose()` currently only supports `mode: 'mock'`), `apps/web` (fully wired dashboard with demo mode), `skills/starling`, `tools/local-models`, `evals`.
+
+**Read before you start:** `.orchestrator/ARCHITECTURE.md` (§6 contracts, §7 locked decisions, §8 handshake, now living in core), the `docs/epic-*.md` for every package you touch (their "Interfaces for future epics" sections), and the handbacks in `.orchestrator/handbacks/` that mention your area.
+
+**Wave 2 is about making it real.** Unlike Wave 1, you **may import sibling packages** (they're done). You still **write only inside your lane**: about 12 agents are working in parallel right now, several of them in neighbouring files.
+
+## Tech decisions already locked (build on these, don't relitigate)
+ARCHITECTURE §7 **L1–L25**, plus these Wave 2 rules:
+- **L26 (C1)**: the root `bun run test` runs `apps/web` in its own process (happy-dom owns the global fetch there). Pass explicit `fetch` implementations into clients in tests.
+- **L27 (C1)**: Biome's Markdown formatter is off and Tailwind directives parse. `bun run check` must stay clean.
+- **L28 (C1)**: core gained `StarlingErrorCode`s `LLM_BAD_JSON`, `GIT_TOO_OLD`, `GH_*`, `NOT_WIRED` and `NODE_AUTH`; `AuditCheck.durationMs?`; `AuditVerdict.dod?`; `NodeRegistry` event `reason?`; LLM call `opts?: { signal, timeoutMs }`; `Merger.preflight?`; `BundleOps` and mDNS ports; and every §8 handshake type in `packages/core/src/handshake.ts`. The old `handshake.ts` mirrors are now one-line re-exports.
+- **L29 (Wave 2 LLM policy)**: real model calls are now allowed **only through the `opencode` LLM profile** (`STARLING_LLM_PROFILE=opencode`, which routes every role through Moksh's opencode server and its `opencode-go/deepseek-v4.1-flash` model). That means **no DeepSeek API key is needed**, and **no local models** (Ollama) unless your prompt explicitly grants it with the memory rails. Keep real calls small: use the sky-todo `quick-wins` goal (3 tasks) for end-to-end runs unless told otherwise, and **never run more than one real Starling run at a time from your session**.
+- **L30 (Wave 2 lanes)**: `packages/core` is owned **only by Epic 40** (additive changes only). `packages/engine` is owned **only by Epic 49**. Everyone else who needs a change there writes a **FIX REQUEST** in their handback (exact file, change and reason) instead of editing.
+
+
+## FIRST TASK: carryover
+None for this lane beyond what's in the deliverables. (Stated explicitly so it's clear carryover was considered.)
+
+## Your lane (you may write ONLY here)
+`apps/web/src/features/launch/**`.
+plus `docs/epic-53-web-launch.md` and `.orchestrator/handbacks/53-web-launch.md`. Read anything.
+
+## Goal
+Let a presenter start a run **from the dashboard**: pick a repo, type or choose a goal, see the plan preview with lanes, press "Release the flock", and browse past runs. That makes the demo a single screen.
+
+## Deliverables
+- `export function LaunchPanel(props: LaunchPanelProps)` (define `LaunchPanelProps` locally in `features/launch/types.ts`: `{ onLaunch(input: StartRunInput): Promise<{ runId }>; onPreview?(input): Promise<{ plan; issues }>; recentRepos: string[]; goals: { name: string; text: string }[]; runs: Run[]; onOpenRun(id: string): void }`). It's props-only, and the shell wiring is a FIX REQUEST for Epic 41.
+- A form with a repo path (recent dropdown), a goal textarea with **quick-pick chips** for the sky-todo demo goals (`launch-day`, `launch-day-xl`, `quick-wins`, `conflict-bait`), max-parallel, a budget and a dry-run toggle.
+- **Plan preview** (`onPreview`): a compact table of tasks with lanes and dependencies, and an overlap check badge.
+- A big primary "🐦 Release the flock" button with a confirm step showing estimated cost.
+- **Run history**: a list of runs with status, merged/failed, cost and duration; click to open.
+- Validation and error states, keyboard-first, accessible.
+- Tests (happy-dom): submit calls `onLaunch` with the right input, chips fill the goal, preview renders tasks and overlap state, history renders and opens runs, and error states.
+
+## Explicitly out of scope
+Server endpoints (they exist: `POST /api/runs`. A preview endpoint is a FIX REQUEST for Epic 41 if missing). Shell wiring.
+
+## Definition of done (run literally, paste results in the handback)
+1. `bun install` clean in your worktree.
+2. Feature tests pass. A Playground renders with fixtures.
+3. `bun run test` at the repo root → 0 fail (paste both halves' summary lines).
+4. `bun run check` → clean.
+5. `docs/epic-53-web-launch.md` (AGENTS.md §6 sections) and `.orchestrator/handbacks/53-web-launch.md` written. Include a **FIX REQUESTS** section (or "none") listing changes you needed in lanes you don't own. PR opened per AGENTS.md §6 with `Closes #<issue>`; print the PR URL last.
+
+## Git
+Branch `epic/53-web-launch`. Conventional Commits scoped to your lane, committed small and often (at least 6 commits). `git fetch origin && git rebase origin/main` before pushing. No merging, no tags.

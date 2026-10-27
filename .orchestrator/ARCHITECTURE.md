@@ -402,6 +402,13 @@ Default port **7777**.
 - **L24** (from Epic 02) Measured local auditor candidate: **`qwen3.8:27b-mlx`** on Ollama (~18–19 tok/s warm on M5 Pro, correctly failed a no-test diff). The final pick is Epic 28's job.
 - **L25** (from the dev setup) Moksh's opencode is a **newer CLI** (a background service, `serve` = "v2 API and web server", no `--model` flag on the TUI). Its LLM access is through the **OpenCode Go** provider (`opencode-go/deepseek-v4.1-flash`). Starling must work when the user has **no direct DeepSeek API key**, so the LLM router supports an `opencode` provider that routes completions through the user's opencode server (see §8).
 
+- **L26** (C1) Root `bun run test` runs `apps/web` in its own `bun test` process (happy-dom replaces global `fetch`). Clients take an explicit `fetch` in tests.
+- **L27** (C1) Biome: the Markdown formatter is off and the CSS parser accepts Tailwind directives.
+- **L28** (C1) Core additions: error codes `LLM_BAD_JSON | GIT_TOO_OLD | GH_AUTH | GH_REPO | GH_COMMAND | GH_MISSING | NOT_WIRED | NODE_AUTH`; `AuditCheck.durationMs?`; `AuditVerdict.dod?: {item, met, evidence?}[]`; `NodeRegistry` event `reason?`; LLM `opts?: {signal, timeoutMs}`; `Merger.preflight?` + `MergePreflight`; `BundleOps` + mDNS ports; §8 handshake types live in `packages/core/src/handshake.ts` (old mirrors re-export them); `@starling/core/browser` is the browser-safe entry. `PRICING` uses DeepSeek's published *peak* rates.
+- **L29** (Wave 2) Real model calls go through the `opencode` LLM profile only (Moksh's opencode-go provider; no DeepSeek API key). E2E runs use small goals, one real run per session at a time.
+- **L30** (Wave 2) `packages/core` is owned only by Epic 40 (additive) and `packages/engine` only by Epic 49. Others file FIX REQUESTS.
+- **L31** (Wave 2) Local-model memory rails: load Ollama models only when ≤ 3 opencode processes are running and ≥ 22 GB is free; unload after; never pull > 20 GB during a wave.
+
 ## 8. Wave 1 handshake interfaces (LOCKED for Wave 1)
 
 These sit between packages being built **in parallel**. Each consuming or implementing epic declares the interface **locally** in `src/handshake.ts`, with the header comment `// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.`, copied exactly as written here. Never import a sibling Wave 1 package. At C1 the integrator moves these into core and deletes the mirrors.
