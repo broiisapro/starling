@@ -136,7 +136,7 @@ export function createLLM(config: StarlingConfig, opts: LLMOptions = {}): LLMCli
     req: LLMRequest,
     responseFormat: ResponseFormat | undefined,
     callOpts: CallOptions,
-  ): Promise<{ text: string; usage: TokenUsage }> {
+  ): Promise<{ text: string; usage: TokenUsage; usageKnown?: boolean }> {
     const timeoutMs = callOpts.timeoutMs ?? defaultTimeoutMs;
     const timeout = withTimeout(callOpts.signal, timeoutMs);
     try {
@@ -149,7 +149,7 @@ export function createLLM(config: StarlingConfig, opts: LLMOptions = {}): LLMCli
           modelID: ids.modelID,
           signal: timeout.signal,
         });
-        return { text: reply.text, usage: reply.usage };
+        return { text: reply.text, usage: reply.usage, usageKnown: reply.usageKnown !== false };
       }
       return await completeOpenAICompatible({
         settings: resolved.settings,
@@ -188,7 +188,7 @@ export function createLLM(config: StarlingConfig, opts: LLMOptions = {}): LLMCli
   ): Promise<LLMResponse> {
     const started = clock.now();
     let attempts = 0;
-    let reply: { text: string; usage: TokenUsage };
+    let reply: { text: string; usage: TokenUsage; usageKnown?: boolean };
     try {
       reply = await withRetries(
         async (attempt) => {
@@ -239,10 +239,14 @@ export function createLLM(config: StarlingConfig, opts: LLMOptions = {}): LLMCli
       local: resolved.local,
     };
     const elapsedMs = clock.now() - started;
+    const usageNote =
+      reply.usageKnown === false
+        ? ' usage=unknown (the provider reported no token totals; cost is 0, not measured)'
+        : ` in=${response.usage.input} out=${response.usage.output} cached=${response.usage.cached}`;
     log(
       'debug',
       `llm ${req.role} ${response.model.provider}/${response.model.model} ${elapsedMs}ms` +
-        ` in=${response.usage.input} out=${response.usage.output} cached=${response.usage.cached}` +
+        usageNote +
         ` cost=$${response.costUsd.toFixed(6)} local=${response.local} attempts=${attempts}`,
     );
     return response;

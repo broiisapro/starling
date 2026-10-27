@@ -335,4 +335,23 @@ describe('createLLM — opencode provider', () => {
     expect(client.calls[1]?.prompt).toContain('Assistant: bad');
     expect(client.calls[1]?.prompt).toContain('User:');
   });
+
+  test('says usage is unknown when the client could not report any', async () => {
+    const client = new FakeOpencode([
+      { text: 'from the stateless route', usage: { input: 0, output: 0, cached: 0 }, usageKnown: false },
+    ]);
+    const bus = createEventBus();
+    const events: StarlingEvent[] = [];
+    bus.subscribe((event) => events.push(event));
+    const llm = createLLM(opencodeConfig(), { opencode: client, bus });
+    const res = await llm.complete(plannerRequest('hello'));
+
+    // The port has no way to express "no measurement": it must be zeros plus a log that says so.
+    expect(res.usage).toEqual({ input: 0, output: 0, cached: 0 });
+    expect(res.costUsd).toBe(0);
+    const logs = events.filter((event) => event.type === 'log');
+    const msg = logs.map((event) => (event.type === 'log' ? event.payload.msg : '')).join('\n');
+    expect(msg).toContain('usage=unknown');
+    expect(msg).not.toContain('in=0 out=0');
+  });
 });

@@ -1,13 +1,20 @@
 /**
  * opencode completions for the LLM router — the **runner's** V2 client, not a second one.
  *
- * Wave 1 wrote two REST clients (one here, one in `@starling/runner`). Epic 49 keeps the runner's
- * and this adapter is now just the LLM-shaped recipe on top of it:
+ * Wave 1 wrote two REST clients (one here, one in `@starling/runner`). Epic 49 kept the runner's
+ * and this adapter is now just the LLM-shaped recipe on top of it. Epic 40 added the first step:
  *
- *   create session → generate one answer → read token totals → delete the session
+ *   stateless generate → (refusal) → create session → generate → read token totals → delete session
+ *
+ * Why the stateless route first: on opencode 2.1.2 a *session* is a coding agent, and given a
+ * planner prompt it starts exploring the workspace and answers `text: ''` — a completion prompt is
+ * not a coding task. `POST /api/experimental/generate` is a bare model call (no session, no tools),
+ * which is exactly what a structured completion needs. The session path stays as the fallback for
+ * servers without the experimental route.
  *
  * `createOpencodeCompletionClient` keeps its public signature, so the router and its tests did not
- * change. See `docs/epic-49-robustness.md` for the unification decision.
+ * change. See `docs/epic-49-robustness.md` for the unification and
+ * `docs/epic-40-integration-captain.md` for the stateless route and the usage gap.
  */
 
 import type { TokenUsage } from '@starling/core';
@@ -32,6 +39,15 @@ export interface OpencodeClientOptions {
   /** Per-call timeout for the create/generate/read/delete sequence. Default 120 s. */
   timeoutMs?: number;
 }
+
+/**
+ * The stateless route reports no token totals at all (its response schema carries `data.text` and
+ * nothing else), so a call on that path has no usage to report. The `LLM` port's `TokenUsage` is
+ * three numbers, which leaves two honest options: invent nothing and say so, or invent zeros and
+ * stay quiet. This result does the first — `usageKnown: false` marks the totals as *unreported*
+ * rather than *zero* — and `router.ts` surfaces it in the per-call log.
+ */
+const UNREPORTED_USAGE: TokenUsage = { input: 0, output: 0, cached: 0 };
 
 function toUsage(tokens: {
   input?: number;
@@ -85,53 +101,81 @@ export function createOpencodeCompletionClient(opts: OpencodeClientOptions): Ope
     ...(opts.timeoutMs === undefined ? {} : { timeoutMs: opts.timeoutMs }),
   });
 
+  /**
+   * One bare model call. `undefined` means "this server will not do it" (older route-less server,
+   * refusal, empty envelope) and the caller falls through to the session path; a thrown error means
+   * the server could not be reached at all, which is worth a retry rather than a fallback.
+   */
+  async function stateless(req: OpencodeCompletionRequest): Promise<OpencodeCompletionResult | undefined> {
+    let text: string | undefined;
+    try {
+      text = await client.generateStateless({
+        prompt: composePrompt(req.system, req.prompt),
+        providerID: req.providerID,
+        modelID: req.modelID,
+        ...(opts.directory === undefined ? {} : { directory: opts.directory }),
+        ...(req.signal === undefined ? {} : { signal: req.signal }),
+      });
+    } catch (err) {
+      throw asLlmError(err);
+    }
+    if (text === undefined) return undefined;
+    return { text, usage: UNREPORTED_USAGE, usageKnown: false };
+  }
+
+  async function sessionCompletion(req: OpencodeCompletionRequest): Promise<OpencodeCompletionResult> {
+    let sessionID: string;
+    try {
+      const session = await client.createSession({
+        ...(opts.directory === undefined ? {} : { directory: opts.directory }),
+        title: opts.title ?? 'starling llm completion',
+        model: { provider: req.providerID, model: req.modelID },
+        ...(opts.agent === undefined ? {} : { agent: opts.agent }),
+        ...(req.signal === undefined ? {} : { signal: req.signal }),
+      });
+      sessionID = session.id;
+    } catch (err) {
+      throw asLlmError(err);
+    }
+    if (typeof sessionID !== 'string' || sessionID === '') {
+      throw new StarlingError('LLM_ERROR', 'opencode did not return a session id', {
+        details: { reason: 'opencode' },
+      });
+    }
+
+    try {
+      const text = await client.generate(sessionID, {
+        prompt: composePrompt(req.system, req.prompt),
+        ...(opts.directory === undefined ? {} : { directory: opts.directory }),
+        ...(req.signal === undefined ? {} : { signal: req.signal }),
+      });
+
+      const info = await client.sessionInfo(
+        sessionID,
+        req.signal === undefined ? {} : { signal: req.signal },
+      );
+      if (info.tokens === undefined) {
+        throw new StarlingError('LLM_ERROR', 'opencode session is missing token usage', {
+          details: { reason: 'opencode', sessionID },
+        });
+      }
+      return { text, usage: toUsage(info.tokens), usageKnown: true };
+    } catch (err) {
+      throw asLlmError(err, sessionID);
+    } finally {
+      try {
+        await client.deleteSession(sessionID);
+      } catch (err) {
+        opts.onCleanupError?.(err);
+      }
+    }
+  }
+
   return {
     async complete(req: OpencodeCompletionRequest): Promise<OpencodeCompletionResult> {
-      let sessionID: string;
-      try {
-        const session = await client.createSession({
-          ...(opts.directory === undefined ? {} : { directory: opts.directory }),
-          title: opts.title ?? 'starling llm completion',
-          model: { provider: req.providerID, model: req.modelID },
-          ...(opts.agent === undefined ? {} : { agent: opts.agent }),
-          ...(req.signal === undefined ? {} : { signal: req.signal }),
-        });
-        sessionID = session.id;
-      } catch (err) {
-        throw asLlmError(err);
-      }
-      if (typeof sessionID !== 'string' || sessionID === '') {
-        throw new StarlingError('LLM_ERROR', 'opencode did not return a session id', {
-          details: { reason: 'opencode' },
-        });
-      }
-
-      try {
-        const text = await client.generate(sessionID, {
-          prompt: composePrompt(req.system, req.prompt),
-          ...(opts.directory === undefined ? {} : { directory: opts.directory }),
-          ...(req.signal === undefined ? {} : { signal: req.signal }),
-        });
-
-        const info = await client.sessionInfo(
-          sessionID,
-          req.signal === undefined ? {} : { signal: req.signal },
-        );
-        if (info.tokens === undefined) {
-          throw new StarlingError('LLM_ERROR', 'opencode session is missing token usage', {
-            details: { reason: 'opencode', sessionID },
-          });
-        }
-        return { text, usage: toUsage(info.tokens) };
-      } catch (err) {
-        throw asLlmError(err, sessionID);
-      } finally {
-        try {
-          await client.deleteSession(sessionID);
-        } catch (err) {
-          opts.onCleanupError?.(err);
-        }
-      }
+      const statelessResult = await stateless(req);
+      if (statelessResult !== undefined) return statelessResult;
+      return sessionCompletion(req);
     },
   };
 }

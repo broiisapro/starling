@@ -84,6 +84,10 @@ function startOpencode(): Fake {
     async fetch(request) {
       const url = new URL(request.url);
       requests.push(`${request.method} ${url.pathname}`);
+      // Modelled as a pre-2.1.2 server: no stateless route, so the provider must use a session.
+      if (url.pathname === '/api/experimental/generate') {
+        return new Response('not found', { status: 404 });
+      }
       if (request.method === 'POST' && url.pathname === '/api/session') {
         const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
         bodies.push(body);
@@ -179,7 +183,7 @@ describe('mixed profile fallback (lazy probe)', () => {
     expect(res.text).toBe('cloud bird');
     expect(res.local).toBe(false);
     expect(res.model).toEqual({ provider: 'opencode', model: OPENCODE_DEFAULT_MODEL });
-    expect(opencode.requests[0]).toBe('POST /api/session');
+    expect(opencode.requests.filter((r) => r === 'POST /api/session')).toHaveLength(1);
 
     expect(warnings).toHaveLength(1);
     expect(warnings[0]?.code).toBe('local-model-missing');
