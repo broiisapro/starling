@@ -164,6 +164,10 @@ describe('static hosting', () => {
     expect(deepLink.status).toBe(200);
     expect(await deepLink.text()).toContain('SPA');
 
+    const health = await app.request('/api/health');
+    expect(health.status).toBe(200);
+    expect(await health.json()).toEqual({ ok: true, version: '9.9.9' });
+
     const apiMiss = await app.request('/api/definitely-not-a-route');
     expect(apiMiss.status).toBe(404);
     expect(apiMiss.headers.get('content-type')).toContain('application/json');
