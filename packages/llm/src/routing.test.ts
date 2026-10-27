@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { defaultConfig } from '@starling/core';
 import { costOf, isLocalBaseUrl, pricingKeys } from './cost.ts';
 import { createLLMFromEnv } from './env.ts';
+import { LOCAL_DEFAULT_MODEL } from './profiles.ts';
 import { providerKind, splitOpencodeModel } from './router.ts';
 import { chatReply, type FakeChatServer, startFakeChatServer, testConfig } from './test-support.ts';
 
@@ -103,6 +104,7 @@ describe('createLLMFromEnv profiles', () => {
     const llm = createLLMFromEnv({
       config: defaultConfig,
       env: { STARLING_LLM_PROFILE: 'local' },
+      skipRecommendation: true,
       fetch: fakeFetch,
     });
     const res = await llm.complete({
@@ -113,7 +115,7 @@ describe('createLLMFromEnv profiles', () => {
 
     expect(res.text).toBe('local bird');
     expect(urls[0]).toContain('11434');
-    expect(bodies[0]?.model).toBe('qwen3.6:35b-a3b');
+    expect(bodies[0]?.model).toBe(LOCAL_DEFAULT_MODEL);
     expect(res.local).toBe(true);
     expect(res.costUsd).toBe(0);
   });

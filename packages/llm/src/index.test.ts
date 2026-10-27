@@ -21,6 +21,6 @@ describe('@starling/llm public surface', () => {
     expect(typeof llm.applyProfile).toBe('function');
     expect(typeof llm.createOpencodeCompletionClient).toBe('function');
     expect(llm.LLM_BAD_JSON).toBe('LLM_BAD_JSON');
-    expect(llm.LLM_PROFILES).toEqual(['opencode', 'deepseek', 'local']);
+    expect(llm.LLM_PROFILES).toEqual(['opencode', 'deepseek', 'local', 'mixed']);
   });
 });
