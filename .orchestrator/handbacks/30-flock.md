@@ -1,5 +1,5 @@
 ## Epic 30 Handback — Flock core: nodes, registry, scheduler, discovery
-**Status:** Complete. Branch `epic/30-flock` @ 36d2dac (feature head; the docs/handback commit follows).
+**Status:** Complete. Branch `epic/30-flock` @ f8c4e5f (feature head; the docs/handback commit follows).
 
 **Delivered:**
 - `packages/flock/src/handshake.ts` — verbatim ARCHITECTURE §8 mirror with the required header comment.
@@ -30,7 +30,7 @@
   hand-rolled SSE reader + reconnect loop, uniform error mapping and `FLOCK_TOKEN_HEADER`.
 - `src/index.ts` — public surface; `docs/epic-30-flock.md` with the required sections and a usage
   snippet.
-- 52 tests across 8 files (scheduler table, registry timeouts with `FakeClock`, LocalNode with core
+- 53 tests across 8 files (scheduler table, registry timeouts with `FakeClock`, LocalNode with core
   mocks + fake bundle ops, RemoteNode against an in-process fake perch on `Bun.serve({port:0})`,
   FlockHub with fake fetch/mDNS and real temp git repos, BundleOps round trip).
 
@@ -53,9 +53,9 @@
 
 **Verification (exact commands + results):**
 - `bun install`: `Checked 133 installs across 192 packages (no changes)`.
-- `bun test packages/flock`: **52 pass / 0 fail**, `Ran 52 tests across 8 files. [688.00ms]`. No servers
+- `bun test packages/flock`: **53 pass / 0 fail**, `Ran 53 tests across 8 files. [667.00ms]`. No servers
   left behind (fake perches stopped in `afterEach`; SSE loops closed; registry timers unref'd).
-- `bun run test` (root): **237 pass / 0 fail** — `Ran 237 tests across 44 files. [884.00ms]`.
+- `bun run test` (root): **238 pass / 0 fail** — `Ran 238 tests across 44 files. [844.00ms]`.
 - `bun run typecheck`: passes for every workspace (exit 0).
 - `bun run check`: **fails only on pre-existing files outside my lane.** `bunx biome check .` reports 10
   errors, all in files that arrived on `main` before this branch:
