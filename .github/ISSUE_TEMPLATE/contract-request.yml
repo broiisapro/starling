@@ -40,7 +40,7 @@ body:
     id: change
     attributes:
       label: Precise proposed change
-      description: Paste the exact diff or the exact type signature. "Add `foo: string` to `TaskSpec`" beats "make plans better".
+      description: Paste the exact diff or the exact type signature — "add foo (string) to TaskSpec" beats "make plans better".
       render: typescript
     validations:
       required: true
