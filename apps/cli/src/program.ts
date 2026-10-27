@@ -62,11 +62,14 @@ Examples:
   doctor: `
 Examples:
   $ starling doctor
+  $ starling doctor --json | jq '.checks[] | select(.status != "ok")'
 `,
   init: `
 Examples:
   $ starling init
-  $ starling init --profile local --force
+  $ starling init --yes
+  $ starling init --dry-run --profile local
+  $ starling init --yes --force
 `,
 };
 
@@ -216,19 +219,25 @@ Wave 1 runs on the mock composition; real wiring lands in Epic 40.
   register(
     'doctor',
     '',
-    'check bun, git, opencode, ollama and API keys',
+    'check bun, git, opencode, ollama, ports and keys',
     (_args, parsed, context) => doctorCommand(parsed, context),
-    () => {},
+    (command) => {
+      command.option('--json', 'print one JSON object instead of the report');
+    },
   );
 
   register(
     'init',
     '',
-    'write a starling.config.yaml',
+    'write a starling.config.yaml for this machine',
     (_args, parsed, context) => initCommand(parsed, context),
     (command) => {
       command
+        .option('--yes', 'accept every detected default without asking')
+        .option('--dry-run', 'print the config instead of writing it')
         .option('--force', 'overwrite an existing starling.config.yaml')
+        .option('--max-parallel <n>', 'agents to run at once', parsePositiveInt)
+        .option('--no-flock', 'write flock.enabled: false (single machine)')
         .addOption(
           new Option('--profile <profile>', 'model profile to write')
             .choices(['auto', 'opencode', 'deepseek', 'local'])
