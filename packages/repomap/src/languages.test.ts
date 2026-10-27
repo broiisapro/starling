@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { isLockfile, isSkippedPath, langForPath } from './languages';
+import { isBinaryPath, isLockfile, isSkippedPath, langForPath } from './languages';
+import { samplePaths } from './mapper';
 
 describe('langForPath', () => {
   test('maps the common language families', () => {
@@ -76,5 +77,62 @@ describe('lockfiles and skipped paths', () => {
     expect(isSkippedPath('src/components/node_modules.tsx')).toBe(false);
     expect(isSkippedPath('src/dist.ts')).toBe(false);
     expect(isSkippedPath('src/main.ts')).toBe(false);
+  });
+
+  test('skips the vendored and generated trees real repos commit', () => {
+    for (const path of [
+      'vendor/github.com/pkg/errors/errors.go',
+      'third_party/zlib/zlib.c',
+      'third-party/thing/index.ts',
+      'packages/ui/__generated__/types.ts',
+      'Pods/Alamofire/Source/Alamofire.swift',
+      '.yarn/releases/yarn-4.0.0.cjs',
+      '.turbo/cache/abc.json',
+      'coverage/lcov-report/index.html',
+    ]) {
+      expect({ path, skipped: isSkippedPath(path) }).toEqual({ path, skipped: true });
+    }
+  });
+
+  test('skips generated, minified and translated files by name', () => {
+    for (const path of [
+      'web/app.min.js',
+      'web/app.min.css',
+      'src/schema.generated.ts',
+      'src/api.gen.go',
+      'proto/service.pb.go',
+      'web/app.js.map',
+      'locale/fr/LC_MESSAGES/django.po',
+      'locale/fr/LC_MESSAGES/django.mo',
+      '.DS_Store',
+    ]) {
+      expect({ path, skipped: isSkippedPath(path) }).toEqual({ path, skipped: true });
+    }
+    expect(isSkippedPath('src/generated-code.ts')).toBe(false);
+    expect(isSkippedPath('docs/mapping.md')).toBe(false);
+  });
+
+  test('recognises binary extensions without reading the file', () => {
+    for (const path of ['a/b/logo.png', 'docs/manual.pdf', 'models/weights.bin', 'x/y.mo', 'fonts/f.woff2']) {
+      expect({ path, binary: isBinaryPath(path) }).toEqual({ path, binary: true });
+    }
+    expect(isBinaryPath('src/main.ts')).toBe(false);
+    expect(isBinaryPath('Makefile')).toBe(false);
+    expect(isBinaryPath('src/data.json')).toBe(false);
+  });
+});
+
+describe('samplePaths', () => {
+  test('returns the list unchanged when it fits', () => {
+    expect(samplePaths(['a', 'b'], 2)).toEqual(['a', 'b']);
+  });
+
+  test('spreads a capped list across the whole tree, keeping the tail', () => {
+    const paths = Array.from({ length: 10 }, (_, i) => `p${i}`);
+    expect(samplePaths(paths, 4)).toEqual(['p0', 'p3', 'p6', 'p9']);
+  });
+
+  test('a zero cap maps nothing', () => {
+    expect(samplePaths(['a', 'b'], 0)).toEqual([]);
   });
 });

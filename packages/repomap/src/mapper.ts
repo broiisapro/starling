@@ -12,7 +12,8 @@ import { basename, join, resolve } from 'node:path';
 import type { Clock, LLM, RepoFile, RepoMap, RepoMapper } from '@starling/core';
 import { exec, StarlingError, systemClock } from '@starling/core';
 import { detectCommands } from './commands';
-import { isSkippedPath, langForPath } from './languages';
+import { buildImportGraph, attachImportGraph } from './imports';
+import { isBinaryPath, isSkippedPath, langForPath, SYMBOL_LANGUAGES } from './languages';
 import { renderRepoMap } from './render';
 import { extractImportSpecifiers, summarizeCentralFiles } from './summaries';
 import { extractSymbols } from './symbols';
@@ -33,7 +34,11 @@ export interface RepoMapperOptions {
 const MAX_FILE_BYTES = 256 * 1024;
 /** NUL-byte sniff window for "this is a binary". */
 const BINARY_SNIFF_BYTES = 8 * 1024;
-const DEFAULT_MAX_FILES = 5000;
+/**
+ * Default ceiling on listed paths. A 7k-file Django checkout maps completely; past this the list is
+ * evenly sampled instead of being cut alphabetically (which used to lose `tests/` on any big repo).
+ */
+const DEFAULT_MAX_FILES = 8000;
 const TREE_MAX_CHARS = 4000;
 const READ_CONCURRENCY = 24;
 const GIT_TIMEOUT_MS = 15_000;
@@ -51,6 +56,22 @@ function isTextBuffer(buffer: Uint8Array): boolean {
     if (buffer[i] === 0) return false;
   }
   return true;
+}
+
+/**
+ * Take every `ceil(n / max)`-th path. Cutting the sorted list at `max` silently drops the end of the
+ * alphabet — on Django that meant most of `tests/` — while even sampling keeps the whole tree
+ * represented (with a smaller share of each directory).
+ */
+export function samplePaths(sorted: readonly string[], maxFiles: number): string[] {
+  if (maxFiles <= 0) return [];
+  if (sorted.length <= maxFiles) return [...sorted];
+  const stride = Math.ceil(sorted.length / maxFiles);
+  const out: string[] = [];
+  for (let i = 0; i < sorted.length && out.length < maxFiles; i += stride) {
+    out.push(sorted[i] as string);
+  }
+  return out;
 }
 
 async function listRepoFiles(root: string, run: typeof exec, maxFiles: number): Promise<string[]> {
@@ -79,10 +100,17 @@ async function listRepoFiles(root: string, run: typeof exec, maxFiles: number): 
     if (isSkippedPath(path)) continue;
     seen.add(path);
   }
-  return [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, maxFiles);
+  const sorted = [...seen].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return samplePaths(sorted, maxFiles);
 }
 
+/**
+ * Read one file's head, decide whether it is text, and only read the rest when a symbol extractor
+ * needs it. Non-code languages (JSON, YAML, HTML, translations, fixtures) are the bulk of a big
+ * repo and contribute no symbols, so the old "read everything, sniff, discard" loop was pure I/O.
+ */
 async function readRepoFile(root: string, path: string): Promise<ScannedFile | undefined> {
+  if (isBinaryPath(path)) return undefined;
   const full = join(root, path);
   let info: Awaited<ReturnType<typeof stat>>;
   try {
@@ -93,20 +121,31 @@ async function readRepoFile(root: string, path: string): Promise<ScannedFile | u
   }
   if (!info.isFile() || info.size > MAX_FILE_BYTES) return undefined;
 
+  const lang = langForPath(path);
+  const needsContent = SYMBOL_LANGUAGES.has(lang);
+  const file = Bun.file(full);
   let buffer: Uint8Array;
   try {
-    buffer = new Uint8Array(await Bun.file(full).arrayBuffer());
+    // Symbol-bearing files are read once in full; everything else only needs its head to prove it
+    // is text, which is most of a real checkout (fixtures, translations, JSON, docs).
+    buffer = needsContent
+      ? new Uint8Array(await file.arrayBuffer())
+      : new Uint8Array(await file.slice(0, BINARY_SNIFF_BYTES).arrayBuffer());
   } catch {
     // Unreadable file: a partial repo map is more useful than a failed run.
     return undefined;
   }
   if (!isTextBuffer(buffer)) return undefined;
+  if (!needsContent) {
+    return { file: { path, bytes: info.size, lang, symbols: [] }, imports: [] };
+  }
 
   const content = new TextDecoder().decode(buffer);
-  const lang = langForPath(path);
   const symbols = extractSymbols(content, lang);
-  const imports = lang === 'typescript' || lang === 'javascript' ? extractImportSpecifiers(content) : [];
-
+  const imports =
+    lang === 'typescript' || lang === 'javascript' || lang === 'python'
+      ? extractImportSpecifiers(content, lang)
+      : [];
   return { file: { path, bytes: info.size, lang, symbols }, imports };
 }
 
@@ -189,6 +228,10 @@ export function createRepoMapper(options: RepoMapperOptions = {}): RepoMapper {
         tokenEstimate: 0,
         createdAt: clock.now(),
       };
+      attachImportGraph(
+        map,
+        buildImportGraph(kept.map((entry) => ({ path: entry.file.path, imports: entry.imports }))),
+      );
       map.tokenEstimate = Math.ceil(renderRepoMap(map, { maxTokens: FULL_RENDER_TOKENS }).length / 4);
       return map;
     },

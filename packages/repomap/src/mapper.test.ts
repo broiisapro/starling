@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { type exec, FakeClock, isStarlingError, type LLM } from '@starling/core';
 import { MockLLM } from '@starling/core/testing';
+import { importGraphOf, relatedFiles } from './imports';
 import { createRepoMapper } from './mapper';
 import { makeRepo, makeTempDir, removeDir, writeFiles } from './test-helpers';
 
@@ -96,14 +97,83 @@ describe('createRepoMapper', () => {
     }
   });
 
-  test('honours maxFiles after filtering, in path order', async () => {
+  test('honours maxFiles after filtering and samples the whole tree instead of the alphabet', async () => {
     const files: Record<string, string> = {};
     for (let i = 0; i < 10; i += 1) files[`file-${i}.ts`] = `export const n${i} = ${i}\n`;
     files['bun.lock'] = '{}';
     const root = await makeRepo(files);
     try {
       const map = await createRepoMapper().map(root, { maxFiles: 3 });
-      expect(map.files.map((file) => file.path)).toEqual(['file-0.ts', 'file-1.ts', 'file-2.ts']);
+      // Ten paths, a stride of four: three files spread across the list, not the first three.
+      expect(map.files.map((file) => file.path)).toEqual(['file-0.ts', 'file-4.ts', 'file-8.ts']);
+    } finally {
+      await removeDir(root);
+    }
+  });
+
+  test('skips vendored, third-party and generated trees and files', async () => {
+    const root = await makeRepo({
+      'src/app.ts': 'export const app = 1\n',
+      'vendor/dep/lib.go': 'package dep\nfunc Dep() {}\n',
+      'third_party/thing/index.ts': 'export const third = 1\n',
+      'packages/ui/src/__generated__/types.ts': 'export type A = 1\n',
+      'src/schema.generated.ts': 'export type B = 2\n',
+      'src/service.pb.ts': 'export type C = 3\n',
+      'web/app.min.js': 'var a=1\n',
+      'web/app.js.map': '{}',
+      'locale/fr/LC_MESSAGES/django.po': 'msgid "x"\n',
+      'locale/fr/LC_MESSAGES/django.mo': 'binary-ish',
+    });
+    try {
+      const map = await createRepoMapper().map(root);
+      expect(map.files.map((file) => file.path)).toEqual(['src/app.ts']);
+    } finally {
+      await removeDir(root);
+    }
+  });
+
+  test('skips binary extensions before reading, even when the bytes are text', async () => {
+    const root = await makeRepo({
+      'src/app.ts': 'export const app = 1\n',
+      'assets/logo.png': 'this file is not really a png\n',
+      'docs/manual.pdf': 'nor a pdf\n',
+    });
+    try {
+      const map = await createRepoMapper().map(root);
+      expect(map.files.map((file) => file.path)).toEqual(['src/app.ts']);
+    } finally {
+      await removeDir(root);
+    }
+  });
+
+  test('does not read the body of files that cannot carry symbols', async () => {
+    // A JSON file with a NUL byte would be dropped as binary if it were read; a text one is kept
+    // with its stat size and no symbols. Both prove the head-only path.
+    const root = await makeRepo({
+      'data/table.json': '{"rows": 1}\n',
+      'src/app.ts': 'export function app() {}\n',
+    });
+    try {
+      const map = await createRepoMapper().map(root);
+      const json = map.files.find((file) => file.path === 'data/table.json');
+      expect(json?.lang).toBe('json');
+      expect(json?.bytes).toBe(12);
+      expect(json?.symbols).toEqual([]);
+    } finally {
+      await removeDir(root);
+    }
+  });
+
+  test('attaches the relative-import graph to the returned map', async () => {
+    const root = await makeRepo({
+      'src/a.ts': 'import { helper } from "./lib/b"\nexport const a = helper\n',
+      'src/lib/b.ts': 'export const helper = 1\n',
+      'src/lib/c.ts': 'export const c = 1\n',
+    });
+    try {
+      const map = await createRepoMapper().map(root);
+      expect(importGraphOf(map)?.importers.get('src/lib/b.ts')).toEqual(['src/a.ts']);
+      expect(relatedFiles(map, ['src/a.ts'])).toEqual(['src/lib/b.ts']);
     } finally {
       await removeDir(root);
     }
