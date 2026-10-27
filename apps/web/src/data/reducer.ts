@@ -1,14 +1,17 @@
 import type {
   AgentEvent,
   AuditVerdict,
+  DiffSummary,
   MergeResult,
   NodeInfo,
   Run,
   RunMetrics,
   StarlingEvent,
   TaskRun,
-} from '@starling/core';
+} from '@starling/core/browser';
+import type { PublicConfig } from './api';
 import type { JoinInfo } from './handshake';
+import { isRunStatusEvent, type KnownStarlingEvent, type RunStatusEvent } from './run-status';
 
 /** Where the numbers on screen come from. `offline` = neither SSE nor demo is running. */
 export type ConnectionState = 'live' | 'demo' | 'offline';
@@ -34,6 +37,10 @@ export interface SkyState {
   verdicts: Record<string, AuditVerdict[]>;
   merges: MergeResult[];
   metricsHistory: MetricsSample[];
+  /** Diffs fetched lazily from `/api/runs/:id/diff/:taskKey`, keyed by `diffKey(runId, taskKey)`. */
+  diffs: Record<string, DiffSummary>;
+  /** `/api/config/public` in live mode; absent in demo mode or on a hub that predates the route. */
+  publicConfig?: PublicConfig;
   join?: JoinInfo;
   connection: ConnectionState;
   selectedTask?: string;
@@ -57,8 +64,14 @@ export function createInitialState(): SkyState {
     verdicts: {},
     merges: [],
     metricsHistory: [],
+    diffs: {},
     connection: 'offline',
   };
+}
+
+/** Composite key for the lazy-diff cache. A task key alone would leak across runs. */
+export function diffKey(runId: string, taskKey: string): string {
+  return `${runId}:${taskKey}`;
 }
 
 /** Frozen-ish baseline: never mutate it; the store clones the arrays on first write. */
@@ -114,14 +127,35 @@ function updateTask(
 export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
   const next = withEvent(state, event);
 
-  switch (event.type) {
+  // `run.status` is additive in core (Epic 40). Feature-detected here so this file compiles before
+  // and after that change, and so an older UI against a newer hub still updates the picker.
+  if (isRunStatusEvent(event)) {
+    const run = (event as RunStatusEvent).payload.run;
+    const activeRunId = next.activeRunId ?? run.id;
+    return { ...next, runs: { ...next.runs, [run.id]: run }, activeRunId };
+  }
+
+  // Typed as the known union minus the additive event above: the switch below stays exhaustive and
+  // `default` can never see a real event type.
+  const known = event as KnownStarlingEvent;
+  switch (known.type) {
     case 'run.created': {
-      const run = event.payload.run;
-      return { ...next, runs: { ...next.runs, [run.id]: run }, activeRunId: run.id };
+      const run = known.payload.run;
+      // Hydration (`/api/runs`) is fresher than the backlog's original `run.created` snapshot, so an
+      // already-known run is not downgraded. A genuinely new run becomes active when it is newer than
+      // the one on screen — that is "follow a newly started run automatically".
+      const existing = next.runs[run.id];
+      const active = next.activeRunId === undefined ? undefined : next.runs[next.activeRunId];
+      const follow = active === undefined || run.startedAt >= active.startedAt;
+      return {
+        ...next,
+        runs: { ...next.runs, [run.id]: existing ?? run },
+        activeRunId: follow ? run.id : next.activeRunId,
+      };
     }
 
     case 'plan.created': {
-      const plan = event.payload.plan;
+      const plan = known.payload.plan;
       const owner =
         Object.values(next.runs).find((run) => run.goal.id === plan.goalId) ??
         (next.activeRunId === undefined ? undefined : next.runs[next.activeRunId]);
@@ -130,7 +164,7 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
     }
 
     case 'task.status': {
-      const { taskKey, run } = event.payload;
+      const { taskKey, run } = known.payload;
       const existing = next.runs[run.runId];
       if (existing === undefined) return next;
       return {
@@ -140,7 +174,7 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
     }
 
     case 'agent.event': {
-      const agentEvent = event.payload;
+      const agentEvent = known.payload;
       const log = next.agentLog[agentEvent.taskKey] ?? [];
       return {
         ...next,
@@ -152,9 +186,9 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
     }
 
     case 'audit.verdict': {
-      const verdict = event.payload;
+      const verdict = known.payload;
       const history = appendCapped(next.verdicts[verdict.taskKey] ?? [], verdict, VERDICT_CAP);
-      const taskUpdate = updateTask(next, event.runId, verdict.taskKey, (task) =>
+      const taskUpdate = updateTask(next, known.runId, verdict.taskKey, (task) =>
         task.lastVerdict === undefined || verdict.attempt >= task.lastVerdict.attempt
           ? { ...task, lastVerdict: verdict }
           : task,
@@ -163,27 +197,27 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
     }
 
     case 'merge.result': {
-      return { ...next, merges: appendCapped(next.merges, event.payload, MERGE_CAP) };
+      return { ...next, merges: appendCapped(next.merges, known.payload, MERGE_CAP) };
     }
 
     case 'metrics': {
-      const sample: MetricsSample = { ts: event.ts, metrics: event.payload };
+      const sample: MetricsSample = { ts: known.ts, metrics: known.payload };
       const active = next.activeRunId === undefined ? undefined : next.runs[next.activeRunId];
       const runs =
         active === undefined
           ? next.runs
-          : { ...next.runs, [active.id]: { ...active, metrics: event.payload } };
+          : { ...next.runs, [active.id]: { ...active, metrics: known.payload } };
       return { ...next, runs, metricsHistory: appendCapped(next.metricsHistory, sample, METRICS_CAP) };
     }
 
     case 'node.joined':
     case 'node.stats': {
-      const node = event.payload.node;
+      const node = known.payload.node;
       return { ...next, nodes: { ...next.nodes, [node.id]: node } };
     }
 
     case 'node.left': {
-      const node = next.nodes[event.payload.nodeId];
+      const node = next.nodes[known.payload.nodeId];
       if (node === undefined) return next;
       return {
         ...next,
@@ -192,15 +226,21 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
     }
 
     case 'task.migrated': {
-      const { taskKey, toNode } = event.payload;
+      const { taskKey, toNode } = known.payload;
       if (next.activeRunId === undefined) return next;
       const taskUpdate = updateTask(next, next.activeRunId, taskKey, (task) => ({ ...task, nodeId: toNode }));
       return { ...next, ...taskUpdate };
     }
 
     case 'run.finished': {
-      const run = event.payload.run;
-      return { ...next, runs: { ...next.runs, [run.id]: run }, activeRunId: run.id };
+      const run = known.payload.run;
+      const active = next.activeRunId === undefined ? undefined : next.runs[next.activeRunId];
+      const follow = active === undefined || run.startedAt >= active.startedAt;
+      return {
+        ...next,
+        runs: { ...next.runs, [run.id]: run },
+        activeRunId: follow ? run.id : next.activeRunId,
+      };
     }
 
     // Events the shell keeps for the timeline/log but that change no derived state.
@@ -209,9 +249,12 @@ export function applyEvent(state: SkyState, event: StarlingEvent): SkyState {
       return next;
 
     default: {
-      // Exhaustiveness guard: a new StarlingEvent type should fail typecheck, not be silently ignored.
-      const neverEvent: never = event;
-      return neverEvent;
+      // Compile-time exhaustiveness: a new StarlingEvent type must fail typecheck rather than be
+      // silently dropped. Runtime-wise an unknown-but-well-formed frame (a newer hub) is ignored, so
+      // it can never be mistaken for the next state.
+      const neverEvent: never = known;
+      void neverEvent;
+      return next;
     }
   }
 }

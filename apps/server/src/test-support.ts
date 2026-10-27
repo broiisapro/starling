@@ -4,6 +4,8 @@
  * Not exported from `index.ts` — production code must never import this. Kept in `src/` so it can use
  * core's mocks without a separate tsconfig project.
  */
+
+import { resolve } from 'node:path';
 import type { EventBus, NodeInfo, Run, StarlingEvent } from '@starling/core';
 import { createEventBus, StarlingError } from '@starling/core';
 import {
@@ -19,6 +21,10 @@ import type { Hono } from 'hono';
 import type { ServerDeps, ServerOptions } from './app';
 import { createApp } from './app';
 import type { EngineApi, FlockHub, JoinInfo, StartRunInput } from './handshake';
+import type { PublicConfigInput } from './public-config';
+
+/** The monorepo root, for tests that exercise the replay allow-list against the real `fixtures/`. */
+export const REPO_ROOT = resolve(import.meta.dir, '../../..');
 
 export class FakeEngine implements EngineApi {
   readonly runs = new Map<string, Run>();
@@ -154,6 +160,9 @@ export interface HarnessOptions {
   replay?: ServerDeps['replay'];
   webDist?: string;
   serverOptions?: ServerOptions;
+  repoRoot?: string;
+  replayRoots?: string[];
+  publicConfig?: PublicConfigInput;
 }
 
 export interface Harness {
@@ -187,9 +196,12 @@ export function makeHarness(options: HarnessOptions = {}): Harness {
     store,
     bus,
     version: '9.9.9',
+    repoRoot: options.repoRoot ?? REPO_ROOT,
     ...(flock === undefined ? {} : { flock }),
     ...(options.replay === undefined ? {} : { replay: options.replay }),
     ...(options.webDist === undefined ? {} : { webDist: options.webDist }),
+    ...(options.replayRoots === undefined ? {} : { replayRoots: options.replayRoots }),
+    ...(options.publicConfig === undefined ? {} : { publicConfig: options.publicConfig }),
   };
 
   return { app: createApp(deps, options.serverOptions), deps, store, bus, engine, flock, published };

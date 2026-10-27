@@ -1,5 +1,5 @@
-import type { StarlingEvent } from '@starling/core';
-import { StarlingError } from '@starling/core';
+import type { StarlingEvent } from '@starling/core/browser';
+import { StarlingError } from '@starling/core/browser';
 
 /**
  * The dashboard's live connection: one EventSource, exponential-backoff reconnect, and a `since`

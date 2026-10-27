@@ -9,9 +9,14 @@ import { runDemoServer } from './dev';
 export const PACKAGE = '@starling/server' as const;
 
 export * from './app';
+export * from './dashboard';
 export * from './handshake';
 export * from './http';
+export * from './public-config';
 export * from './replay';
+export * from './replay-paths';
+export * from './routes/config';
+export * from './routes/diff';
 export * from './routes/events';
 export * from './routes/flock';
 export * from './routes/replay';

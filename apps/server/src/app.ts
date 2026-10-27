@@ -11,6 +11,10 @@ import { cors } from 'hono/cors';
 import type { EngineApi, FlockHub } from './handshake';
 import { errorResponse, fail } from './http';
 import { RUN_AGNOSTIC_RUN_ID, requestLogger } from './logging';
+import type { PublicConfigInput } from './public-config';
+import { defaultReplayRoots, resolveReplayPath } from './replay-paths';
+import { mountConfig } from './routes/config';
+import { mountDiff } from './routes/diff';
 import { mountEvents } from './routes/events';
 import { mountFlock } from './routes/flock';
 import { mountReplay, type ReplayFn } from './routes/replay';
@@ -42,6 +46,15 @@ export interface ServerDeps {
   version: string;
   /** Built dashboard to serve (`apps/web/dist`). `/api/*` always wins. */
   webDist?: string;
+  /**
+   * Where relative replay paths are resolved from, and the base for the `fixtures/` + `.starling/`
+   * allow-list. Defaults to `process.cwd()` (E21's documented behaviour).
+   */
+  repoRoot?: string;
+  /** Explicit allow-list roots; overrides `repoRoot`. Used by tests and non-repo compositions. */
+  replayRoots?: string[];
+  /** What `GET /api/config/public` publishes; defaults reflect the LLM profile and §5 models. */
+  publicConfig?: PublicConfigInput;
 }
 
 export interface ServerOptions {
@@ -49,6 +62,11 @@ export interface ServerOptions {
   keepAliveMs?: number;
   /** Extra origins for the Vite dev server; defaults to localhost/127.0.0.1:5173. */
   corsOrigins?: string[];
+  /**
+   * Abort to close every open SSE stream. `startServer` owns one and aborts it in `stop()`; tests can
+   * pass their own to exercise the shutdown path through `createApp`.
+   */
+  shutdownSignal?: AbortSignal;
 }
 
 function logError(bus: EventBus, msg: string, err?: unknown): void {
@@ -87,9 +105,20 @@ export function createApp(deps: ServerDeps, options: ServerOptions = {}): Hono {
     bus: deps.bus,
     keepAliveMs,
     onStreamError: (err) => logError(deps.bus, 'event stream write failed', err),
+    ...(options.shutdownSignal === undefined ? {} : { shutdownSignal: options.shutdownSignal }),
   });
   mountFlock(app, { flock: deps.flock });
-  mountReplay(app, { replay: deps.replay });
+  const replayRoots = deps.replayRoots ?? defaultReplayRoots(deps.repoRoot);
+  mountReplay(app, {
+    ...(deps.replay === undefined ? {} : { replay: deps.replay }),
+    allowPath: (path) => resolveReplayPath(path, replayRoots, deps.repoRoot),
+  });
+  mountDiff(app, { engine: deps.engine, store: deps.store });
+  mountConfig(app, {
+    version: deps.version,
+    flockEnabled: deps.flock !== undefined,
+    ...(deps.publicConfig === undefined ? {} : { publicConfig: deps.publicConfig }),
+  });
 
   if (deps.webDist !== undefined) {
     const webDist = deps.webDist;
@@ -129,9 +158,22 @@ export interface ServerHandle {
  * Bind the app with `Bun.serve`. `idleTimeout: 0` disables Bun's idle timer, which would otherwise be
  * free to cut an SSE connection that has sent nothing for a while (the 15 s keep-alive covers normal
  * cases, but a paused stream must never be mistaken for a dead one).
+ *
+ * `stop()` is the graceful path: it aborts the shutdown signal first, so every open SSE stream
+ * resolves and unsubscribes from the bus, then force-closes the listener. Without the abort, a
+ * long-lived dashboard would stay subscribed until Bun tore the socket down.
  */
 export function startServer(deps: ServerDeps, options: StartServerOptions = {}): ServerHandle {
-  const app = createApp(deps, options);
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const external = options.shutdownSignal;
+  const forward = (): void => controller.abort();
+  if (external !== undefined) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener('abort', forward, { once: true });
+  }
+
+  const app = createApp(deps, { ...options, shutdownSignal: signal });
   const server = Bun.serve({
     port: options.port ?? DEFAULT_PORT,
     hostname: options.hostname ?? '0.0.0.0',
@@ -140,11 +182,16 @@ export function startServer(deps: ServerDeps, options: StartServerOptions = {}):
   });
   const port = server.port ?? options.port ?? DEFAULT_PORT;
   const url = `http://localhost:${port}`;
+  let stopped = false;
   return {
     url,
     port,
     app,
     stop: () => {
+      if (stopped) return;
+      stopped = true;
+      external?.removeEventListener('abort', forward);
+      controller.abort();
       server.stop(true);
     },
   };

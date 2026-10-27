@@ -1,22 +1,20 @@
-import type { StarlingEvent } from '@starling/core';
+import type { StarlingEvent } from '@starling/core/browser';
 
 /**
  * Browser-safe structural guard for a `StarlingEvent` envelope.
  *
- * Why this exists: `@starling/core`'s root barrel re-exports its config loader (which imports
- * `node:fs`), so a *runtime* import from core in browser code drags Node builtins into the bundle.
- * The web app's contract validation lives in `src/data/demo.ts` (the JSONL boundary, where zod is
- * worth its weight); everywhere else — the feature playgrounds and the dev-time fixture readers —
- * this guard is enough and costs nothing.
+ * Wave 2 imports `@starling/core/browser`, so this module no longer drags the config loader (and its
+ * `node:fs`/`node:path`) into the bundle. The guard stays local and dependency-free on purpose: the
+ * feature playgrounds and dev-time fixture readers do not need zod.
  *
- * It is deliberately shallow: one of the fifteen documented event types, a string `runId`, a numeric
- * `ts` and an object payload. Deep payload validation stays where it belongs (the shell's boundary
- * and every package's own zod schema).
- *
- * Wave 2 can replace this with `@starling/core/browser` once the browser entry point lands.
+ * It is deliberately shallow: one of the documented event types, a string `runId`, a numeric `ts` and
+ * an object payload. Deep payload validation stays where it belongs (the shell's boundary and every
+ * package's own zod schema). `run.status` is included ahead of core's additive event so a hub that
+ * publishes it (Epic 40) is not filtered out by an older UI.
  */
-const EVENT_TYPES: ReadonlySet<string> = new Set<StarlingEvent['type']>([
+const EVENT_TYPES: ReadonlySet<string> = new Set<string>([
   'run.created',
+  'run.status',
   'repomap.ready',
   'plan.created',
   'task.status',

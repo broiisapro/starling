@@ -2,6 +2,25 @@
 export const FEATURE = 'data' as const;
 
 export {
+  type ApiOptions,
+  demoJoinInfo,
+  fetchJoinInfo,
+  fetchPublicConfig,
+  fetchRuns,
+  fetchTaskDiff,
+  isDiffSummary,
+  isJoinInfo,
+  isPublicConfig,
+  JOIN_URL,
+  MODEL_ROLES,
+  modelLabel,
+  modelLabels,
+  PUBLIC_CONFIG_URL,
+  type PublicConfig,
+  RUNS_URL,
+  taskDiffUrl,
+} from './api';
+export {
   probeHealth,
   type SkySink,
   type StartSkyDataOptions,
@@ -38,6 +57,7 @@ export {
   applyEvents,
   type ConnectionState,
   createInitialState,
+  diffKey,
   EVENT_CAP,
   initialState,
   MERGE_CAP,
@@ -47,15 +67,18 @@ export {
   type SkyState,
   VERDICT_CAP,
 } from './reducer';
+export { isRunStatusEvent, type RunStatusEvent } from './run-status';
 export {
   activeRunOf,
   dagProps,
   drawerProps,
   flockProps,
   metricsProps,
+  type QueueExtras,
   queueProps,
   recentEvents,
   type SelectorActions,
+  type SkyExtras,
   skyProps,
   sortedNodes,
   sortedRuns,

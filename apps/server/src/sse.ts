@@ -26,6 +26,11 @@ export interface StreamEventsOptions {
   keepAliveMs?: number;
   /** Non-fatal stream failures (a write after the client vanished). Never thrown into Hono. */
   onError?: (err: unknown) => void;
+  /**
+   * Hub shutdown. Aborting resolves the stream so `server.stop()` closes SSE connections instead of
+   * waiting for an idle client to disappear.
+   */
+  signal?: AbortSignal;
 }
 
 export function matchesSince(event: StarlingEvent, since?: number): boolean {
@@ -109,19 +114,14 @@ export function streamEvents(c: Context, source: SseSource, options: StreamEvent
     };
 
     await new Promise<void>((resolve) => {
-      stream.onAbort(() => {
+      const finish = (): void => {
         stop();
         resolve();
-      });
-      c.req.raw.signal.addEventListener(
-        'abort',
-        () => {
-          stop();
-          resolve();
-        },
-        { once: true },
-      );
-      if (stream.aborted) resolve();
+      };
+      stream.onAbort(finish);
+      c.req.raw.signal.addEventListener('abort', finish, { once: true });
+      options.signal?.addEventListener('abort', finish, { once: true });
+      if (stream.aborted || options.signal?.aborted === true) finish();
     });
 
     // Let already-queued frames drain before Hono closes the stream.

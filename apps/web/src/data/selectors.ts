@@ -1,4 +1,4 @@
-import type { NodeInfo, Run, StarlingEvent, TaskRun } from '@starling/core';
+import type { NodeInfo, Run, StarlingEvent, TaskRun } from '@starling/core/browser';
 import type {
   AgentDrawerProps,
   DagViewProps,
@@ -7,7 +7,7 @@ import type {
   MetricsPanelProps,
   SkyViewProps,
 } from './handshake';
-import { RECENT_CAP, type SkyState } from './reducer';
+import { diffKey, RECENT_CAP, type SkyState } from './reducer';
 import { skyActions } from './store';
 
 /**
@@ -75,12 +75,23 @@ export function recentEvents(state: SkyState, cap = RECENT_CAP): StarlingEvent[]
   return relevant.slice(-cap);
 }
 
-export function skyProps(state: SkyState, actions: SelectorActions = storeActions): SkyViewProps {
+/**
+ * Additive props after §8 was frozen. Same intersection trick as `MetricsExtras`: the selector type
+ * compiles before core grows the field, and the call site does not change when Epic 40 adds it.
+ */
+export type SkyExtras = { paused?: boolean };
+
+export function skyProps(
+  state: SkyState,
+  actions: SelectorActions = storeActions,
+  extras: SkyExtras = {},
+): SkyViewProps & SkyExtras {
   const run = activeRun(state);
-  const props: SkyViewProps = {
+  const props: SkyViewProps & SkyExtras = {
     nodes: sortedNodes(state),
     recent: recentEvents(state),
     onSelectTask: actions.selectTask,
+    ...extras,
   };
   if (run !== undefined) props.run = run;
   if (state.selectedTask !== undefined) props.selectedTask = state.selectedTask;
@@ -158,18 +169,32 @@ export function drawerProps(state: SkyState, actions: SelectorActions = storeAct
   if (task !== undefined) props.task = task;
   const taskRun = key === undefined ? undefined : run?.tasks[key];
   if (taskRun !== undefined) props.run = displayRun(state, taskRun);
-  // Diffs are fetched lazily by the drawer at C1 (the event stream carries summaries, not patches).
+  // Fetched lazily by the shell from `/api/runs/:id/diff/:taskKey` (see `data/api.ts`). Live mode fills
+  // this within a tick of selecting a task; demo mode and a hub without diffs leave it undefined, which
+  // the drawer renders as "no diff yet".
+  const diff = key === undefined || run === undefined ? undefined : state.diffs[diffKey(run.id, key)];
+  if (diff !== undefined) props.diff = diff;
   return props;
 }
 
-export function queueProps(state: SkyState, actions: SelectorActions = storeActions): MergeQueueProps {
+export type QueueExtras = { selectedTask?: string };
+
+export function queueProps(
+  state: SkyState,
+  actions: SelectorActions = storeActions,
+  extras: QueueExtras = {},
+): MergeQueueProps & QueueExtras {
   const run = activeRun(state);
-  const props: MergeQueueProps = {
+  const props: MergeQueueProps & QueueExtras = {
     tasks: displayTasks(state, run?.tasks ?? EMPTY_TASKS),
     merges: state.merges,
     onSelectTask: actions.selectTask,
+    ...extras,
   };
   if (run?.plan !== undefined) props.plan = run.plan;
+  if (extras.selectedTask === undefined && state.selectedTask !== undefined) {
+    props.selectedTask = state.selectedTask;
+  }
   return props;
 }
 
