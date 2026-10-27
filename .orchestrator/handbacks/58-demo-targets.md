@@ -101,3 +101,5 @@
 
 - The `evals/planner` coupling (one case per `demo-goals/*.expected.md`) means **any** new sky-todo goal now requires a cross-lane change. Worth an explicit rule for Wave 3: either the eval test tolerates extra answer keys, or goal additions are coordinated with the planner-evals lane.
 - `stage` and `feature-day` both lean on the same audit-failure recipe (“tests for quoting”). It is the most reliable miss we know of, but if the models get better at following explicit test requirements, the demo loses its retry beat — `will-fail-audit` and `bug-hunt` are the fallbacks.
+
+Closes #82
