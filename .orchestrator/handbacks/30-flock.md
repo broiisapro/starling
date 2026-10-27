@@ -110,3 +110,5 @@ from Epic 00.
   Sky prefers removal, the hub can filter.
 - **`NodeInfo.kind` is forced to `'remote'` for registered perches**, even if a perch reports `local`
   about itself, because "local" is relative to whoever is asking.
+
+Closes #24
