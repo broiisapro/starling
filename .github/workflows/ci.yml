@@ -43,6 +43,19 @@ jobs:
           bun --version
           git --version
 
+      # L21 pins one toolchain. Catch a workflow edit that drifts from the repo pins before the
+      # expensive jobs run, rather than debugging a version skew inside a red test.
+      - name: Verify the pinned Bun version
+        run: |
+          if [ "$(cat .bun-version)" != "$BUN_VERSION" ]; then
+            echo "::error::.bun-version says $(cat .bun-version) but BUN_VERSION is $BUN_VERSION"
+            exit 1
+          fi
+          if ! grep -q "\"packageManager\": \"bun@$BUN_VERSION\"" package.json; then
+            echo "::error::package.json#packageManager does not pin bun@$BUN_VERSION"
+            exit 1
+          fi
+
       - name: Cache Bun install
         uses: actions/cache@v4
         with:

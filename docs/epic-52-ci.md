@@ -89,7 +89,9 @@ Put these under the `# Starling 🐦` heading (Epic 60 owns `README.md`; this sn
 - **No live tests.** `*.live.test.ts` already self-skips unless `STARLING_LIVE=1`; CI never sets it, so
   no model, opencode server or GitHub call happens in CI (L23/L29).
 - **Bun version is an env var (`BUN_VERSION`) in each workflow.** Both files pin 1.4.4 exactly; the
-  variable exists so the two occurrences cannot drift within a file.
+  variable exists so the two occurrences cannot drift within a file. The `check` job also asserts that
+  `.bun-version` and `package.json#packageManager` agree with it, so an edit to one pin cannot silently
+  leave CI testing a different Bun than the one developers install (L21).
 
 ## Interfaces for future epics
 
