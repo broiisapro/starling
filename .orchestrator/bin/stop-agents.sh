@@ -2,6 +2,7 @@
 # stop-agents.sh: stop headless agents.   stop-agents.sh          → stop ALL running agents
 #                                         stop-agents.sh 02 15    → stop only those epics
 set -u
+. "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 if [ $# -eq 0 ]; then pat="_logs/run-"; else pat="_logs/run-($(echo "$@" | tr ' ' '|'))-"; fi
 pids="$(pgrep -f -E "$pat" || true)"
 [ -z "$pids" ] && { echo "no matching agents running"; exit 0; }

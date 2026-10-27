@@ -5,13 +5,14 @@
 # deletes the branch, pulls main, tags `epic-NN-complete` on the merge commit, and pushes the tag.
 # Only run this for epics Claude has approved.
 set -uo pipefail
+. "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 cd "$(git rev-parse --show-toplevel)" || exit 1
 ROOT="$(pwd)"; WT_ROOT="$(cd .. && pwd)/starling-wt"
 [ $# -eq 0 ] && { echo "usage: close-epic.sh NN [NN...]"; exit 1; }
 
 # keep orchestrator tooling edits from blocking pulls
 if [ -n "$(git status --porcelain -- .orchestrator AGENTS.md opencode.json .gitignore)" ]; then
-  git add .orchestrator AGENTS.md opencode.json .gitignore && git commit -qm "chore(orchestrator): sync plan and tooling" && git push -q origin main && echo "• committed + pushed orchestrator file changes first"
+  git add -A -- $(ls -d .orchestrator AGENTS.md opencode.json .gitignore 2>/dev/null) && git commit -qm "chore(orchestrator): sync plan and tooling" && git push -q origin main && echo "• committed + pushed orchestrator file changes first"
 fi
 
 for nn in "$@"; do

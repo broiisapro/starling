@@ -20,6 +20,7 @@
 # Env: STARLING_DEV_MODEL (bootstrap-mbp.sh saves it in .orchestrator/local.env)
 # Bash 3.2 compatible (macOS default shell).
 set -euo pipefail
+. "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 [ -f "$REPO_ROOT/.orchestrator/local.env" ] && . "$REPO_ROOT/.orchestrator/local.env"
@@ -127,7 +128,7 @@ EOF
 
 # Agents read .orchestrator/ARCHITECTURE.md etc. from origin/main, so publish orchestrator edits first.
 if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- .orchestrator AGENTS.md opencode.json .gitignore)" ]; then
-  run "git -C '$REPO_ROOT' add .orchestrator AGENTS.md opencode.json .gitignore"
+  run "(cd '$REPO_ROOT' && git add -A -- \$(ls -d .orchestrator AGENTS.md opencode.json .gitignore 2>/dev/null))"
   run "git -C '$REPO_ROOT' commit -qm 'chore(orchestrator): prompts and plan for wave ${WAVE}'"
   run "git -C '$REPO_ROOT' pull -q --rebase origin main && git -C '$REPO_ROOT' push -q origin HEAD:main"
   echo "• published orchestrator changes to origin/main"

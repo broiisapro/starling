@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # dev-doctor.sh: checks a laptop is ready to run swarm waves. Run on BOTH the MacBook Pro and the Air.
 set -u
+. "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 ok()   { printf "  \033[32m✔\033[0m %s\n" "$1"; }
 bad()  { printf "  \033[31m✘\033[0m %s\n     → %s\n" "$1" "$2"; FAIL=1; }
 warn() { printf "  \033[33m!\033[0m %s\n     → %s\n" "$1" "$2"; }

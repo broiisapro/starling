@@ -4,6 +4,7 @@
 # Safe to re-run: every step skips itself if it's already done.
 # Usage (from the repo folder):   bash .orchestrator/bin/bootstrap-mbp.sh
 set -uo pipefail
+. "$(dirname "$0")/_log.sh"   # mirror output to ~/Code/starling-wt/_logs/commands/ for Claude
 cd "$(dirname "$0")/../.." || exit 1
 ROOT="$(pwd)"
 REPO_NAME="${REPO_NAME:-starling}"
@@ -56,8 +57,9 @@ MODEL="${STARLING_DEV_MODEL:-}"
 find_model() {
   local all; all="$(opencode models 2>/dev/null | tr -d '\r')"
   # prefer: direct deepseek provider → anything else (zen / openrouter / …)
-  echo "$all" | grep -iE '^deepseek/.*v4[.-]?1.*flash' | grep -viE 'think|reason' | head -1 && return
-  echo "$all" | grep -iE 'deepseek.*v4[.-]?1.*flash' | grep -viE 'think|reason' | head -1
+  local m; m="$(echo "$all" | grep -iE '^deepseek/.*v4[.-]?1.*flash' | grep -viE 'think|reason' | head -1)"
+  [ -z "$m" ] && m="$(echo "$all" | grep -iE 'deepseek.*v4[.-]?1.*flash' | grep -viE 'think|reason' | head -1)"
+  echo "$m"
 }
 [ -z "$MODEL" ] && MODEL="$(find_model || true)"
 if [ -z "$MODEL" ]; then
@@ -79,7 +81,7 @@ ok "using $MODEL (saved to $LOCAL_ENV, which is gitignored)"
 echo "  Smoke test: asking it to say 'chirp' (up to 2 min)…"
 OUT="$(with_timeout 120 opencode run --model "$MODEL" --auto "Reply with exactly one word: chirp" 2>&1)"
 if echo "$OUT" | grep -qi chirp; then ok "DeepSeek answered 🐦"
-else echo "$OUT" | tail -15; die "smoke test failed. Check the API key/credits, or that this opencode version supports --auto (opencode upgrade)"; fi
+else echo "$OUT" | tail -15; rm -f "$LOCAL_ENV"; die "smoke test failed. Check the API key/credits, or that this opencode version supports --auto (opencode upgrade)"; fi
 
 # ── 5. git + GitHub repo ─────────────────────────────────────────────
 step "5/7 Git repo + GitHub ($GH_LOGIN/$REPO_NAME, public)"

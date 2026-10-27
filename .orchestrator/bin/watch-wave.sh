@@ -19,7 +19,8 @@ ago() { local s=$(( $(date +%s) - $1 )); if [ $s -lt 90 ]; then echo "${s}s"; el
 while true; do
   PRS="$(gh pr list --state all --limit 200 --json headRefName,number,state,url \
           --jq '.[] | "\(.headRefName)\t\(.number)\t\(.state)\t\(.url)"' 2>/dev/null || true)"
-  clear
+  SNAP="$WT_ROOT/_logs/scoreboard-w${WAVE}.txt"; TMP="$SNAP.tmp"
+  {
   printf "🐦 Wave %s · %s · refresh %ss · Ctrl-C to quit\n\n" "$WAVE" "$(date '+%H:%M:%S')" "$EVERY"
   printf "%-24s %-9s %-7s %-6s %-44s %s\n" "EPIC" "AGENT" "COMMITS" "DIRTY" "LAST COMMIT" "PR"
   printf "%-24s %-9s %-7s %-6s %-44s %s\n" "────" "─────" "───────" "─────" "───────────" "──"
@@ -56,5 +57,7 @@ while true; do
   else
     echo "$withpr / $total PRs open. 🟢 = agent process still running · DIRTY = files changed but not committed yet"
   fi
+  } > "$TMP"
+  clear; cat "$TMP"; mv -f "$TMP" "$SNAP"   # snapshot Claude can read anytime
   sleep "$EVERY"
 done
