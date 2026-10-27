@@ -1,7 +1,7 @@
 ## Epic 51 Handback — Fully-open mode (all roles local)
 
 **Status:** Complete for this wave (the live local-model smoke is deferred to Epic 72 by instruction).
-Branch `epic/51-fully-open`.
+Branch `epic/51-fully-open` (six commits; rebased on `origin/main` before pushing).
 
 **Delivered:**
 
@@ -125,9 +125,9 @@ Branch `epic/51-fully-open`.
 
 - **Two sessions worked in this worktree.** Another session on `epic/51-fully-open` was editing
   `tools/fully-open/**` concurrently (the opencode config investigation, the smoke report, README
-  wording). The final files are the merged result; commits `4242d60`, `269b6c6` and `960315b` hold
-  parts of both. Nothing was force-pushed and no work was discarded, but the commit boundaries are
-  not as clean as usual.
+  wording). The final files are the merged result; the first four commits on this branch hold parts
+  of both. Nothing was force-pushed and no work was discarded, but the commit boundaries are not as
+  clean as usual.
 - `mixed` can move a *single* call to opencode mid-run if Ollama flaps; the warning is logged but the
   dashboard metric ("local vs API calls") does not yet distinguish a fallback from a deliberate
   route.
