@@ -4,6 +4,12 @@ name: CI
 # Biome + per-workspace typecheck, then both halves of the test suite (packages/apps, then
 # apps/web in its own process because happy-dom owns the global fetch there).
 #
+# The two test halves run as separate jobs so the wall clock is `max(packages, web)` instead of
+# their sum; `test (ubuntu-latest)` is a tiny aggregator with the same display name so the required
+# check (Epic 52) keeps its meaning. `site`, the tools/evals typechecks and the workflow self-tests
+# cover the parts the root `check`/`test` scripts cannot see (they are outside the Bun workspace, or
+# outside the root typecheck loop).
+#
 # Linux is the primary gate. The macOS job re-runs the three packages whose behaviour depends on
 # git worktrees and OS probing (`scutil`, memory tools) on the platform most contributors use.
 
@@ -28,7 +34,7 @@ jobs:
   check:
     name: lint + typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -67,11 +73,33 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      - name: Biome + typecheck
+      - name: Biome + workspace typecheck
         run: bun run check
 
-  test:
-    name: test (ubuntu-latest)
+      # The root `typecheck` loop only walks `packages/*` and `apps/*`. Everything below is real
+      # TypeScript that the workspace loop cannot see because it sits outside the Bun workspace
+      # (tools/, evals/, site/, .github/) — and root package.json is not this epic's lane.
+      # `apps/web/e2e/tsconfig.json` is conditional: Epic 140 adds it (FIX REQUEST in the handback).
+      - name: Typecheck what the root loop misses
+        run: |
+          set -euo pipefail
+          for config in tools/*/tsconfig.json evals/tsconfig.json site/tsconfig.json .github/workflows/scripts/tsconfig.json apps/web/e2e/tsconfig.json; do
+            if [ ! -f "$config" ]; then
+              echo "skip $config (not present yet)"
+              continue
+            fi
+            echo "::group::tsc -p $config"
+            bunx tsc --noEmit -p "$config"
+            echo "::endgroup::"
+          done
+
+      # Static tests for the workflows themselves (job timeouts, pinned actions, lockfile, required
+      # check names). They live under .github/, which the root test script does not walk.
+      - name: Workflow static tests
+        run: bun test .github/workflows/scripts
+
+  test-packages:
+    name: test packages
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -99,10 +127,64 @@ jobs:
       - name: Install
         run: bun install --frozen-lockfile
 
-      # Root script: packages/apps/CLI/server/skills/integrations/tools/evals, then apps/web.
-      # `*.live.test.ts` files self-skip unless STARLING_LIVE=1.
+      # packages/apps/CLI/server/skills/integrations/tools/evals. `*.live.test.ts` self-skips unless
+      # STARLING_LIVE=1.
       - name: Tests
-        run: bun run test
+        run: bun run test:packages
+
+  test-web:
+    name: test web
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
+
+      - name: Cache Bun install
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # apps/web in its own process: happy-dom replaces global fetch there (L26).
+      - name: Tests
+        run: bun run test:web
+
+  # The required check Epic 52 pinned. It stays green only when both halves ran and succeeded;
+  # `if: always()` makes it report the failure instead of being skipped when one half is red.
+  test:
+    name: test (ubuntu-latest)
+    needs: [test-packages, test-web]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Both test halves must have passed
+        env:
+          PACKAGES_RESULT: ${{ needs.test-packages.result }}
+          WEB_RESULT: ${{ needs.test-web.result }}
+        run: |
+          echo "test packages: $PACKAGES_RESULT"
+          echo "test web: $WEB_RESULT"
+          if [ "$PACKAGES_RESULT" != "success" ] || [ "$WEB_RESULT" != "success" ]; then
+            echo "::error::a test half failed (packages=$PACKAGES_RESULT, web=$WEB_RESULT)"
+            exit 1
+          fi
 
   test-macos:
     name: test (macos-latest)
@@ -134,5 +216,76 @@ jobs:
         run: bun install --frozen-lockfile
 
       # Worktrees, merges and the perch daemon are the code paths that differ per OS.
+      #
+      # Epic 52's open question (widen to apps/cli, apps/server, packages/flock?) is answered "not
+      # yet": macOS minutes are billed at 10x, this job runs for every one of ~100 PRs in the wave,
+      # and the extra packages are pure TypeScript with Linux coverage. Widen deliberately when a
+      # macOS-only regression appears outside these three packages.
       - name: OS-specific package tests
         run: bun test packages/workspace packages/merger packages/perch
+
+  site:
+    name: site
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
+
+      - name: Cache Bun install
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # site/ is outside the Bun workspace: the root `check`/`test` scripts never see it, but it
+      # builds the page that GitHub Pages deploys (Epic 59).
+      - name: Typecheck
+        run: bun run --cwd site typecheck
+
+      - name: Tests
+        run: bun run --cwd site test
+
+      - name: Build
+        run: bun run --cwd site build
+
+  # Cheap documentation gate (Epic 160 builds the deeper hygiene checker later). Offline so it is
+  # deterministic and cannot fail on a flaky third-party host while it is still being proven; flip
+  # `continue-on-error` off once the link set is clean on main.
+  docs-links:
+    name: docs links
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Check links (offline)
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --offline --no-progress --include-fragments
+            --exclude-path node_modules
+            --exclude-path fixtures
+            --exclude-path 'examples/**/.starling-answers'
+            README.md CONTRIBUTING.md 'docs/**/*.md' 'skills/**/*.md'
+          format: markdown
+          output: lychee/links.md
+          jobSummary: true
+          fail: false
