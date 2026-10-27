@@ -1,24 +1,18 @@
 import { mkdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import type { BundleOps as CoreBundleOps } from '@starling/core';
 import { exec as coreExec, StarlingError } from '@starling/core';
 
 /**
- * Git-bundle helpers used by Flock mode. This is a **local mirror** of Epic 14's `BundleOps`
- * (`packages/workspace/src/bundle.ts`), declared here so this package never imports a sibling Wave 1
- * package. At checkpoint C1 the integrator can point both at the single workspace export.
+ * Git-bundle helpers used by Flock mode.
  *
- * `createWorkspace(...)` in Epic 14 returns a superset of `Workspace`, so a real workspace instance
- * can be passed straight to `createLocalNode` — the optional methods are detected at runtime.
+ * The shape lives in core since checkpoint C1 (`BundleOps`), so this module is the git-CLI
+ * implementation and the type is the shared one. `createWorkspace(...)` also implements it, so a real
+ * workspace instance can be passed straight to `createLocalNode` — the optional methods are detected
+ * at runtime.
  */
-export interface BundleOps {
-  /** `git bundle create <out>` of `ref`, or `base..ref` when `base` is given. Returns the file path. */
-  createBundle(repo: string, ref: string, opts?: { base?: string; outPath?: string }): Promise<string>;
-  /** Clone a bundle into `dir` and check out `ref`. */
-  cloneFromBundle(bundlePath: string, dir: string, ref: string): Promise<void>;
-  /** `git fetch <bundle> ref:intoBranch` in `repo`, forcing the update. */
-  fetchBundle(repo: string, bundlePath: string, ref: string, intoBranch: string): Promise<void>;
-}
+export type BundleOps = CoreBundleOps;
 
 export interface BundleOpsOptions {
   exec?: typeof coreExec;
@@ -106,6 +100,7 @@ export function createBundleOps(options: BundleOpsOptions = {}): BundleOps {
           },
         );
       }
+      return { path: dir, branch };
     },
 
     async fetchBundle(repo, bundlePath, ref, intoBranch) {

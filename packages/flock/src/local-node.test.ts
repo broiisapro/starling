@@ -45,6 +45,7 @@ function fakeBundleOps(): BundleOps & {
     async cloneFromBundle(bundlePath, dir, ref) {
       cloned.push({ bundlePath, dir, ref });
       await Bun.write(join(dir, '.git', 'keep'), '');
+      return { path: dir, branch: ref.replace(/^refs\/heads\//, '') };
     },
     async fetchBundle(repo, bundlePath, ref, intoBranch) {
       fetched.push({ repo, bundlePath, ref, intoBranch });
