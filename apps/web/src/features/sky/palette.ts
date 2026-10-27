@@ -49,8 +49,8 @@ export const SKY_COLORS = {
   stars: '#cfe4ff',
   wire: 'rgba(190, 206, 232, 0.55)',
   wireLabel: '#c9d8f2',
-  roost: '#1d2740',
-  roostRim: 'rgba(150, 190, 255, 0.30)',
+  roost: '#0b1220',
+  roostRim: 'rgba(170, 205, 255, 0.38)',
   label: '#a8bcd8',
   halo: 'rgba(255, 255, 255, 0.20)',
 } as const;

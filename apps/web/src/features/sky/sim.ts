@@ -17,12 +17,13 @@ import {
   scatterBehaviour,
 } from './behaviour';
 import { type BoidBuffers, type BoidFlock, placeStatic, stepBoids, TAU } from './boids';
+import { applyCalmLayout } from './calm';
 import {
-  calmZone,
   layoutRoosts,
   makeWire,
   type Roost,
   roostPerchOffset,
+  roostPerchRow,
   type Wire,
   wireSlotX,
 } from './layout';
@@ -37,6 +38,27 @@ export const ACTIVITY_WINDOW_MS = 10_000;
 
 const MIGRATE = migrateBehaviour();
 const SCATTER = scatterBehaviour();
+
+/**
+ * Before the first `node.joined` arrives (frame 0 of a replay, or the very start of a live run)
+ * there is no node list yet. The Sky still needs a branch for pending birds, and the hub is the
+ * only machine that is guaranteed to exist, so we lay out a placeholder roost that the real
+ * `hub` node replaces — and grows in — a second later.
+ */
+const PLACEHOLDER_HUB: NodeInfo = {
+  id: 'hub',
+  name: 'hub',
+  kind: 'local',
+  platform: '',
+  arch: '',
+  cpuCores: 0,
+  memGb: 0,
+  maxSessions: 1,
+  activeSessions: 0,
+  localModels: [],
+  status: 'online',
+  lastSeen: 0,
+};
 
 export interface Migration {
   fromNodeId: string;
@@ -258,12 +280,13 @@ export class SkySimulation {
   }
 
   private syncRoosts(nodes: readonly NodeInfo[]): void {
+    const layoutNodes = nodes.length === 0 ? [PLACEHOLDER_HUB] : nodes;
     const previous = new Map(this.roosts.map((r) => [r.nodeId, r]));
     const wasDim = new Map<string, number>();
     const seen = new Set<string>();
     const next: Roost[] = [];
 
-    for (const r of layoutRoosts(nodes, this.width, this.height)) {
+    for (const r of layoutRoosts(layoutNodes, this.width, this.height)) {
       const old = previous.get(r.nodeId);
       if (old) {
         r.grow = old.grow;
@@ -527,13 +550,17 @@ export class SkySimulation {
       flock.leaderY = Math.min(this.height - 26, flock.enterY + flock.statusTime * 24);
     } else if (kind === 'perched') {
       flock.leaderX = rx + roostPerchOffset(flock.roostSlot, flock.roostCount);
-      flock.leaderY = ry - 8;
+      flock.leaderY = ry - 8 - roostPerchRow(flock.roostSlot);
     } else if (kind === 'hopping') {
       flock.leaderX =
         rx +
         roostPerchOffset(flock.roostSlot, flock.roostCount) +
-        Math.sin(this.simTime * 1.6 + flock.phase * TAU) * 9;
-      flock.leaderY = ry - 8 - Math.abs(Math.sin(this.simTime * 5.2 + flock.phase * TAU)) * 16;
+        Math.sin(this.simTime * 1.6 + flock.phase * TAU) * 7;
+      flock.leaderY =
+        ry -
+        8 -
+        roostPerchRow(flock.roostSlot) -
+        Math.abs(Math.sin(this.simTime * 5.2 + flock.phase * TAU)) * 14;
     } else if (kind === 'wirePerch') {
       const slots = Math.max(1, this.flocks.length);
       const x = wireSlotX(this.wire, Math.max(0, flock.mergedSlot), slots);
@@ -669,69 +696,16 @@ export class SkySimulation {
   }
 
   // ── reduced motion ───────────────────────────────────────────────────────────────────────────
-  /**
-   * Calm layout: every flock parks in the zone for its status (or on its roost / wire slot), birds
-   * in a neat 4×3 block, no flocking, no motion. `step()` then leaves the positions untouched.
-   */
+  /** Calm layout: see `calm.ts`. Every flock parks in its state zone; `step()` then freezes. */
   layoutCalm(): void {
-    const groups = new Map<TaskStatus, Flock[]>();
-    for (const flock of this.flocks) {
-      const list = groups.get(flock.status) ?? [];
-      list.push(flock);
-      groups.set(flock.status, list);
-    }
-
-    for (const [status, list] of groups) {
-      if (status === 'pending') {
-        for (const flock of list) {
-          const roost = this.roostFor(flock.nodeId);
-          const rx = roost?.x ?? this.width / 2;
-          const ry = (roost?.y ?? this.height - 26) - 8;
-          flock.leaderX = rx + roostPerchOffset(flock.roostSlot, Math.max(1, flock.roostCount));
-          flock.leaderY = ry;
-          this.placeCalmBirds(flock);
-        }
-        continue;
-      }
-      if (status === 'merged') {
-        const slots = Math.max(1, this.flocks.length);
-        for (const flock of list) {
-          const x = wireSlotX(this.wire, Math.max(0, flock.mergedSlot), slots);
-          flock.leaderX = x;
-          flock.leaderY = this.wire.yAt(x) - 5;
-          this.placeCalmBirds(flock);
-        }
-        continue;
-      }
-
-      const zone = calmZone(status, this.width, this.height);
-      const cols = Math.max(1, Math.ceil(Math.sqrt(list.length)));
-      const rows = Math.max(1, Math.ceil(list.length / cols));
-      const cellW = (zone.x1 - zone.x0) / cols;
-      const cellH = (zone.y1 - zone.y0) / rows;
-      list.forEach((flock, index) => {
-        const col = index % cols;
-        const row = Math.floor(index / cols);
-        flock.leaderX = zone.x0 + (col + 0.5) * cellW;
-        flock.leaderY = zone.y0 + (row + 0.5) * cellH;
-        this.placeCalmBirds(flock);
-      });
-    }
-  }
-
-  private placeCalmBirds(flock: Flock): void {
-    const { x, y, vx, vy } = this.birds;
-    const base = flock.birdOffset;
-    for (let j = 0; j < flock.birds; j++) {
-      const i = base + j;
-      const col = j % 4;
-      const row = Math.floor(j / 4);
-      x[i] = flock.leaderX + (col - 1.5) * 7;
-      y[i] = flock.leaderY + (row - 1) * 5;
-      vx[i] = 0;
-      vy[i] = 0;
-    }
-    flock.alpha = flock.behaviour.alpha;
+    applyCalmLayout({
+      flocks: this.flocks,
+      birds: this.birds,
+      roosts: this.roosts,
+      wire: this.wire,
+      width: this.width,
+      height: this.height,
+    });
   }
 }
 

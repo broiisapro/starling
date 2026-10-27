@@ -105,10 +105,15 @@ function roost(node: NodeInfo, x: number, y: number, width: number, side: 'left'
   };
 }
 
-/** Horizontal offset for a flock perched on a roost: spread the flock row across the branch. */
+/** Horizontal offset for a flock perched on a roost: spread the perches across the branch. */
 export function roostPerchOffset(index: number, count: number): number {
   const n = Math.max(1, count);
-  return (index - (n - 1) / 2) * 38;
+  return (index - (n - 1) / 2) * 30;
+}
+
+/** Perches alternate between two heights so seven flocks read as a perched crowd, not one line. */
+export function roostPerchRow(index: number): number {
+  return index % 2 === 0 ? 0 : 11;
 }
 
 export interface Zone {

@@ -57,14 +57,16 @@ export function formation(
   switch (kind) {
     case 'perched':
     case 'hopping': {
-      const col = j % 6;
-      const row = Math.floor(j / 6);
-      out[0] = (col - 2.5) * 7.4 * spread;
-      out[1] = -row * 4.6;
+      // 4 × 3, not 6 × 2: a perched flock is a compact clump on the branch, so several flocks can
+      // share a roost without turning into one long squiggle.
+      const col = j % 4;
+      const row = Math.floor(j / 4);
+      out[0] = (col - 1.5) * 8.4 * spread;
+      out[1] = -row * 5;
       return;
     }
     case 'wirePerch': {
-      out[0] = (j - centre) * 6.2;
+      out[0] = (j - centre) * 8.6;
       out[1] = 0;
       return;
     }
