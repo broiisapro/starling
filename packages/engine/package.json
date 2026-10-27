@@ -1,0 +1,15 @@
+{
+  "name": "@starling/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@starling/core": "workspace:*"
+  }
+}

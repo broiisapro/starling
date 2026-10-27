@@ -1,0 +1,59 @@
+{
+  "root": "examples/sky-todo",
+  "tree": "examples/sky-todo\n├── index.html\n├── package.json\n├── tsconfig.json\n├── src\n│   ├── main.ts\n│   ├── lib\n│   │   ├── dates.ts\n│   │   ├── dates.test.ts\n│   │   ├── ids.ts\n│   │   └── ids.test.ts\n│   ├── store\n│   │   ├── persist.ts\n│   │   ├── todos.ts\n│   │   └── todos.test.ts\n│   ├── ui\n│   │   ├── render.ts\n│   │   ├── styles.css\n│   └── features\n│       ├── theme/\n│       ├── search/\n│       ├── export/\n│       ├── shortcuts/\n│       └── due-dates/",
+  "files": [
+    { "path": "index.html", "bytes": 512, "lang": "html", "symbols": [] },
+    { "path": "package.json", "bytes": 288, "lang": "json", "symbols": [] },
+    { "path": "tsconfig.json", "bytes": 340, "lang": "json", "symbols": [] },
+    {
+      "path": "src/main.ts",
+      "bytes": 1180,
+      "lang": "typescript",
+      "symbols": ["mount", "handleSubmit"],
+      "summary": "Creates the store, wires the form and renders the list."
+    },
+    {
+      "path": "src/lib/dates.ts",
+      "bytes": 860,
+      "lang": "typescript",
+      "symbols": ["formatDueDate", "isOverdue", "sortByDueDate"],
+      "summary": "Date formatting, overdue check and due-date sorting helpers."
+    },
+    { "path": "src/lib/dates.test.ts", "bytes": 940, "lang": "typescript", "symbols": [], "summary": "Tests for date helpers." },
+    { "path": "src/lib/ids.ts", "bytes": 410, "lang": "typescript", "symbols": ["newTodoId"] },
+    { "path": "src/lib/ids.test.ts", "bytes": 360, "lang": "typescript", "symbols": [] },
+    {
+      "path": "src/store/todos.ts",
+      "bytes": 1620,
+      "lang": "typescript",
+      "symbols": ["createTodoStore", "addTodo", "toggleTodo", "removeTodo", "setQuery", "visibleTodos"],
+      "summary": "In-memory todo store with a tiny subscribe API."
+    },
+    { "path": "src/store/todos.test.ts", "bytes": 1240, "lang": "typescript", "symbols": [] },
+    {
+      "path": "src/store/persist.ts",
+      "bytes": 620,
+      "lang": "typescript",
+      "symbols": ["loadTodos", "saveTodos"],
+      "summary": "localStorage persistence with schema validation."
+    },
+    {
+      "path": "src/ui/render.ts",
+      "bytes": 1480,
+      "lang": "typescript",
+      "symbols": ["render", "renderItem"],
+      "summary": "Renders the todo list and applies due-date badges."
+    },
+    { "path": "src/ui/styles.css", "bytes": 980, "lang": "css", "symbols": [] },
+    { "path": "src/features/theme/index.ts", "bytes": 24, "lang": "typescript", "symbols": [] },
+    { "path": "src/features/search/index.ts", "bytes": 24, "lang": "typescript", "symbols": [] },
+    { "path": "src/features/export/index.ts", "bytes": 24, "lang": "typescript", "symbols": [] },
+    { "path": "src/features/shortcuts/index.ts", "bytes": 24, "lang": "typescript", "symbols": [] },
+    { "path": "src/features/due-dates/index.ts", "bytes": 24, "lang": "typescript", "symbols": [] }
+  ],
+  "languages": { "typescript": 13, "css": 1, "html": 1, "json": 2 },
+  "testCommand": "bun test",
+  "lintCommand": "bunx biome check .",
+  "tokenEstimate": 2480,
+  "createdAt": 1731000000000
+}

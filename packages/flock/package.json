@@ -1,0 +1,16 @@
+{
+  "name": "@starling/flock",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@starling/core": "workspace:*",
+    "bonjour-service": "1.4.4"
+  }
+}
