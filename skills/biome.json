@@ -1,0 +1,9 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.6.3/schema.json",
+  "extends": "//",
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  }
+}
