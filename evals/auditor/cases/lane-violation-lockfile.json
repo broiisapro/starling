@@ -1,0 +1,39 @@
+{
+  "name": "lane-violation-lockfile",
+  "title": "A new dependency changes package.json and bun.lock outside the lane",
+  "task": {
+    "key": "dates-relative",
+    "title": "Relative date labels for due dates",
+    "goal": "Add relativeDays labels (today, in 2 days, 3 days ago) to the date helpers.",
+    "deliverables": [
+      "relativeDays returns a human label for a due date",
+      "Existing date exports stay unchanged"
+    ],
+    "outOfScope": ["New dependencies", "Changing the sorting behaviour"],
+    "definitionOfDone": ["relativeDays handles today, a future date and a past date", "bun test passes"],
+    "dependsOn": [],
+    "lane": {
+      "owns": ["src/lib/dates.ts", "src/lib/dates.test.ts"],
+      "reads": ["src/store/todos.ts"]
+    },
+    "estimateMin": 15
+  },
+  "diff": {
+    "files": [
+      { "path": "src/lib/dates.ts", "added": 3, "removed": 2 },
+      { "path": "package.json", "added": 1, "removed": 0 },
+      { "path": "bun.lock", "added": 12, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/lib/dates.ts b/src/lib/dates.ts\nindex 1111111..2222222 100644\n--- a/src/lib/dates.ts\n+++ b/src/lib/dates.ts\n@@ -1,3 +1,5 @@\n+import { formatDistance } from 'date-fns'\n+\n export function parseDate(value: string): Date {\n   return new Date(`${value}T00:00:00`)\n }\n@@ -21,5 +23,5 @@ export function formatShort(value: string | Date): string {\n }\n \n export function relativeDays(due: string): string {\n-  return formatShort(due)\n+  return formatDistance(new Date(due), new Date(), { addSuffix: true })\n }\n\ndiff --git a/package.json b/package.json\nindex 3333333..4444444 100644\n--- a/package.json\n+++ b/package.json\n@@ -10,6 +10,7 @@\n   },\n   \"dependencies\": {\n+    \"date-fns\": \"4.1.0\"\n   },\n   \"devDependencies\": {}\n }\n\ndiff --git a/bun.lock b/bun.lock\nindex 5555555..6666666 100644\n--- a/bun.lock\n+++ b/bun.lock\n@@ -1,5 +1,10 @@\n {\n   \"lockfileVersion\": 1,\n+  \"packages\": {\n+    \"date-fns\": [\"date-fns@4.1.0\", \"\", {}, \"sha512-example\"]\n+  },\n   \"workspaces\": {}\n }\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/lib/dates.ts", "package.json", "bun.lock"],
+  "expected": {
+    "pass": false,
+    "laneViolations": ["package.json", "bun.lock"],
+    "failingChecks": ["lane"],
+    "mustMention": [["lane"], ["lockfile", "bun.lock"], ["revert"]],
+    "referenceFix": "Revert package.json and bun.lock: the task lane is src/lib/dates.ts and src/lib/dates.test.ts and the goal forbids new dependencies. Implement the label with the existing date helpers instead.",
+    "rationale": "The behaviour may be fine, but adding date-fns edits the manifest and the lockfile outside the lane. A lockfile change on a parallel branch is exactly what the lane rule prevents."
+  }
+}

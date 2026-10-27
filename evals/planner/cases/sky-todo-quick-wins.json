@@ -1,0 +1,31 @@
+{
+  "name": "sky-todo-quick-wins",
+  "goal": "Show the open-task count in the browser tab title, show today's date in the header, and add a footer note with how many distinct tags are in use.",
+  "repomap": "fixtures/repomaps/sky-todo.json",
+  "taskCount": { "min": 3, "max": 3 },
+  "features": [
+    {
+      "id": "title-count",
+      "summary": "Open-task count in the browser tab title.",
+      "keywords": [["count", "number"], ["tab title", "browser tab", "document.title", "title"]]
+    },
+    {
+      "id": "today",
+      "summary": "Today's date in the header.",
+      "keywords": [["today", "date"]]
+    },
+    {
+      "id": "tag-count",
+      "summary": "Distinct tag count in the footer.",
+      "keywords": [["tag"], ["count", "number"]]
+    }
+  ],
+  "requiredDeps": [],
+  "requiredLaneFiles": [
+    "src/features/title-count/index.ts",
+    "src/features/today/index.ts",
+    "src/features/tag-count/index.ts"
+  ],
+  "forbiddenFiles": ["src/ui/render.ts", "src/main.ts", "src/ui/styles.css", "package.json"],
+  "notes": "Smoke test: three independent feature folders, zero shared writes."
+}

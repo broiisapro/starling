@@ -1,0 +1,31 @@
+{
+  "name": "test-only-regression",
+  "title": "A test-only task that adds the missing regression test",
+  "task": {
+    "key": "dates-regression",
+    "title": "Add regression tests for the overdue boundary",
+    "goal": "Lock in the local-calendar-day behaviour of isOverdue with a regression test.",
+    "deliverables": [
+      "A test that fails on the old isOverdue implementation",
+      "The test passes on the current code"
+    ],
+    "outOfScope": ["Changing src/lib/dates.ts"],
+    "definitionOfDone": ["A regression test fails on the old isOverdue implementation", "bun test passes"],
+    "dependsOn": ["dates-fix"],
+    "lane": { "owns": ["src/lib/dates.test.ts"], "reads": ["src/lib/dates.ts"] },
+    "estimateMin": 10
+  },
+  "diff": {
+    "files": [{ "path": "src/lib/dates.test.ts", "added": 16, "removed": 0 }],
+    "patch": "diff --git a/src/lib/dates.test.ts b/src/lib/dates.test.ts\nindex aaaaaaa..bbbbbbb 100644\n--- a/src/lib/dates.test.ts\n+++ b/src/lib/dates.test.ts\n@@ -30,3 +30,19 @@ describe('isOverdue', () => {\n   test('yesterday is overdue', () => {\n     expect(isOverdue(dateOffset(-1))).toBe(true)\n   })\n+\n+  test('a task due today is not overdue, even late in the day', () => {\n+    const now = new Date('2026-03-14T23:30:00')\n+    expect(isOverdue('2026-03-14', now)).toBe(false)\n+  })\n+\n+  test('a task due tomorrow is not overdue across the DST boundary', () => {\n+    const now = new Date('2026-03-08T01:30:00')\n+    expect(isOverdue('2026-03-09', now)).toBe(false)\n+  })\n+\n+  test('yesterday is overdue in local time', () => {\n+    const now = new Date('2026-03-14T00:30:00')\n+    expect(isOverdue('2026-03-13', now)).toBe(true)\n+  })\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/lib/dates.test.ts"],
+  "expected": {
+    "pass": true,
+    "laneViolations": [],
+    "failingChecks": [],
+    "mustMention": [],
+    "rationale": "Test-only task: the deliverable is the regression test itself. The diff is inside the lane and the suite is green, so no production change is required."
+  }
+}

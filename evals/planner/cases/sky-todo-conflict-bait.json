@@ -1,0 +1,23 @@
+{
+  "name": "sky-todo-conflict-bait",
+  "goal": "Add a \"Sort by due date\" toggle and a \"Delete all\" button to the footer in src/ui/render.ts.",
+  "repomap": "fixtures/repomaps/sky-todo.json",
+  "taskCount": { "min": 1, "max": 2 },
+  "features": [
+    {
+      "id": "date-sort",
+      "summary": "Sort-by-due toggle in the footer.",
+      "keywords": [["sort"], ["due"]]
+    },
+    {
+      "id": "delete-all",
+      "summary": "Delete-all button in the footer.",
+      "keywords": [["delete", "clear"]]
+    }
+  ],
+  "requiredDeps": [],
+  "requiredLaneFiles": ["src/ui/render.ts", "src/ui/styles.css"],
+  "forbiddenFiles": [],
+  "validator": { "anyOf": [[], ["lane-overlap"]] },
+  "notes": "Deliberately overlaps on src/ui/render.ts. Either the planner repairs it into one task (no errors) or keeps two tasks and surfaces lane-overlap; both are acceptable. Anything else (an empty lane, a missing dep) is a planning bug."
+}

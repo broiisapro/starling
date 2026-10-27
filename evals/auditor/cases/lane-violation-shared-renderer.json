@@ -1,0 +1,33 @@
+{
+  "name": "lane-violation-shared-renderer",
+  "title": "Badges mounted by editing the shared renderer and stylesheet",
+  "task": {
+    "key": "due-badges",
+    "title": "Due-date badges on todo rows",
+    "goal": "Render due-date badges through the item-badges slot.",
+    "deliverables": ["item-badges slot item", "Overdue badges carry an is-overdue class"],
+    "outOfScope": ["Editing src/ui/render.ts", "Editing src/ui/styles.css"],
+    "definitionOfDone": ["Badges render for dated todos", "bun test passes"],
+    "dependsOn": ["dates-fix"],
+    "lane": { "owns": ["src/features/due-dates/**"], "reads": ["src/lib/dates.ts", "src/ui/slots.ts"] },
+    "estimateMin": 15
+  },
+  "diff": {
+    "files": [
+      { "path": "src/features/due-dates/index.ts", "added": 18, "removed": 0 },
+      { "path": "src/ui/render.ts", "added": 5, "removed": 1 },
+      { "path": "src/ui/styles.css", "added": 4, "removed": 0 }
+    ],
+    "patch": "diff --git a/src/features/due-dates/index.ts b/src/features/due-dates/index.ts\nnew file mode 100644\n--- /dev/null\n+++ b/src/features/due-dates/index.ts\n@@ -0,0 +1,18 @@\n+import { isOverdue, relativeDays } from '../../lib/dates'\n+import { defineFeature } from '../registry'\n+\n+export default defineFeature({\n+  id: 'due-dates',\n+  register({ slots }) {\n+    slots.register({\n+      id: 'due-badge',\n+      slot: 'item-badges',\n+      render: (todo) => {\n+        const node = document.createElement('span')\n+        node.className = todo.due && isOverdue(todo.due) ? 'due-badge is-overdue' : 'due-badge'\n+        node.textContent = todo.due ? relativeDays(todo.due) : ''\n+        return node\n+      },\n+    })\n+  },\n+})\n+\ndiff --git a/src/ui/render.ts b/src/ui/render.ts\nindex 2222222..3333333 100644\n--- a/src/ui/render.ts\n+++ b/src/ui/render.ts\n@@ -58,7 +58,10 @@ function renderItem(todo: Todo): HTMLElement {\n   row.append(title)\n+  if (todo.due) {\n+    const badge = document.createElement('span')\n+    badge.textContent = relativeDays(todo.due)\n+    row.append(badge)\n+  }\n   return row\n }\n\ndiff --git a/src/ui/styles.css b/src/ui/styles.css\nindex 4444444..5555555 100644\n--- a/src/ui/styles.css\n+++ b/src/ui/styles.css\n@@ -80,3 +80,7 @@\n+.due-badge {\n+  font-size: 0.8rem;\n+  color: var(--sky-muted);\n+}\n",
+    "truncated": false
+  },
+  "changedFiles": ["src/features/due-dates/index.ts", "src/ui/render.ts", "src/ui/styles.css"],
+  "expected": {
+    "pass": false,
+    "laneViolations": ["src/ui/render.ts", "src/ui/styles.css"],
+    "failingChecks": ["lane"],
+    "mustMention": [["lane"], ["render.ts"], ["slot"]],
+    "referenceFix": "Revert src/ui/render.ts and src/ui/styles.css: badges must register through the item-badges slot from src/features/due-dates/**, which keeps the shared renderer outside the lane.",
+    "rationale": "The feature folder is correct, but mounting by editing the shared renderer and stylesheet breaks the lane and races every other feature task."
+  }
+}

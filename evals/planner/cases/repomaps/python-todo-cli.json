@@ -1,0 +1,51 @@
+{
+  "root": "examples/synthetic/python-todo-cli",
+  "tree": "python-todo-cli\n├── pyproject.toml\n├── README.md\n├── src\n│   └── todo_cli\n│       ├── __init__.py\n│       ├── cli.py\n│       ├── store.py\n│       └── commands\n│           ├── add.py\n│           ├── done.py\n│           └── list.py\n└── tests\n    ├── test_add.py\n    └── test_list.py",
+  "files": [
+    { "path": "pyproject.toml", "bytes": 520, "lang": "toml", "symbols": [] },
+    { "path": "README.md", "bytes": 640, "lang": "markdown", "symbols": [] },
+    { "path": "src/todo_cli/__init__.py", "bytes": 80, "lang": "python", "symbols": [] },
+    {
+      "path": "src/todo_cli/cli.py",
+      "bytes": 1320,
+      "lang": "python",
+      "symbols": ["main", "build_parser"],
+      "summary": "argparse entry point that dispatches subcommands."
+    },
+    {
+      "path": "src/todo_cli/store.py",
+      "bytes": 1100,
+      "lang": "python",
+      "symbols": ["TodoStore", "load", "save"],
+      "summary": "JSON-file-backed todo store."
+    },
+    {
+      "path": "src/todo_cli/commands/add.py",
+      "bytes": 640,
+      "lang": "python",
+      "symbols": ["add"],
+      "summary": "Adds a todo with an optional due date."
+    },
+    {
+      "path": "src/todo_cli/commands/done.py",
+      "bytes": 520,
+      "lang": "python",
+      "symbols": ["mark_done"],
+      "summary": "Marks a todo complete by id."
+    },
+    {
+      "path": "src/todo_cli/commands/list.py",
+      "bytes": 780,
+      "lang": "python",
+      "symbols": ["list_todos"],
+      "summary": "Prints todos as aligned plain text."
+    },
+    { "path": "tests/test_add.py", "bytes": 460, "lang": "python", "symbols": [] },
+    { "path": "tests/test_list.py", "bytes": 440, "lang": "python", "symbols": [] }
+  ],
+  "languages": { "toml": 1, "markdown": 1, "python": 8 },
+  "testCommand": "pytest -q",
+  "lintCommand": "ruff check .",
+  "tokenEstimate": 1600,
+  "createdAt": 1731000000000
+}

@@ -1,0 +1,17 @@
+{
+  "name": "sky-todo-will-fail-audit",
+  "goal": "Add CSV export with tests for quoting and commas.",
+  "repomap": "fixtures/repomaps/sky-todo.json",
+  "taskCount": { "min": 1, "max": 1 },
+  "features": [
+    {
+      "id": "csv-export",
+      "summary": "CSV export with quoting tests.",
+      "keywords": [["csv"], ["export"]]
+    }
+  ],
+  "requiredDeps": [],
+  "requiredLaneFiles": ["src/features/export/index.ts"],
+  "forbiddenFiles": ["src/ui/render.ts", "src/main.ts", "package.json"],
+  "notes": "A clean, well-scoped single task. The demo's tension is in the audit, not the plan."
+}

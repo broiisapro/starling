@@ -1,0 +1,3 @@
+# Run reports are build artefacts. Keep the folder, ignore the output.
+*.json
+!.gitignore
