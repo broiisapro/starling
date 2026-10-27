@@ -1,5 +1,13 @@
 # Expected decomposition — stage
 
+> **Where this file lives.** It sits in `.starling-answers/` rather than next to
+> the other `*.expected.md` files because `evals/planner/cases.test.ts` asserts
+> that every `demo-goals/*.expected.md` has a matching planner case, and the
+> planner-case lane belongs to Epic 48. When the `sky-todo-stage` case lands,
+> move this file back with
+> `git mv examples/sky-todo/.starling-answers/stage.expected.md examples/sky-todo/demo-goals/stage.expected.md`.
+> Both locations are stripped from demo repos, so there is no leak either way.
+
 **Goal (6 tasks, ≤ 8 minutes with 6 agents).** The middle-length demo beat: more
 than `quick-wins`, much shorter than `launch-day-xl`, one visible audit failure
 and one retry. Every task is one feature folder, so all six dispatch at t0 and

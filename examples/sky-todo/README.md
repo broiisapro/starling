@@ -36,7 +36,7 @@ src/features/README.md    the slot API — read this before writing a feature
 src/features/item-count/  the reference feature (one footer slot item + CSS)
 src/features/<name>/      empty folders reserved for the demo features
 demo-goals/               ready-to-run goals + *.expected.md answer keys
-.starling-answers/        seeded-bug answer key (never copied into a demo repo)
+.starling-answers/        seeded-bug and stage-run answer keys (never copied into a demo repo)
 ```
 
 ## Features are folders
@@ -88,6 +88,12 @@ starling run "$(cat demo-goals/launch-day.md)" --repo .
 The sibling `*.expected.md` files are the answer keys for evals: ideal task
 keys, lanes, dependencies and why the lanes are disjoint. They are excluded from
 demo repos by `examples/scripts/make-demo-repo.sh`.
+
+`stage`'s decomposition lives in
+[`.starling-answers/stage.expected.md`](.starling-answers/stage.expected.md)
+instead of next to the other keys: `evals/planner/cases.test.ts` requires one
+planner case per `demo-goals/*.expected.md`, and the stage case belongs to the
+planner-evals lane. Both folders are stripped from demo repos.
 
 ## Seeded bugs
 

@@ -80,6 +80,12 @@ dependencies and why the lanes are disjoint). Answer keys are stripped from demo
 repos, and the seeded-bug walkthroughs live in each target's
 `.starling-answers/BUGS.md`, which is stripped too.
 
+One exception worth knowing: sky-todo's `stage` decomposition lives in
+`sky-todo/.starling-answers/stage.expected.md`, because
+`evals/planner/cases.test.ts` pairs every `demo-goals/*.expected.md` with a
+planner case and the stage case is the planner-evals lane's to add. It is
+stripped from demo repos all the same.
+
 ## Adding a target
 
 1. Make a folder here with a real install and a green test suite.
