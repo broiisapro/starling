@@ -8,6 +8,15 @@
 export const PACKAGE = '@starling/auditor' as const;
 
 export { createAuditor } from './auditor';
+export type { CommandEvaluation, CommandMode, CommandPolicy } from './command-policy';
+export {
+  DEFAULT_ALLOWED_COMMANDS,
+  DEFAULT_COMMAND_POLICY,
+  evaluateCommand,
+  isSecretEnvName,
+  resolveCommandPolicy,
+  scrubbedEnv,
+} from './command-policy';
 export type { CommandResult } from './commands';
 export {
   COMMAND_OUTPUT_TAIL_CHARS,
@@ -15,7 +24,12 @@ export {
   runShellCommand,
   tailText,
 } from './commands';
-export type { DiffBlock, DiffSignals, MissingTestsSignal, PrioritisedDiff } from './diff';
+export type {
+  DiffBlock,
+  DiffSignals,
+  MissingTestsSignal,
+  PrioritisedDiff,
+} from './diff';
 export {
   diffSignals,
   dodTestRequirements,
@@ -27,8 +41,15 @@ export {
   splitDiff,
   TEST_PATH_GLOBS,
 } from './diff';
-export type { LaneCheckResult } from './lane';
-export { checkLane, isBookkeepingPath, STARLING_BOOKKEEPING_GLOBS } from './lane';
+export type { ExplainedCheck, VerdictExplanation } from './explain';
+export {
+  CHECK_LABELS,
+  DETAIL_TAIL_CHARS,
+  explainVerdict,
+  formatVerdictExplanation,
+} from './explain';
+export type { CanonicalLanePath, LaneCheckResult, LanePathProblem } from './lane';
+export { canonicalLanePath, checkLane, isBookkeepingPath, STARLING_BOOKKEEPING_GLOBS } from './lane';
 export type {
   AuditorLlmMode,
   AuditorModelChoice,
