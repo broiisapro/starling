@@ -1,11 +1,6 @@
-// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.
-import type { AgentEvent, AuditVerdict, DiffSummary, TaskRun, TaskSpec } from '@starling/core';
-
-export interface AgentDrawerProps {
-  task?: TaskSpec;
-  run?: TaskRun;
-  events: AgentEvent[];
-  verdicts: AuditVerdict[];
-  diff?: DiffSummary;
-  onClose(): void;
-}
+/**
+ * The §8 handshake moved into `@starling/core` at checkpoint C1 (`packages/core/src/handshake.ts`).
+ *
+ * This file stays as a one-line re-export so every existing import keeps working.
+ */
+export type { AgentDrawerProps } from '@starling/core';

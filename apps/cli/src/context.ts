@@ -1,4 +1,4 @@
-import type { ExecOptions, ExecResult, StarlingConfig } from '@starling/core';
+import type { ExecOptions, ExecResult, StarlingConfig, StarlingErrorCode } from '@starling/core';
 import { exec as coreExec, isStarlingError, loadConfig, StarlingError } from '@starling/core';
 import type { ComposeOptions, Composition } from './compose';
 import { compose } from './compose';
@@ -106,11 +106,15 @@ export function createCliContext(deps: CliDeps = {}): CliContext {
   return context;
 }
 
-const HINTS: Partial<Record<string, string>> = {
+const HINTS: Partial<Record<StarlingErrorCode, string>> = {
   CONFIG_INVALID: 'fix starling.config.yaml, or run `starling init --force` to start over',
   INVALID_ARGUMENT: 'run `starling <command> --help` for usage',
   EXEC_FAILED: 'is the binary installed and on your PATH?',
   EXEC_TIMEOUT: 'the command took too long — try again with a smaller repo',
+  GIT_TOO_OLD: 'upgrade git to 2.38 or newer (conflict prediction needs merge-tree --write-tree)',
+  GH_AUTH: 'run `gh auth login` and try again',
+  GH_MISSING: 'install the GitHub CLI (`gh`) and put it on your PATH',
+  NODE_AUTH: 'the join code is wrong — re-run `starling flock` on the hub for a fresh command',
   NOT_IMPLEMENTED: 'this part lands in a later wave',
   NOT_WIRED: 'real wiring lands in epic 40 — the mock composition is fully runnable now',
 };
