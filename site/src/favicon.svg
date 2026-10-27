@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Starling">
+  <defs>
+    <linearGradient id="g" x1="4" y1="4" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#63d2ff" />
+      <stop offset="0.55" stop-color="#3fe0c5" />
+      <stop offset="1" stop-color="#b18cff" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#070b1c" />
+  <path d="M5 20.5 13 13l4.6 4.4L27 9" fill="none" stroke="url(#g)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M21.6 8.6H27v5.3" fill="none" stroke="url(#g)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="8.4" cy="24.4" r="1.5" fill="#ffd9a0" />
+  <circle cx="13.2" cy="24.4" r="1.5" fill="#3fe0c5" />
+  <circle cx="18" cy="24.4" r="1.5" fill="#b18cff" />
+</svg>

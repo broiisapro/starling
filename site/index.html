@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Starling — one goal in, a murmuration out</title>
+    <meta
+      name="description"
+      content="Starling is an open-source, open-weight-first orchestration harness. One goal becomes a lane-safe task DAG, a flock of coding agents works in parallel git worktrees across your laptops, a local model audits every diff, and a merge queue lands it all on one green branch."
+    />
+    <meta name="theme-color" content="#04060f" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="./src/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Starling — one goal in, a murmuration out" />
+    <meta
+      property="og:description"
+      content="An open-source, open-weight-first harness for coding agents: lane-safe plans, parallel git worktrees, local model audits, one green integration branch."
+    />
+    <meta property="og:url" content="https://github.com/broiisapro/starling" />
+    <meta property="og:image" content="https://raw.githubusercontent.com/broiisapro/starling/main/site/screens/hero.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="brand" href="#top" aria-label="Starling, back to the top">
+          <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M3 22 11 14l4.8 4.6L29 7" />
+            <path d="M22.4 6H29v6.4" />
+          </svg>
+          <span class="brand-name">Starling</span>
+          <span class="brand-tag">MIT</span>
+        </a>
+        <nav class="nav-links" aria-label="Sections">
+          <a href="#how">How it works</a>
+          <a href="#open-weights">Open weights</a>
+          <a href="#flock">Flock mode</a>
+          <a href="#built-by">Built by</a>
+          <a href="#quickstart">Quickstart</a>
+        </nav>
+        <a class="gh-link" href="https://github.com/broiisapro/starling">
+          <svg viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.4 7.4 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"
+            />
+          </svg>
+          GitHub
+          <span class="gh-star" aria-hidden="true">↗</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top">
+        <div class="sky" aria-hidden="true">
+          <canvas id="sky"></canvas>
+          <div class="sky-scrim"></div>
+        </div>
+
+        <div class="wrap hero-inner">
+          <p class="kicker">
+            <span class="pulse-dot"></span>
+            Hacktoberfest Queen's 2026 · MIT
+          </p>
+
+          <h1>
+            One goal in.<br />
+            <span class="grad">A murmuration out.</span>
+          </h1>
+
+          <p class="lede">
+            Starling splits a coding goal into <strong>lane-safe tasks</strong>, flies a flock of
+            open-weight agents in parallel git worktrees on every laptop you own, audits each diff
+            <strong>on your own machine</strong>, and merges the good ones onto one green branch.
+          </p>
+
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#quickstart">
+              Get the flock flying
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" /></svg>
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/broiisapro/starling">
+              Read the source
+              <span aria-hidden="true">↗</span>
+            </a>
+          </div>
+
+          <div class="runline">
+            <span class="runline-prompt" aria-hidden="true">$</span>
+            <code>starling run "add dark mode, search and CSV export" --repo ./my-app</code>
+            <button type="button" class="copy" data-copy aria-label="Copy example command"></button>
+          </div>
+
+          <ul class="pill-row" aria-label="Starling at a glance">
+            <li>Lane-checked plans</li>
+            <li>$0 local audits</li>
+            <li>Multi-laptop flock</li>
+            <li>MIT licensed</li>
+          </ul>
+        </div>
+
+        <a class="scroll-cue" href="#pitch">
+          <span>See how it flies</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v9M4.5 8.5 8 12l3.5-3.5" /></svg>
+        </a>
+      </section>
+
+      <section class="pitch-band" id="pitch" aria-labelledby="pitch-title">
+        <div class="wrap pitch-inner reveal">
+          <p class="kicker" id="pitch-title">The 20-second pitch</p>
+          <blockquote>
+            “One person, two laptops and thirty-five open-weight agents built a real orchestrator in a
+            day. Starling turns a single goal into a lane-safe plan, runs the flock in parallel, audits
+            every diff with a local model, and merges only what passes.”
+          </blockquote>
+          <p class="pitch-by">Starlings murmur with three local rules. So does this.</p>
+        </div>
+      </section>
+
+      <section class="section" id="how" aria-labelledby="how-title">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <p class="kicker">How it works</p>
+            <h2 id="how-title">One goal in, a flock out</h2>
+            <p class="section-lede">
+              A murmuration has no conductor: each bird follows a few local rules and the flock moves as
+              one. Starling gives its agents the same deal — small independent lanes, checked before
+              take-off.
+            </p>
+          </header>
+
+          <ol class="steps">
+            <li class="step reveal">
+              <span class="step-num" aria-hidden="true">01</span>
+              <div class="step-icon" aria-hidden="true">
+                <svg viewBox="0 0 40 40" aria-hidden="true">
+                  <rect x="4" y="6" width="13" height="9" rx="2.5" />
+                  <rect x="23" y="6" width="13" height="9" rx="2.5" />
+                  <rect x="13.5" y="24" width="13" height="9" rx="2.5" />
+                  <path d="M10.5 15v4.5h9v4M29.5 15v4.5h-9" />
+                </svg>
+              </div>
+              <h3>Plan into lanes</h3>
+              <p>
+                The planner turns one sentence into a DAG where every task owns its own globs. Lanes are
+                validated for overlap, so parallel work is conflict-free by construction.
+              </p>
+              <p class="step-meta">DeepSeek V4.1 Flash · DAG + globs + definition of done</p>
+            </li>
+
+            <li class="step reveal">
+              <span class="step-num" aria-hidden="true">02</span>
+              <div class="step-icon" aria-hidden="true">
+                <svg viewBox="0 0 40 40" aria-hidden="true">
+                  <path d="M5 20h7M28 20h7" />
+                  <rect x="12" y="11" width="16" height="18" rx="3" />
+                  <path d="M17 16h6M17 20h6M17 24h4" />
+                  <circle cx="33" cy="9" r="2.5" />
+                  <circle cx="7" cy="31" r="2.5" />
+                </svg>
+              </div>
+              <h3>Fly the flock</h3>
+              <p>
+                Each ready task gets a git worktree, a branch and its own opencode session. Prompts
+                restate the goal, deliverables, out-of-scope and a literal definition of done. Up to N
+                birds at once, across machines.
+              </p>
+              <p class="step-meta">opencode · worktrees · capacity scheduler</p>
+            </li>
+
+            <li class="step reveal">
+              <span class="step-num" aria-hidden="true">03</span>
+              <div class="step-icon" aria-hidden="true">
+                <svg viewBox="0 0 40 40" aria-hidden="true">
+                  <path d="m5 20 6 6 10-12M21 26l4 4 10-12" />
+                  <path d="M5 9h12M5 33h30" />
+                </svg>
+              </div>
+              <h3>Audit, then land</h3>
+              <p>
+                Tests, a lane check and a local Qwen model judge every diff. Failures return to the same
+                bird with exact fix instructions; passes queue up and merge in DAG order. Birds land when
+                the branch is green.
+              </p>
+              <p class="step-meta">Local auditor · merge queue · integration branch</p>
+            </li>
+          </ol>
+
+          <div class="legend reveal">
+            <p class="legend-title">In the sky</p>
+            <ul class="legend-list" aria-label="Task states shown in the dashboard">
+              <li class="legend-item"><i class="dot dot-pending" aria-hidden="true"></i>pending</li>
+              <li class="legend-item"><i class="dot dot-running" aria-hidden="true"></i>flying</li>
+              <li class="legend-item"><i class="dot dot-auditing" aria-hidden="true"></i>auditing</li>
+              <li class="legend-item"><i class="dot dot-fixing" aria-hidden="true"></i>fixing</li>
+              <li class="legend-item"><i class="dot dot-merging" aria-hidden="true"></i>merging</li>
+              <li class="legend-item"><i class="dot dot-merged" aria-hidden="true"></i>merged</li>
+              <li class="legend-item"><i class="dot dot-failed" aria-hidden="true"></i>failed</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt" id="open-weights" aria-labelledby="weights-title">
+        <div class="wrap split">
+          <div class="split-copy reveal">
+            <p class="kicker">The open-weight story</p>
+            <h2 id="weights-title">Open weights all the way down. The judging stays home.</h2>
+            <p class="section-lede">
+              The hard reasoning rides DeepSeek V4.1 Flash. The high-volume judging — every audit, file
+              summary and PR note — runs on a Qwen model on this laptop. No key required, no bill per
+              verdict.
+            </p>
+            <ul class="fact-list">
+              <li>
+                <strong>MIT weights</strong> for planning, coding and conflict resolution. One model
+                family, from the plan to the patch.
+              </li>
+              <li>
+                <strong>Apache-2.0 locally</strong> for the auditor. Strict JSON every time, so a verdict
+                can gate a merge without a human reading it.
+              </li>
+              <li>
+                <strong>No API key needed.</strong> Route every role through the opencode session you
+                already pay for, or run the whole thing on Ollama with
+                <code>--fully-open</code> routing.
+              </li>
+            </ul>
+            <p class="source-note">
+              Local numbers measured by <code>tools/local-models/results</code> on an Apple M5 with 32 GB:
+              the warm audit path, not a marketing benchmark.
+            </p>
+          </div>
+
+          <div class="route-card reveal">
+            <div class="route-head">
+              <span>Role</span>
+              <span>Model</span>
+              <span>Where</span>
+            </div>
+            <div class="route-row">
+              <span class="route-role">Planner · Worker · Resolver</span>
+              <span class="route-model"><b>DeepSeek V4.1 Flash</b><em>MIT weights</em></span>
+              <span class="route-where">DeepSeek API<br />or your opencode</span>
+            </div>
+            <div class="route-row">
+              <span class="route-role">Auditor · Summarizer · Writer</span>
+              <span class="route-model"><b>Qwen3.8 27B</b><em>MLX · Apache-2.0</em></span>
+              <span class="route-where">This Mac<br />via Ollama</span>
+            </div>
+            <div class="meter-row">
+              <div class="meter">
+                <span class="meter-value">18.3</span>
+                <span class="meter-label">tok/s warm</span>
+              </div>
+              <div class="meter">
+                <span class="meter-value">~19 GB</span>
+                <span class="meter-label">resident</span>
+              </div>
+              <div class="meter">
+                <span class="meter-value">$0</span>
+                <span class="meter-label">per verdict</span>
+              </div>
+            </div>
+            <p class="route-foot">
+              The same three rules for every role: local by default, strict JSON, and a cost meter that
+              shows both sides of the split.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="flock" aria-labelledby="flock-title">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <p class="kicker">Flock mode</p>
+            <h2 id="flock-title">The laptops in the room are the cluster.</h2>
+            <p class="section-lede">
+              Run one command on a second Mac. It joins as a roost, takes tasks by free capacity, and
+              disappears cleanly if a lid closes. No cloud, no shared disk, no SSH.
+            </p>
+          </header>
+
+          <div class="flock-grid">
+            <div class="flock-diagram reveal" aria-hidden="true">
+              <div class="roost roost-hub">
+                <span class="roost-label">Hub</span>
+                <strong>This MacBook Pro</strong>
+                <span class="roost-sub">engine · audits · merge queue</span>
+                <span class="roost-slots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+              </div>
+              <div class="link">
+                <span class="link-send">git bundle ↓</span>
+                <span class="link-line"></span>
+                <span class="link-back">result bundle ↑</span>
+              </div>
+              <div class="roost roost-perch">
+                <span class="roost-label">Perch</span>
+                <strong>M2 Air · any laptop</strong>
+                <span class="roost-sub">opencode · worktree · tests</span>
+                <span class="roost-slots"><i></i><i></i><i></i><i></i><i></i></span>
+              </div>
+            </div>
+
+            <ul class="flock-facts reveal">
+              <li>
+                <h3>Git bundles, not a shared disk</h3>
+                <p>
+                  The hub ships the branch as a bundle; the perch works in its own worktree and sends
+                  the result back the same way.
+                </p>
+              </li>
+              <li>
+                <h3>Discovery that always works</h3>
+                <p>
+                  mDNS finds roosts on the LAN. When wifi blocks multicast, a join code and a URL are
+                  enough.
+                </p>
+              </li>
+              <li>
+                <h3>Heartbeats every 3 s</h3>
+                <p>
+                  A perch missing for 15 s is offline, and its running task is rescheduled with the
+                  attempt count unchanged.
+                </p>
+              </li>
+              <li>
+                <h3>One source of truth</h3>
+                <p>
+                  Audit and merge only ever happen on the hub's repo, so a perch can never fork history.
+                </p>
+              </li>
+            </ul>
+          </div>
+
+          <div class="runline runline-wide reveal">
+            <span class="runline-prompt" aria-hidden="true">$</span>
+            <code>starling perch --hub http://192.168.1.20:7777 --code STAR-LING</code>
+            <button type="button" class="copy" data-copy aria-label="Copy perch command"></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section section-alt" id="built-by" aria-labelledby="built-title">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <p class="kicker">Built by the flock</p>
+            <h2 id="built-title">Starling was built the way it works.</h2>
+            <p class="section-lede">
+              Parallel lanes, compiled prompts, an audit before every merge. One person, two laptops, a
+              lot of birds, and a PR graph that is the proof.
+            </p>
+          </header>
+
+          <div class="stat-grid reveal" id="stat-grid">
+            <div class="stat">
+              <span class="stat-value" data-stat="epics">28</span>
+              <span class="stat-label">epics landed</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" data-stat="prs">28</span>
+              <span class="stat-label">pull requests</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" data-stat="tests">1,785</span>
+              <span class="stat-label">tests green</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" data-stat="agents">35</span>
+              <span class="stat-label">agents in parallel</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" data-stat="laptops">2</span>
+              <span class="stat-label">laptops</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value" data-stat="commits">37</span>
+              <span class="stat-label">commits on main</span>
+            </div>
+          </div>
+
+          <p class="stat-note reveal">
+            Snapshot of this build, regenerated from git and GitHub into
+            <code>site/data/stats.json</code> on <span data-stats-date>27 October 2026</span>.
+          </p>
+        </div>
+      </section>
+
+      <section class="section" id="quickstart" aria-labelledby="quickstart-title">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <p class="kicker">Quickstart</p>
+            <h2 id="quickstart-title">Take off in three commands.</h2>
+            <p class="section-lede">
+              Bun 1.4+, git, and opencode. Point Starling at a repo you have already committed — it
+              branches from a clean base and never touches your working tree.
+            </p>
+          </header>
+
+          <div class="quick-grid">
+            <div class="terminal reveal">
+              <div class="terminal-bar">
+                <span class="terminal-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span class="terminal-title">starling · zsh</span>
+              </div>
+
+              <div class="term-step">
+                <span class="term-label">1 · install</span>
+                <div class="term-line">
+                  <code><span class="c"># clone and install</span>
+git clone https://github.com/broiisapro/starling.git
+cd starling &amp;&amp; bun install</code>
+                  <button type="button" class="copy" data-copy aria-label="Copy install commands"></button>
+                </div>
+              </div>
+
+              <div class="term-step">
+                <span class="term-label">2 · point it at a repo</span>
+                <div class="term-line">
+                  <code><span class="c"># no API key needed: detects opencode, a key, or Ollama</span>
+bun run starling init
+bun run starling doctor</code>
+                  <button type="button" class="copy" data-copy aria-label="Copy init commands"></button>
+                </div>
+              </div>
+
+              <div class="term-step">
+                <span class="term-label">3 · fly</span>
+                <div class="term-line">
+                  <code><span class="c"># plan, audit and merge</span>
+bun run starling run "add dark mode and CSV export" --repo ../my-app</code>
+                  <button type="button" class="copy" data-copy aria-label="Copy run command"></button>
+                </div>
+              </div>
+
+              <p class="term-foot">
+                Add <code>--dry-run</code> to see the plan and lanes first. From a checkout the binary is
+                <code>bun run starling …</code>; on your <code>PATH</code> it is just
+                <code>starling …</code>. Prefer the full sky?
+                <code>bun run starling dash</code> serves the dashboard on
+                <code>localhost:7777</code>.
+              </p>
+            </div>
+
+            <aside class="skill-card reveal" aria-labelledby="skill-title">
+              <div class="skill-bird" aria-hidden="true">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                  <path d="M8 42 26 24l10 9.6L56 16" />
+                  <path d="M44 14h12v12" />
+                  <circle cx="14" cy="52" r="2.6" />
+                  <circle cx="24" cy="52" r="2.6" />
+                  <circle cx="34" cy="52" r="2.6" />
+                </svg>
+              </div>
+              <p class="kicker">Agent Skill</p>
+              <h2 id="skill-title">Hand the whole flock to your agent.</h2>
+              <p>
+                One line inside opencode or Claude Code and the Starling skill plans, launches and
+                reports — without you decomposing anything.
+              </p>
+              <div class="skill-cmd">
+                <code>/swarm "add dark mode, search and CSV export"</code>
+                <button type="button" class="copy" data-copy aria-label="Copy swarm command"></button>
+              </div>
+              <p class="skill-foot">
+                Drop <code>skills/starling/</code> into <code>.opencode/skills/starling/</code>. The skill
+                ships with examples, scripts and the four-step workflow.
+              </p>
+              <div class="skill-links">
+                <a href="https://github.com/broiisapro/starling/blob/main/skills/starling/SKILL.md">
+                  Read SKILL.md <span aria-hidden="true">↗</span>
+                </a>
+                <a href="https://github.com/broiisapro/starling/tree/main/examples/sky-todo">
+                  Try the demo repo <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <div class="footer-brand">
+          <a class="brand" href="#top" aria-label="Starling, back to the top">
+            <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true">
+              <path d="M3 22 11 14l4.8 4.6L29 7" />
+              <path d="M22.4 6H29v6.4" />
+            </svg>
+            <span class="brand-name">Starling</span>
+          </a>
+          <p>
+            One goal in, a murmuration of open-weight coding agents out. Built on opencode, in the open,
+            for the love of the flock.
+          </p>
+          <p class="footer-badge">Hacktoberfest Queen's 2026 · Theme: open-weight AI</p>
+        </div>
+
+        <nav class="footer-col" aria-label="Product">
+          <h2>Product</h2>
+          <a href="#how">How it works</a>
+          <a href="#open-weights">Open weights</a>
+          <a href="#flock">Flock mode</a>
+          <a href="#built-by">Built by the flock</a>
+          <a href="#quickstart">Quickstart</a>
+        </nav>
+
+        <nav class="footer-col" aria-label="Repository">
+          <h2>Repository</h2>
+          <a href="https://github.com/broiisapro/starling">GitHub <span aria-hidden="true">↗</span></a>
+          <a href="https://github.com/broiisapro/starling/issues">Issues <span aria-hidden="true">↗</span></a>
+          <a href="https://github.com/broiisapro/starling/blob/main/skills/starling/SKILL.md"
+            >Agent Skill <span aria-hidden="true">↗</span></a
+          >
+          <a href="https://github.com/broiisapro/starling/tree/main/docs"
+            >Docs <span aria-hidden="true">↗</span></a
+          >
+        </nav>
+
+        <div class="footer-col">
+          <h2>Colophon</h2>
+          <p class="footer-meta">
+            MIT licensed. No CDNs, no trackers, no fonts fetched — just HTML, CSS and a canvas.
+          </p>
+          <p class="footer-meta">© 2026 Starling. Set in your system's own type.</p>
+        </div>
+      </div>
+      <div class="wrap footer-rule">
+        <span>one goal in</span>
+        <span class="footer-rule-line" aria-hidden="true"></span>
+        <span>a murmuration out</span>
+      </div>
+    </footer>
+
+    <div id="copy-status" class="visually-hidden" role="status" aria-live="polite"></div>
+    <noscript>
+      <p class="noscript">The sky is still without JavaScript — every word below reads fine anyway.</p>
+    </noscript>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

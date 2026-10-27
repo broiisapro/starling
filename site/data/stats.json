@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-10-27T18:00:00.000Z",
+  "source": "placeholder",
+  "note": "Placeholder written by Epic 59. Epic 68's tools/stats/collect.ts regenerates this file from git and GitHub; the landing page needs no rebuild.",
+  "totals": {
+    "epics": 28,
+    "prs": 28,
+    "tests": 1785,
+    "agents": 35,
+    "laptops": 2,
+    "commits": 37,
+    "waves": 2
+  },
+  "waves": [
+    { "wave": 0, "agents": 3, "wallTimeHours": 2, "testsAfter": 320 },
+    { "wave": 1, "agents": 31, "wallTimeHours": 9, "testsAfter": 1785 }
+  ]
+}
