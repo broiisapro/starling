@@ -1,19 +1,24 @@
 /**
  * The real `Workspace` port, on the git CLI (ARCHITECTURE L13).
  *
- * Up to ~20 opencode agents run at once, each in its own worktree. Two rules keep that safe:
+ * Up to 50+ opencode agents run at once, each in its own worktree. Three rules keep that safe:
  *
  * 1. Anything that writes shared `.git` state (worktree add/remove/prune, branch create, fetch,
  *    bundle import) runs under a mutex keyed by the repo's common git dir. Everything that happens
  *    *inside* one worktree — staging, committing, diffing — takes no lock and stays parallel.
- * 2. A single retry after a short backoff covers the residual case where an external git process
- *    (a human, an editor plugin, another Starling instance) holds `index.lock`.
+ * 2. Every git process goes through a bounded pool, and lock contention is retried with exponential
+ *    backoff rather than once (`git.ts`, `pool.ts`).
+ * 3. `git worktree add` is *not* safe to run concurrently against the same repository: 60 parallel
+ *    adds produced `fatal: failed to read .git/worktrees/wtN/commondir` and four silently missing
+ *    worktrees (see `docs/epic-57-workspace-hardening.md`). Creation therefore stays serialised
+ *    per repo, but does the minimum work inside the lock: one `worktree add` in the happy path,
+ *    with an in-memory reuse map for the retry case that used to cost a `worktree list` each time.
  *
  * Audit and merge always read a branch the hub owns, so this package never pushes and never talks to
  * a remote (see ARCHITECTURE §1: bundles are the transport).
  */
 import { existsSync, mkdirSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, rmdir, stat } from 'node:fs/promises';
+import { readdir, readFile, rm, rmdir, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import type { Clock, DiffSummary, Workspace } from '@starling/core';
 import { exec as coreExec, StarlingError, systemClock } from '@starling/core';
@@ -29,16 +34,19 @@ import {
 } from './diff';
 import { type ExecLike, Git, gitFailure } from './git';
 import { KeyedMutex } from './mutex';
-import { sanitizeBranchInput, worktreePathFor } from './paths';
+import { sanitizeBranchInput, shortRef, worktreePathFor } from './paths';
 import {
+  isLinkedWorktree,
   listWorktrees,
   normalizeKey,
+  pruneWorktrees,
   type RepoContext,
+  repoStatus,
   refExists,
   resolveRepo,
   splitNul,
-  untrackedFiles,
 } from './repo';
+import { applySparseCheckout, normalizeSparseDirs } from './sparse';
 import { MIN_MERGE_TREE_VERSION } from './version';
 
 export interface CreateWorkspaceOptions {
@@ -46,8 +54,23 @@ export interface CreateWorkspaceOptions {
   worktreeRoot: string;
   /** Injectable `exec` for tests and for faking git. Defaults to core's real `exec`. */
   exec?: ExecLike;
-  /** Injectable clock, used only to keep generated bundle filenames unique. */
+  /** Injectable clock, used for bundle filenames, prune debouncing and refusal messages. */
   clock?: Clock;
+  /**
+   * In-flight `git` process cap for this workspace (default: one per core, clamped to 4…12).
+   * `0` disables the pool.
+   */
+  maxConcurrency?: number;
+  /**
+   * Minimum gap between `git worktree prune` runs for one repository. Removals used to prune on every
+   * call; at 60 removals that is 60 full scans of the admin directory. Default 10 000 ms.
+   */
+  pruneIntervalMs?: number;
+  /**
+   * Opt-in sparse worktrees: return the directories a branch needs, or undefined for a full
+   * checkout. See `sparse.ts` and `docs/epic-57-workspace-hardening.md` for the trade-off.
+   */
+  sparseCheckout?: (branch: string) => string[] | undefined;
 }
 
 /** `Workspace` plus the bundle helpers Flock mode needs (not part of the core port). */
@@ -55,6 +78,10 @@ export type WorkspaceWithBundles = Workspace & BundleOps;
 
 /** Local identity used when the repo has none. Passed with `-c`, so global config is never touched. */
 const FALLBACK_IDENTITY = { name: 'Starling Bot', email: 'starling@localhost' } as const;
+
+/** Failures git prints when it cannot work out who the author is (with no config at all). */
+const IDENTITY_FAILURE =
+  /author identity unknown|please tell me who you are|unable to auto-detect email|empty ident name/i;
 
 /** Dedupe while preserving input order. */
 function dedupe(values: string[]): string[] {
@@ -65,31 +92,6 @@ function errnoCode(err: unknown): unknown {
   return typeof err === 'object' && err !== null && 'code' in err
     ? (err as { code?: unknown }).code
     : undefined;
-}
-
-/** Read `user.name` / `user.email` as git itself would resolve them (local → global → system). */
-async function readIdentity(git: Git, cwd: string): Promise<{ name?: string; email?: string }> {
-  const name = (await git.attempt(['config', '--get', 'user.name'], { cwd })).stdout.trim();
-  const email = (await git.attempt(['config', '--get', 'user.email'], { cwd })).stdout.trim();
-  return {
-    name: name === '' ? undefined : name,
-    email: email === '' ? undefined : email,
-  };
-}
-
-/** True when `dir/.git` is the pointer file of a linked worktree that belongs to `gitDir`. */
-async function isLinkedWorktree(dir: string, gitDir: string): Promise<boolean> {
-  try {
-    const info = await stat(join(dir, '.git'));
-    if (!info.isFile()) return false;
-    const pointer = (await readFile(join(dir, '.git'), 'utf8')).trim();
-    if (!pointer.startsWith('gitdir:')) return false;
-    const pointed = normalizeKey(pointer.slice('gitdir:'.length).trim());
-    const worktreesDir = join(normalizeKey(gitDir), 'worktrees');
-    return pointed === worktreesDir || pointed.startsWith(`${worktreesDir}/`);
-  } catch {
-    return false;
-  }
 }
 
 export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBundles {
@@ -105,8 +107,28 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
 
   const execFn = opts.exec ?? coreExec;
   const clock = opts.clock ?? systemClock;
+  const pruneIntervalMs = Math.max(0, opts.pruneIntervalMs ?? 10_000);
   const mutex = new KeyedMutex();
-  const git = new Git(execFn, mutex);
+  const git = new Git(execFn, mutex, { maxConcurrency: opts.maxConcurrency });
+
+  /** Branches this workspace instance has already created: branch → worktree path. */
+  const known = new Map<string, string>();
+  /** Last `worktree prune` per repo, keyed by the common git dir. */
+  const lastPrune = new Map<string, number>();
+
+  /** Prune at most once per `pruneIntervalMs` per repository. Best effort by design. */
+  async function maybePrune(ctx: RepoContext): Promise<void> {
+    const now = clock.now();
+    const last = lastPrune.get(ctx.lockKey);
+    if (last !== undefined && now - last < pruneIntervalMs) return;
+    lastPrune.set(ctx.lockKey, now);
+    try {
+      await pruneWorktrees(git, ctx.root);
+    } catch {
+      // A failed prune leaves at most a stale administrative entry; the next create or remove fixes
+      // it. Never fail a successful removal because the cleanup of a *different* worktree failed.
+    }
+  }
 
   /** Return the path of an already-registered worktree for `branch`, if its directory still exists. */
   async function findWorktree(ctx: RepoContext, branch: string): Promise<string | undefined> {
@@ -116,8 +138,42 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
     if (match === undefined) return undefined;
     if (existsSync(match.path)) return match.path;
     // Registered but the directory is gone: drop the stale entry and let the caller re-create it.
-    await git.attempt(['worktree', 'prune'], { cwd: ctx.root });
+    await pruneWorktrees(git, ctx.root);
     return undefined;
+  }
+
+  /**
+   * Refuse to cut an integration branch from a base that is checked out with uncommitted changes.
+   *
+   * A dirty `main` means the user is mid-edit. Branching from `main` would silently exclude that
+   * work from every task, and the first merge back into `main` would then fail (or, worse, overwrite
+   * it). Untracked files are deliberately *not* fatal: they cannot be lost by branching, and a repo
+   * that happens to keep a stray `.DS_Store` or log file around must not block every run.
+   *
+   * Only branches can be checked out, so a commit sha / remote ref base is exempt.
+   */
+  async function assertBaseCheckoutClean(ctx: RepoContext, base: string): Promise<void> {
+    const branchRef = `refs/heads/${shortRef(base)}`;
+    if (!(await refExists(git, ctx.root, branchRef))) return;
+    const entries = await listWorktrees(git, ctx.root);
+    const checkout = entries.find((entry) => entry.branch === branchRef);
+    if (checkout === undefined || !existsSync(checkout.path)) return;
+
+    const status = await repoStatus(git, checkout.path);
+    if (!status.modified) return;
+
+    throw new StarlingError(
+      'WORKSPACE_ERROR',
+      `refusing to start the integration branch: "${shortRef(base)}" is checked out at ` +
+        `${checkout.path} with uncommitted changes. Commit or stash them first.`,
+      {
+        details: {
+          base: shortRef(base),
+          checkout: checkout.path,
+          reason: 'dirty-base-checkout',
+        },
+      },
+    );
   }
 
   async function ensureIntegrationBranch(repo: string, base: string, name: string): Promise<void> {
@@ -130,6 +186,8 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
       });
     }
 
+    await assertBaseCheckoutClean(ctx, base);
+
     const args = ['branch', branch, base];
     const result = await git.run(args, { cwd: ctx.root, lock: ctx.lockKey });
     // A concurrent Starling instance may have won the race; that is still success.
@@ -138,51 +196,107 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
     throw gitFailure(args, result);
   }
 
+  /** `worktree add` argv for this branch: create it, or check out an existing branch. */
+  function addArgs(
+    name: string,
+    target: string,
+    fromRef: string,
+    sparse: boolean,
+  ): { create: string[]; existing: string[] } {
+    const common = ['worktree', 'add'];
+    if (sparse) common.push('--no-checkout');
+    return {
+      create: [...common, '-b', name, target, fromRef],
+      existing: [...common, target, name],
+    };
+  }
+
   async function create(
     repo: string,
     branch: string,
     fromRef: string,
   ): Promise<{ path: string; branch: string }> {
     const name = sanitizeBranchInput(branch);
+    // Fast path: this workspace already created (and has not removed) the worktree for this branch.
+    const cached = known.get(name);
+    if (cached !== undefined) {
+      if (existsSync(cached)) return { path: cached, branch: name };
+      known.delete(name);
+    }
+
     const ctx = await resolveRepo(git, repo);
     const target = worktreePathFor(worktreeRoot, name);
+    const sparseDirs = normalizeSparseDirs(opts.sparseCheckout?.(name) ?? []);
+    const args = addArgs(name, target, fromRef, sparseDirs.length > 0);
 
-    return git.lock(ctx.lockKey, async () => {
-      const existing = await findWorktree(ctx, name);
-      if (existing !== undefined) return { path: existing, branch: name };
-
-      await mkdir(dirname(target), { recursive: true });
+    const created = await git.lock(ctx.lockKey, async () => {
       if (existsSync(target)) {
         const entries = await readdir(target);
         if (entries.length === 0) await rmdir(target);
       }
 
-      const branchExists = await refExists(git, ctx.root, `refs/heads/${name}`);
-      const args = branchExists
-        ? ['worktree', 'add', target, name]
-        : ['worktree', 'add', '-b', name, target, fromRef];
-      const result = await git.attempt(args, { cwd: ctx.root });
-      if (result.code !== 0) {
-        const raced = await findWorktree(ctx, name);
-        if (raced !== undefined) return { path: raced, branch: name };
-        throw gitFailure(args, result);
+      const place = async (): Promise<string> => {
+        // Happy path (new branch): one spawn, no `worktree list`.
+        const attempt = await git.attempt(args.create, { cwd: ctx.root });
+        if (attempt.code === 0) return target;
+
+        // The optimistic `-b` failed. A previous run (or another Starling process) may already have
+        // the branch, or the branch may be registered but its directory gone. Anything else is real.
+        if (!(await refExists(git, ctx.root, `refs/heads/${name}`))) {
+          throw gitFailure(args.create, attempt);
+        }
+
+        const registered = await findWorktree(ctx, name);
+        if (registered !== undefined) return registered;
+
+        // An interrupted earlier add leaves an unregistered directory that git refuses to reuse. It
+        // is provably ours when `.git` is a pointer into this repo's worktrees dir, so clear it.
+        if (existsSync(target) && (await isLinkedWorktree(target, ctx.gitDir))) {
+          await rm(target, { recursive: true, force: true });
+        }
+        const retried = await git.attempt(args.existing, { cwd: ctx.root });
+        if (retried.code !== 0) throw gitFailure(args.existing, retried);
+        return target;
+      };
+
+      const path = await place();
+
+      if (sparseDirs.length > 0) {
+        try {
+          await applySparseCheckout(git, path, sparseDirs);
+        } catch (err) {
+          // Do not leave a half-built worktree behind; the branch stays, so a retry is cheap.
+          await git.attempt(['worktree', 'remove', '--force', path], { cwd: ctx.root });
+          known.delete(name);
+          throw err;
+        }
       }
-      return { path: target, branch: name };
+      return path;
     });
+
+    known.set(name, created);
+    return { path: created, branch: name };
   }
 
   async function diff(worktreePath: string, baseRef: string): Promise<DiffSummary> {
     const cwd = resolve(worktreePath);
+    const status = await repoStatus(git, cwd);
     const committed = parseNumstat(await git.text(['diff', '--numstat', `${baseRef}...HEAD`], { cwd }));
-    const working = parseNumstat(await git.text(['diff', '--numstat', 'HEAD'], { cwd }));
 
     const parts = [
       await git.stdout(['diff', '--no-color', '--no-ext-diff', `${baseRef}...HEAD`], { cwd }),
-      await git.stdout(['diff', '--no-color', '--no-ext-diff', 'HEAD'], { cwd }),
     ];
 
+    // Only ask for the working-tree half when there is one; a clean worktree costs zero extra
+    // spawns instead of two (the common case right after an agent commits).
+    let working: FileStat[] = [];
+    if (status.modified) {
+      working = parseNumstat(await git.text(['diff', '--numstat', 'HEAD'], { cwd }));
+      parts.push(await git.stdout(['diff', '--no-color', '--no-ext-diff', 'HEAD'], { cwd }));
+    }
+
     const untrackedStats: FileStat[] = [];
-    for (const rel of await untrackedFiles(git, cwd)) {
+    for (const rel of status.untracked) {
       const abs = join(cwd, rel);
       let bytes: Uint8Array;
       let mode = '100644';
@@ -196,7 +310,7 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
         }
         bytes = new Uint8Array(await readFile(abs));
       } catch (err) {
-        // The file disappeared between `ls-files` and the read: it is simply not part of this diff.
+        // The file disappeared between `status` and the read: it is simply not part of this diff.
         if (errnoCode(err) === 'ENOENT') continue;
         throw err;
       }
@@ -212,9 +326,11 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
     const cwd = resolve(worktreePath);
     // `HEAD` covers both the staged and the unstaged halves of the working tree.
     const committed = splitNul(await git.stdout(['diff', '--name-only', '-z', `${baseRef}...HEAD`], { cwd }));
-    const working = splitNul(await git.stdout(['diff', '--name-only', '-z', 'HEAD'], { cwd }));
-    const untracked = await untrackedFiles(git, cwd);
-    return dedupe([...committed, ...working, ...untracked]);
+    const status = await repoStatus(git, cwd);
+    const working = status.modified
+      ? splitNul(await git.stdout(['diff', '--name-only', '-z', 'HEAD'], { cwd }))
+      : [];
+    return dedupe([...committed, ...working, ...status.untracked]);
   }
 
   async function predictConflicts(repo: string, ours: string, theirs: string): Promise<string[]> {
@@ -253,22 +369,28 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
     if (staged.code === 0) return undefined;
     if (staged.code !== 1) throw gitFailure(['diff', '--cached', '--quiet'], staged);
 
-    const identity = await readIdentity(git, cwd);
-    const config: string[] = [];
-    if (identity.name === undefined || identity.email === undefined) {
-      config.push('-c', `user.name=${FALLBACK_IDENTITY.name}`, '-c', `user.email=${FALLBACK_IDENTITY.email}`);
-    }
     // Never sign from a harness: a missing passphrase would hang the run.
-    config.push('-c', 'commit.gpgsign=false');
-
-    const args = [...config, 'commit', '-m', message];
-    const committed = await git.attempt(args, { cwd });
-    if (committed.code !== 0) throw gitFailure(args, committed);
+    const base = ['-c', 'commit.gpgsign=false', 'commit', '-m', message];
+    let used = base;
+    let committed = await git.attempt(used, { cwd });
+    if (committed.code !== 0 && IDENTITY_FAILURE.test(`${committed.stderr}\n${committed.stdout}`)) {
+      // No usable user.name/user.email: supply one for this process only, never in config.
+      used = [
+        '-c',
+        `user.name=${FALLBACK_IDENTITY.name}`,
+        '-c',
+        `user.email=${FALLBACK_IDENTITY.email}`,
+        ...base,
+      ];
+      committed = await git.attempt(used, { cwd });
+    }
+    if (committed.code !== 0) throw gitFailure(used, committed);
     return git.text(['rev-parse', 'HEAD'], { cwd });
   }
 
   async function remove(worktreePath: string): Promise<void> {
     const target = resolve(worktreePath);
+    for (const [name, path] of known) if (path === target) known.delete(name);
     if (!existsSync(target)) return;
 
     const common = await git.attempt(['rev-parse', '--path-format=absolute', '--git-common-dir'], {
@@ -291,8 +413,7 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
         if (!(await isLinkedWorktree(target, gitDir))) throw gitFailure(args, result);
         await rm(target, { recursive: true, force: true });
       }
-      // Best effort: stale administrative entries should never fail a successful removal.
-      await git.attempt(['worktree', 'prune'], { cwd: repoRoot });
+      await maybePrune({ root: repoRoot, gitDir, lockKey: normalizeKey(gitDir) });
     });
   }
 

@@ -49,11 +49,13 @@ describe('Git', () => {
     const out = await git.text(['status', '--short'], { cwd: '/repo' });
 
     expect(out).toBe('ok');
-    expect(exec.calls[0]?.cmd).toEqual(['git', 'status', '--short']);
+    // `core.quotePath=false` is pinned so unicode paths come back unquoted.
+    expect(exec.calls[0]?.cmd).toEqual(['git', '-c', 'core.quotePath=false', 'status', '--short']);
     expect(exec.calls[0]?.opts.env?.GIT_TERMINAL_PROMPT).toBe('0');
+    expect(exec.calls[0]?.opts.env?.GIT_LFS_SKIP_SMUDGE).toBe('1');
   });
 
-  test('retries once after lock contention, then succeeds', async () => {
+  test('retries after lock contention, then succeeds', async () => {
     let attempt = 0;
     const exec = fakeExec(() => {
       attempt += 1;
@@ -64,6 +66,18 @@ describe('Git', () => {
     const out = await git.text(['add', '-A'], { cwd: '/repo' });
     expect(out).toBe('done');
     expect(exec.calls.length).toBe(2);
+  });
+
+  test('survives several consecutive contention failures (the swarm case)', async () => {
+    let attempt = 0;
+    const exec = fakeExec(() => {
+      attempt += 1;
+      return attempt <= 4 ? result({ code: 128, stderr: LOCK_ERROR }) : result({ stdout: 'done' });
+    });
+    const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1 });
+
+    expect(await git.text(['add', '-A'], { cwd: '/repo' })).toBe('done');
+    expect(exec.calls.length).toBe(5);
   });
 
   test('does not retry a normal failure and throws WORKSPACE_ERROR with details', async () => {
@@ -81,12 +95,62 @@ describe('Git', () => {
     expect(exec.calls.length).toBe(1);
   });
 
-  test('gives up after a single retry', async () => {
+  test('gives up after the configured number of attempts', async () => {
     const exec = fakeExec(() => result({ code: 128, stderr: LOCK_ERROR }));
-    const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1 });
+    const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1, retryAttempts: 3 });
 
     await expect(git.ok(['add', '-A'], { cwd: '/repo' })).rejects.toThrow();
-    expect(exec.calls.length).toBe(2);
+    expect(exec.calls.length).toBe(3);
+  });
+
+  test('caps the exponential backoff instead of sleeping for minutes', async () => {
+    const start = performance.now();
+    const exec = fakeExec(() => result({ code: 128, stderr: LOCK_ERROR }));
+    const git = new Git(exec, new KeyedMutex(), {
+      retryDelayMs: 2,
+      maxRetryDelayMs: 4,
+      retryAttempts: 4,
+    });
+
+    await expect(git.ok(['add', '-A'], { cwd: '/repo' })).rejects.toThrow();
+    // 2 + 4 + 4 ms of backoff (plus jitter) instead of 2 + 4 + 8.
+    expect(performance.now() - start).toBeLessThan(200);
+    expect(exec.calls.length).toBe(4);
+  });
+
+  test('a bounded pool caps in-flight git processes', async () => {
+    let active = 0;
+    let peak = 0;
+    const exec = fakeExec(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await sleep(5);
+      active -= 1;
+      return result();
+    });
+    const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1, maxConcurrency: 2 });
+
+    await Promise.all(Array.from({ length: 8 }, (_, index) => git.text(['rev-parse', `${index}`], { cwd: '/repo' })));
+
+    expect(peak).toBe(2);
+    expect(exec.calls.length).toBe(8);
+  });
+
+  test('maxConcurrency 0 disables the pool', async () => {
+    let active = 0;
+    let peak = 0;
+    const exec = fakeExec(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await sleep(5);
+      active -= 1;
+      return result();
+    });
+    const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1, maxConcurrency: 0 });
+
+    await Promise.all(Array.from({ length: 6 }, () => git.text(['status'], { cwd: '/repo' })));
+
+    expect(peak).toBe(6);
   });
 
   test('caches the parsed git version', async () => {
@@ -134,9 +198,10 @@ describe('Git', () => {
   test('lock() holds the mutex across a sequence of calls', async () => {
     const events: string[] = [];
     const exec = fakeExec(async (cmd) => {
-      events.push(cmd[1] ?? '');
+      const subcommand = cmd[cmd.length - 1] ?? '';
+      events.push(subcommand);
       await sleep(5);
-      events.push(`${cmd[1] ?? ''}-done`);
+      events.push(`${subcommand}-done`);
       return result();
     });
     const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1 });

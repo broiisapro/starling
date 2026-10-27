@@ -1,15 +1,17 @@
 /**
  * The one place that shells out to `git` (ARCHITECTURE L13: argv arrays only, never a shell string).
  *
- * Wraps core's `exec` with the three things a parallel workspace needs:
+ * Wraps core's `exec` with the four things a parallel workspace needs:
  * - an optional per-repository mutex (passed in, so work on one repo serialises and work on another
  *   does not);
- * - a single retry when git reports lock contention, after a short backoff;
+ * - a bounded process pool, so 50 concurrent audits cannot turn into a spawn storm;
+ * - bounded retries with exponential backoff when git reports lock contention;
  * - loud, typed failures (`WORKSPACE_ERROR`) carrying the command and stderr.
  */
 import type { ExecResult } from '@starling/core';
 import { exec as coreExec, StarlingError } from '@starling/core';
 import { KeyedMutex, sleep } from './mutex';
+import { boundedExec, defaultGitConcurrency } from './pool';
 import { assertGitVersion, type GitVersion, parseGitVersion } from './version';
 
 /** Injectable exec, so tests can drive retry and failure paths without a real git. */
@@ -23,22 +25,52 @@ export interface GitCallOptions {
 }
 
 export interface GitOptions {
-  /** Backoff before the single lock-contention retry. Default 50 ms. */
+  /**
+   * Base backoff for the first lock-contention retry. Each further attempt doubles it, capped at
+   * `maxRetryDelayMs`, with a little jitter so two callers do not wake up in lockstep. Default 25 ms.
+   */
   retryDelayMs?: number;
+  /** Total attempts (the first try included) when git keeps reporting contention. Default 6. */
+  retryAttempts?: number;
+  /** Ceiling for the exponential backoff. Default 1000 ms. */
+  maxRetryDelayMs?: number;
   /** Default timeout for ordinary calls. Default 120 s: git can be slow on a cold, large repo. */
   timeoutMs?: number;
+  /**
+   * In-flight `git` process cap (see `pool.ts`). Defaults to `defaultGitConcurrency()`; `0` disables
+   * the pool. Tests with a fake exec usually pass `0`.
+   */
+  maxConcurrency?: number;
 }
 
-/** Env every git call gets: never stop for a credential prompt. */
-const GIT_ENV = { GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: '', GIT_PAGER: 'cat' } as const;
+/** Env every git call gets: never stop for a credential prompt, never download LFS objects. */
+const GIT_ENV = {
+  GIT_TERMINAL_PROMPT: '0',
+  GIT_ASKPASS: '',
+  GIT_PAGER: 'cat',
+  // A worktree checkout of an LFS repo would otherwise pull every object over the network (and fail
+  // outright with no LFS remote). Audits read pointer files; a task that genuinely needs content can
+  // run `git lfs pull` itself.
+  GIT_LFS_SKIP_SMUDGE: '1',
+} as const;
+
+/**
+ * Pinned for every call: git's default (`core.quotePath=true`) prints non-ASCII paths as
+ * `"src/na\303\257ve.ts"`, which would break lane globs, changed-file lists and audit patches on any
+ * repository with unicode file names. NUL-delimited output ignores this, but patches and `--numstat`
+ * do not.
+ */
+const GLOBAL_ARGS = ['-c', 'core.quotePath=false'] as const;
 
 /** Patterns git prints when another process holds a lock we care about. */
 const LOCK_CONTENTION = [
   'index.lock',
   'cannot lock ref',
+  'cannot lock worktree',
   'another git process',
   'Unable to create',
   'could not lock config file',
+  'failed to lock',
 ];
 
 export function isLockContention(stderr: string): boolean {
@@ -61,32 +93,53 @@ export class Git {
   readonly #exec: ExecLike;
   readonly #mutex: KeyedMutex;
   readonly #retryDelayMs: number;
+  readonly #retryAttempts: number;
+  readonly #maxRetryDelayMs: number;
   readonly #timeoutMs: number;
   #versionCall: Promise<GitVersion> | undefined;
 
   constructor(execFn: ExecLike = coreExec, mutex: KeyedMutex = new KeyedMutex(), opts: GitOptions = {}) {
-    this.#exec = execFn;
     this.#mutex = mutex;
-    this.#retryDelayMs = opts.retryDelayMs ?? 50;
+    this.#retryDelayMs = Math.max(0, opts.retryDelayMs ?? 25);
+    this.#retryAttempts = Math.max(1, opts.retryAttempts ?? 6);
+    this.#maxRetryDelayMs = Math.max(this.#retryDelayMs, opts.maxRetryDelayMs ?? 1000);
     this.#timeoutMs = opts.timeoutMs ?? 120_000;
+    const limit = opts.maxConcurrency ?? defaultGitConcurrency();
+    this.#exec = boundedExec(execFn, limit);
   }
 
   /**
-   * Run git once, retrying a single time when the failure is lock contention.
+   * Run git, retrying with exponential backoff while the failure is lock contention.
+   *
+   * At 50 worktrees the common contention is *internal* (two worktrees of the same repo staging at
+   * the same moment) rather than a human holding `index.lock`, so one 50 ms retry is not enough: the
+   * loser of the race usually needs a few tens of milliseconds. Six attempts with jitter covers it
+   * without hiding a genuinely stuck lock for more than ~2 s.
+   *
    * Never takes the mutex: only call this when the caller already holds it.
    */
   async attempt(args: string[], opts: GitCallOptions): Promise<ExecResult> {
     const runOnce = () =>
-      this.#exec(['git', ...args], {
+      this.#exec(['git', ...GLOBAL_ARGS, ...args], {
         cwd: opts.cwd,
         env: { ...GIT_ENV },
         timeoutMs: opts.timeoutMs ?? this.#timeoutMs,
       });
 
-    const first = await runOnce();
-    if (first.code === 0 || !isLockContention(first.stderr)) return first;
-    await sleep(this.#retryDelayMs);
-    return runOnce();
+    let result = await runOnce();
+    for (let attempt = 1; attempt < this.#retryAttempts; attempt += 1) {
+      if (result.code === 0 || !isLockContention(result.stderr)) return result;
+      await sleep(this.#backoffMs(attempt));
+      result = await runOnce();
+    }
+    return result;
+  }
+
+  /** Delay before retry number `attempt` (1-based), exponential, capped, lightly jittered. */
+  #backoffMs(attempt: number): number {
+    const base = Math.min(this.#maxRetryDelayMs, this.#retryDelayMs * 2 ** (attempt - 1));
+    // Up to 25% jitter so a herd of waiters spreads out instead of waking together.
+    return Math.round(base + Math.random() * base * 0.25);
   }
 
   /** Run git, taking the repo mutex first when `lock` is set. */
