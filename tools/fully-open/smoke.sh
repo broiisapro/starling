@@ -150,6 +150,16 @@ unload_model() {
     >/dev/null 2>&1 || true
 }
 
+# Prove the project config is what opencode reads *before* loading 18 GB of weights.
+assert_opencode_model() { # <dir>
+  if ( cd "$1" && opencode models 2>/dev/null | grep -qx "ollama/$MODEL" ); then
+    log "  opencode lists ollama/$MODEL from the project config"
+    return 0
+  fi
+  log "✘ opencode does not list ollama/$MODEL — run 'ollama list' and check the project config"
+  return 1
+}
+
 write_report() { # <status> <detail> <work-dir> <started> <finished> <opencode-ms> <tokens> <completion-ms> <text-chars>
   local status="$1" detail="$2" work="$3" started="$4" finished="$5" oc_ms="$6" tokens="$7" comp_ms="$8" chars="$9"
   local stamp path
@@ -215,6 +225,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   log "dry run: rails, model and config resolution are what a real run would use."
   log "  would write project config to $WORK/opencode.json and prompt: $PROMPT"
   write_project_config "$WORK"
+  assert_opencode_model "$WORK" || { write_report "failed" "opencode does not expose ollama/$MODEL" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0; exit 1; }
   write_report "dry-run" "no model was loaded" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0
   exit 0
 fi
@@ -251,6 +262,7 @@ COMP_MS=0
 
 write_project_config "$WORK"
 log "  project config → $WORK/opencode.json"
+assert_opencode_model "$WORK" || { write_report "failed" "opencode does not expose ollama/$MODEL" "$WORK" "$(now_ms)" "$(now_ms)" 0 0 0 0; exit 1; }
 
 # Preferred path: the real harness, when Epic 40's `--profile` flag is on main.
 STARLING_CLI="$ROOT/apps/cli/src/index.ts"

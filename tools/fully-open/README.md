@@ -138,6 +138,9 @@ It polls every **60 s** for up to **90 min** and then gives up (`exit 3`, status
 loading a model. `--force` overrides the rails for a machine you know is idle; `--dry-run` reports
 the measurements and the resolved config without touching a model.
 
+Before any load, `smoke.sh` also checks that `opencode models` lists `ollama/<tag>` **from the
+generated project config** — a config typo should cost a second, not a 20-minute model load.
+
 `memory_pressure`'s "free percentage" is much more optimistic than the GB count because it treats
 inactive and purgeable pages as available; the script prints both but **gates on GB**, which is the
 conservative number. Symptom of ignoring it: swap, then a run that takes ten minutes per audit.
