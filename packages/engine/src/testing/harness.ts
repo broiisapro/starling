@@ -81,6 +81,8 @@ export interface HarnessOptions {
   scheduler?: Scheduler;
   config?: Record<string, unknown>;
   nodes?: MockNode[];
+  /** Per-node registry overrides (maxSessions, kind, latency…). */
+  nodeInfo?: Record<string, Partial<import('@starling/core').NodeInfo>>;
   writer?: LLM;
   bundleUrlFor?: EngineDeps['bundleUrlFor'];
   tracker?: NoopTracker;
@@ -166,6 +168,7 @@ export function buildHarness(options: HarnessOptions = {}): Harness {
       status: 'online',
       lastSeen: clock.now(),
       latencyMs: 2,
+      ...(options.nodeInfo?.[node.id] ?? {}),
     });
   }
 
@@ -265,6 +268,15 @@ export async function withTimeout<T>(promise: Promise<T>, ms = 2000): Promise<T>
     return await Promise.race([promise, timeout]);
   } finally {
     if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
+/** Poll for a condition with real timers; used when a mock node schedules events asynchronously. */
+export async function waitFor(condition: () => boolean, ms = 2000): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!condition()) {
+    if (Date.now() > deadline) throw new Error(`condition not met within ${ms}ms`);
+    await new Promise((resolve) => setTimeout(resolve, 2));
   }
 }
 

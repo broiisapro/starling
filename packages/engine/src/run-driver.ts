@@ -11,6 +11,7 @@ import type {
   ExecutionNode,
   Goal,
   MergeResult,
+  ModelRef,
   NodeInfo,
   PromptContext,
   RepoMap,
@@ -88,6 +89,8 @@ export class RunDriver {
   readonly #unsubs = new Map<string, () => void>();
   readonly #offline = new Set<string>();
   readonly #noBundle = new Set<string>();
+  /** Model announced by `session.started`, used to classify usage events that omit it. */
+  readonly #sessionModels = new Map<string, ModelRef>();
   readonly #publisher: MetricsPublisher;
   #resolveDone!: (run: Run) => void;
   #map?: RepoMap;
@@ -192,13 +195,13 @@ export class RunDriver {
   }
 
   async abortTask(taskKey: string): Promise<void> {
-    if (this.#done) return;
     const task = this.#run.tasks[taskKey];
     if (task === undefined) {
       throw new StarlingError('INVALID_ARGUMENT', `Cannot abort unknown task "${taskKey}"`, {
         details: { runId: this.runId, taskKey },
       });
     }
+    if (this.#done) return;
     if (isTerminalStatus(task.status)) return;
     const live = this.#live.get(taskKey);
     if (live !== undefined) {
@@ -329,13 +332,21 @@ export class RunDriver {
         const info = nodes.find((node) => node.id === nodeId);
         const node = this.#deps.registry.get(nodeId);
         if (info === undefined || node === undefined) {
-          this.#log('warn', `Scheduler picked node "${nodeId}" which is not in the registry; skipping`);
+          // A scheduler must answer with an id from the list it was given. Fail the task loudly
+          // rather than leave it `ready` forever, which would wedge the whole run.
+          this.#log(
+            'error',
+            `Scheduler picked node "${nodeId}" outside the dispatchable set; failing ${spec.key}`,
+            spec.key,
+          );
+          this.#transition(spec.key, 'failed');
           continue;
         }
         this.#dispatch(spec, info, node);
       }
     } finally {
       this.#pumping = false;
+      this.#scheduleFinishCheck();
     }
   }
 
@@ -478,6 +489,11 @@ export class RunDriver {
       this.#recordAgentUsage(task, event);
       return;
     }
+    if (event.kind === 'session.started') {
+      const announced = parseModel(event.data.model);
+      if (announced !== undefined) this.#sessionModels.set(event.taskKey, announced);
+      return;
+    }
     if (event.kind === 'session.error') {
       this.#log(
         'warn',
@@ -496,7 +512,10 @@ export class RunDriver {
   #recordAgentUsage(task: TaskRun, event: AgentEvent): void {
     const usage = parseUsage(event.data);
     if (usage === undefined) return;
-    const model = parseModel(event.data.model) ?? modelFor(this.#deps.config, 'worker');
+    const model =
+      parseModel(event.data.model) ??
+      this.#sessionModels.get(task.taskKey) ??
+      modelFor(this.#deps.config, 'worker');
     const local = isLocalProvider(this.#deps.config, model.provider);
     const priced = usageCostUsd(pricingKey(model), usage);
     const costUsd = local ? 0 : priced !== 0 ? priced : usageCostUsd(model.model, usage);
