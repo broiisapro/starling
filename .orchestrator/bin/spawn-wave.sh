@@ -125,6 +125,13 @@ EOF
   esac
 }
 
+# Agents read .orchestrator/ARCHITECTURE.md etc. from origin/main, so publish orchestrator edits first.
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain -- .orchestrator AGENTS.md opencode.json .gitignore)" ]; then
+  run "git -C '$REPO_ROOT' add .orchestrator AGENTS.md opencode.json .gitignore"
+  run "git -C '$REPO_ROOT' commit -qm 'chore(orchestrator): prompts and plan for wave ${WAVE}'"
+  run "git -C '$REPO_ROOT' pull -q --rebase origin main && git -C '$REPO_ROOT' push -q origin HEAD:main"
+  echo "• published orchestrator changes to origin/main"
+fi
 run "git -C '$REPO_ROOT' fetch origin --quiet"
 
 # ── checkpoint mode ───────────────────────────────────────────

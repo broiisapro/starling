@@ -396,4 +396,69 @@ Default port **7777**.
 - **L19** Discovery: **`bonjour-service`** mDNS (`_starling._tcp`) plus the manual `--hub/--code` join, which must always work.
 - **L20** Engine ↔ execution only through `ExecutionNode`. Audit and merge only ever run on the hub's repo.
 
+- **L21** (from Epic 00) Toolchain pinned at root: **Bun 1.4.4, TypeScript 5.9.3, zod 4.6.7, Biome 2.6.3**. Root `bun run check` = Biome + a per-workspace `tsc --noEmit -p` loop. Never change root config in a feature epic.
+- **L22** (from Epic 00) Third-party deps are pre-installed per package (see `docs/epic-00-foundation.md`). Feature epics may add deps **only to their own package.json**, pinned exact. Web feature epics may add a dep to `apps/web/package.json` (add-only, alphabetical). The integrator resolves `package.json`/`bun.lock` merges.
+- **L23** (lesson from Epic 02) **No local models during build waves.** Never run `ollama pull/run`, and never call a real LLM, a real opencode server prompt, or GitHub from tests. In-process `Bun.serve({ port: 0 })` fakes are fine. `*.live.test.ts` files may be written but are **not run** in Wave 1. (A 27B local model plus ~20 agents put a 32 GB Mac at 4% free RAM.)
+- **L24** (from Epic 02) Measured local auditor candidate: **`qwen3.8:27b-mlx`** on Ollama (~18–19 tok/s warm on M5 Pro, correctly failed a no-test diff). The final pick is Epic 28's job.
+- **L25** (from the dev setup) Moksh's opencode is a **newer CLI** (a background service, `serve` = "v2 API and web server", no `--model` flag on the TUI). Its LLM access is through the **OpenCode Go** provider (`opencode-go/deepseek-v4.1-flash`). Starling must work when the user has **no direct DeepSeek API key**, so the LLM router supports an `opencode` provider that routes completions through the user's opencode server (see §8).
+
+## 8. Wave 1 handshake interfaces (LOCKED for Wave 1)
+
+These sit between packages being built **in parallel**. Each consuming or implementing epic declares the interface **locally** in `src/handshake.ts`, with the header comment `// MIRROR of ARCHITECTURE §8. Moved into @starling/core at checkpoint C1.`, copied exactly as written here. Never import a sibling Wave 1 package. At C1 the integrator moves these into core and deletes the mirrors.
+
+```ts
+import type { Run, NodeInfo, NodeRegistry, Plan, TaskRun, TaskSpec, AgentEvent, AuditVerdict,
+  MergeResult, RunMetrics, DiffSummary, StarlingEvent } from '@starling/core';
+
+// ── Engine API: implemented by packages/engine (E20); consumed by apps/server (E21) + apps/cli (E22)
+export interface StartRunInput { goal: string; repoPath: string; dryRun?: boolean; maxParallel?: number; baseBranch?: string }
+export interface EngineApi {
+  start(input: StartRunInput): Promise<{ runId: string }>;      // resolves once the run is created; work continues async
+  cancel(runId: string): Promise<void>;
+  abortTask(runId: string, taskKey: string): Promise<void>;
+  getRun(runId: string): Run | undefined;
+  listRuns(): Run[];                                            // most recent first
+  waitForFinish(runId: string): Promise<Run>;                   // CLI uses this for `starling run`
+}
+
+// ── Flock hub: implemented by packages/flock (E30); consumed by apps/server (E21), engine (E20), cli (E22)
+export interface JoinInfo { code: string; hubUrl: string; command: string }   // command: `starling perch --hub <url> --code <code>`
+export interface FlockHub {
+  registry: NodeRegistry;                                       // includes the hub's own LocalNode with id 'hub'
+  joinInfo(): JoinInfo;
+  verifyToken(token: string | undefined): boolean;
+  register(input: { url: string; info: NodeInfo }): Promise<{ nodeId: string }>;
+  heartbeat(input: { nodeId: string; info: NodeInfo }): void;
+  bundle(ref: string): Promise<{ path: string }>;               // a git bundle file of `ref` from the active repo
+  setActiveRepo(repoPath: string): void;
+  close(): Promise<void>;
+}
+
+// ── Bundle URL: how the engine (E20) tells a RemoteNode where to fetch the repo. Server path is §6 /api/flock/bundle
+export type BundleUrlFor = (ref: string) => { url: string; token: string };
+
+// ── Web feature components: each feature epic exports exactly these from its feature folder's index.ts.
+//    They take plain props (core types only) and NEVER read the global store. The shell (E23) wires store → props.
+export interface SkyViewProps { run?: Run; nodes: NodeInfo[]; recent: StarlingEvent[]; selectedTask?: string;
+  onSelectTask(key: string): void; reducedMotion?: boolean }
+export interface DagViewProps { plan?: Plan; tasks: Record<string, TaskRun>; selectedTask?: string; onSelectTask(key: string): void }
+export interface AgentDrawerProps { task?: TaskSpec; run?: TaskRun; events: AgentEvent[]; verdicts: AuditVerdict[];
+  diff?: DiffSummary; onClose(): void }
+export interface MergeQueueProps { plan?: Plan; tasks: Record<string, TaskRun>; merges: MergeResult[]; onSelectTask(key: string): void }
+export interface MetricsPanelProps { metrics?: RunMetrics; history: { ts: number; metrics: RunMetrics }[] }
+export interface FlockPanelProps { nodes: NodeInfo[]; join?: JoinInfo; tasks: Record<string, TaskRun> }
+// features/sky → SkyView · features/dag → DagView · features/agents → AgentDrawer
+// features/queue → MergeQueue · features/metrics → MetricsPanel · features/flock → FlockPanel
+
+// ── Worker handback block: produced by worker prompts (E13), parsed by prompts.parseHandback, shown in the UI
+//    The last thing a worker prints:
+//    <<<STARLING_HANDBACK
+//    {"status":"complete","summary":"…","filesChanged":["…"],"testsAdded":["…"],"notes":"…"}
+//    STARLING_HANDBACK>>>
+export interface WorkerHandback { status: 'complete' | 'partial'; summary: string; filesChanged: string[]; testsAdded: string[]; notes?: string }
+
+// ── LLM provider kinds (E10): 'openai-compatible' (DeepSeek API, Ollama, OpenRouter…) and 'opencode'
+//    (a completion = a throwaway session on the user's opencode server, using whatever provider opencode is logged into).
+```
+
 *(The list grows as epics land. The Orchestrator appends confirmed decisions here and restates them in the next wave's prompts.)*
