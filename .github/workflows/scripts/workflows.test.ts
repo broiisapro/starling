@@ -277,11 +277,11 @@ describe('new workflows have the triggers their owners need', () => {
     ]);
     const job = jobsOf(doc).playwright;
     expect(job?.['runs-on']).toBe('macos-latest');
-    const env = asRecord(job?.env);
-    expect(env.STARLING_E2E_PORT).toBe('4777');
-    expect(String(env.TMPDIR)).toContain('runner.temp');
     const suite = stepsOf(job ?? {}).find((step) => step.id === 'e2e');
     expect(suite?.['continue-on-error']).toBe(true);
+    const env = asRecord(suite?.env);
+    expect(env.STARLING_E2E_PORT).toBe('4777');
+    expect(String(env.TMPDIR)).toContain('runner.temp');
   });
 
   test('nightly has a jittered cron, a PR self-check and keeps its JSON for 14 days', () => {

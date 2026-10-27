@@ -36,11 +36,6 @@ jobs:
     name: playwright (macos-latest)
     runs-on: macos-latest
     timeout-minutes: 30
-    env:
-      # Fixed port + TMPDIR in the runner temp dir: playwright.config.ts writes traces and
-      # screenshots to os.tmpdir()/starling-web-e2e/<port>, which must be a known path to upload.
-      STARLING_E2E_PORT: "4777"
-      TMPDIR: ${{ runner.temp }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -72,6 +67,12 @@ jobs:
       - name: Playwright suite
         id: e2e
         continue-on-error: true
+        # Fixed port + TMPDIR in the runner temp dir: playwright.config.ts writes traces and
+        # screenshots to os.tmpdir()/starling-web-e2e/<port>, which must be a known path to upload.
+        # Step-level (not job-level) env: the `runner` context is not available in a job's `env`.
+        env:
+          STARLING_E2E_PORT: "4777"
+          TMPDIR: ${{ runner.temp }}
         run: bun run --cwd apps/web e2e
 
       # Traces, screenshots and diffs from a failed run. `steps.e2e.outcome` is the right switch:
