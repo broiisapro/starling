@@ -1,0 +1,19 @@
+{
+  "name": "@starling/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun src/index.ts",
+    "start": "bun src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@starling/core": "workspace:*",
+    "commander": "15.0.0",
+    "picocolors": "1.1.1"
+  }
+}
