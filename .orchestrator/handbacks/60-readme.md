@@ -1,7 +1,6 @@
 ## Epic 60 Handback — README, diagrams, CONTRIBUTING
 
-**Status:** Complete. Branch `epic/60-readme` @ `7bed355` (will be rebased on `origin/main` before push; the PR
-diff is the source of truth). Closes #42.
+**Status:** Complete. Branch `epic/60-readme` @ `2df6a8f` (PR #89 is the source of truth). Closes #42.
 
 **Delivered:**
 - `README.md` — logo line, one-sentence pitch, CI/MIT/Hacktoberfest/Bun badges, the 1920 px C1 dashboard
