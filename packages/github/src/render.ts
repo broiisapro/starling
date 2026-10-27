@@ -1,14 +1,27 @@
-import type { Run, TaskRun, TaskSpec } from '@starling/core';
+import type { Run, TaskRun, TaskSpec, TokenUsage } from '@starling/core';
+import { shortId } from '@starling/core';
 import type { WorkerHandback } from './handshake';
 
+/** Where the run lives, so footers can link back to it. */
+export interface RenderContext {
+  /** `owner/name`. When present, footers link the run's issue search. */
+  repo?: string;
+  /** Label namespace used by the tracker. Default `starling`. */
+  prefix?: string;
+}
+
 /** Extra human context the engine may forward into a task PR body. */
-export interface TaskPRBodyOptions {
+export interface TaskPRBodyOptions extends RenderContext {
   /** Notes from the engine (audit fix instructions, engine log, …). Rendered above the details. */
   notes?: string;
   /** Parsed `<<<STARLING_HANDBACK …` block from the worker's final message. */
   handback?: WorkerHandback;
   /** Issue this PR closes, rendered as `Closes #N` just above the footer. */
   closes?: number;
+  /** Local-model usage attributed to this task. Rendered next to the API usage when known. */
+  localUsage?: TokenUsage;
+  /** Friendly node name (`Moksh's M2 Air`); falls back to `TaskRun.nodeId`. */
+  nodeName?: string;
 }
 
 /**
@@ -19,7 +32,16 @@ export function taskMarker(runId: string, taskKey: string): string {
   return `<!-- starling:run=${runId} task=${taskKey} -->`;
 }
 
-export function renderTaskIssue(task: TaskSpec, run: Run): string {
+/**
+ * The run's issues, as a GitHub search URL. This is the closest thing GitHub has to a run page:
+ * every issue and PR the tracker created carries the `starling:run-<short>` label.
+ */
+export function runSearchUrl(repo: string, prefix: string, runId: string): string {
+  const query = encodeURIComponent(`label:${prefix}:run-${shortId(runId)}`);
+  return `https://github.com/${repo}/issues?q=${query}`;
+}
+
+export function renderTaskIssue(task: TaskSpec, run: Run, ctx: RenderContext = {}): string {
   const lines: string[] = [
     taskMarker(run.id, task.key),
     '',
@@ -57,7 +79,7 @@ export function renderTaskIssue(task: TaskSpec, run: Run): string {
       : task.dependsOn.map((key) => `- \`${key}\``)),
     '',
     '---',
-    '<sub>Planned by Starling 🐦. Editing this issue does not change the plan.</sub>',
+    `<sub>Planned by Starling 🐦${runLinkSuffix(ctx, run)}. Editing this issue does not change the plan.</sub>`,
   ];
   return `${lines.join('\n')}\n`;
 }
@@ -71,6 +93,7 @@ export function renderTaskPRBody(task: TaskSpec, run: Run, extra: TaskPRBodyOpti
   }
 
   lines.push('### Audit verdict', '', ...renderVerdict(taskRun), '');
+  lines.push('### Definition of done', '', ...renderDod(task, taskRun), '');
 
   if (extra.handback !== undefined) {
     lines.push(
@@ -92,16 +115,9 @@ export function renderTaskPRBody(task: TaskSpec, run: Run, extra: TaskPRBodyOpti
     }
   }
 
+  lines.push('### Usage', '', ...renderUsage(taskRun, extra.localUsage), '');
   lines.push(
-    '### Usage',
-    '',
-    '| | Tokens |',
-    '| --- | ---: |',
-    `| Input | ${formatInt(taskRun?.usage.input ?? 0)} |`,
-    `| Output | ${formatInt(taskRun?.usage.output ?? 0)} |`,
-    `| Cached input | ${formatInt(taskRun?.usage.cached ?? 0)} |`,
-    '',
-    `**Cost:** ${formatUsd(taskRun?.costUsd ?? 0)} · **Attempts:** ${taskRun?.attempts ?? 0}`,
+    `**Cost:** ${formatUsd(taskRun?.costUsd ?? 0)} API · ${localCostLabel(extra.localUsage)} local · **Attempts:** ${taskRun?.attempts ?? 0} · **Node:** ${nodeLabel(taskRun, extra.nodeName)}`,
     '',
   );
 
@@ -109,13 +125,13 @@ export function renderTaskPRBody(task: TaskSpec, run: Run, extra: TaskPRBodyOpti
 
   lines.push(
     '---',
-    `<sub>Branch \`${taskRun?.branch ?? task.key}\` · run \`${run.id}\` · created by Starling 🐦</sub>`,
+    `<sub>Branch \`${taskRun?.branch ?? task.key}\` · run ${runRef(extra, run)} · created by Starling 🐦</sub>`,
   );
 
   return `${lines.join('\n')}\n`;
 }
 
-export function renderFinalPRBody(run: Run): string {
+export function renderFinalPRBody(run: Run, ctx: RenderContext = {}): string {
   const tasks = run.plan?.tasks ?? [];
   const rows: string[] = [];
   for (const task of tasks) {
@@ -123,7 +139,7 @@ export function renderFinalPRBody(run: Run): string {
     const status = taskRun?.status ?? 'pending';
     const link = taskRun?.prUrl === undefined ? '' : ` ([PR](${taskRun.prUrl}))`;
     rows.push(
-      `| \`${task.key}\` | ${cell(task.title)}${link} | ${statusCell(status)} | ${taskRun?.attempts ?? 0} | ${formatUsd(taskRun?.costUsd ?? 0)} |`,
+      `| \`${task.key}\` | ${cell(task.title)}${link} | ${statusCell(status)} | ${nodeLabel(taskRun, undefined)} | ${taskRun?.attempts ?? 0} | ${formatUsd(taskRun?.costUsd ?? 0)} |`,
     );
   }
 
@@ -137,7 +153,7 @@ export function renderFinalPRBody(run: Run): string {
   const lines: string[] = [
     `# ${run.goal.text}`,
     '',
-    `**Run** \`${run.id}\` · **Status** ${run.status} · **Base** \`${run.goal.baseBranch}\` · **Integration** \`${run.integrationBranch ?? '(none)'}\``,
+    `**Run** ${runRef(ctx, run)} · **Status** ${run.status} · **Base** \`${run.goal.baseBranch}\` · **Integration** \`${run.integrationBranch ?? '(none)'}\``,
     '',
     run.plan?.summary === undefined ? '' : run.plan.summary,
     '',
@@ -146,8 +162,8 @@ export function renderFinalPRBody(run: Run): string {
     ...(rows.length === 0
       ? ['_No planned tasks._']
       : [
-          '| Task | Title | Status | Attempts | Cost |',
-          '| --- | --- | --- | ---: | ---: |',
+          '| Task | Title | Status | Node | Attempts | Cost |',
+          '| --- | --- | --- | --- | ---: | ---: |',
           ...rows,
           '',
           `**${merged} merged · ${failed} failed · ${tasks.length} planned**`,
@@ -168,7 +184,7 @@ export function renderFinalPRBody(run: Run): string {
   return `${lines.join('\n')}\n`;
 }
 
-export function renderMergedComment(task: TaskSpec, run: Run): string {
+export function renderMergedComment(task: TaskSpec, run: Run, ctx: RenderContext = {}): string {
   const taskRun = run.tasks[task.key];
   const verdict = taskRun?.lastVerdict;
   const lines: string[] = [
@@ -187,14 +203,16 @@ export function renderMergedComment(task: TaskSpec, run: Run): string {
       verdict.summary,
       '',
       ...renderVerdictTable(verdict),
+      '',
+      ...renderDod(task, taskRun),
     );
   }
 
   lines.push(
     '',
-    `Attempts: ${taskRun?.attempts ?? 0} · Cost: ${formatUsd(taskRun?.costUsd ?? 0)}`,
+    `Attempts: ${taskRun?.attempts ?? 0} · Cost: ${formatUsd(taskRun?.costUsd ?? 0)} · Node: ${nodeLabel(taskRun, undefined)}`,
     '',
-    '<sub>Closed by Starling 🐦.</sub>',
+    `<sub>Closed by Starling 🐦${runLinkSuffix(ctx, run)}.</sub>`,
   );
   return `${lines.join('\n')}\n`;
 }
@@ -221,15 +239,79 @@ function renderVerdict(taskRun: TaskRun | undefined): string[] {
   ];
 }
 
+/**
+ * The judge-facing table: one ✅/❌ row per check. The duration column only appears when the
+ * auditor measured it, so recorded verdicts from before `AuditCheck.durationMs` stay tidy.
+ */
 function renderVerdictTable(verdict: NonNullable<TaskRun['lastVerdict']>): string[] {
   if (verdict.checks.length === 0) return ['_No checks recorded._'];
+  const timed = verdict.checks.some((check) => check.durationMs !== undefined);
+  if (!timed) {
+    return [
+      '| Check | Result | Detail |',
+      '| --- | --- | --- |',
+      ...verdict.checks.map(
+        (check) => `| \`${cell(check.name)}\` | ${check.ok ? '✅' : '❌'} | ${cell(check.detail)} |`,
+      ),
+    ];
+  }
   return [
-    '| Check | Result | Detail |',
-    '| --- | --- | --- |',
+    '| Check | Result | Duration | Detail |',
+    '| --- | --- | ---: | --- |',
     ...verdict.checks.map(
-      (check) => `| \`${cell(check.name)}\` | ${check.ok ? '✅' : '❌'} | ${cell(check.detail)} |`,
+      (check) =>
+        `| \`${cell(check.name)}\` | ${check.ok ? '✅' : '❌'} | ${check.durationMs === undefined ? '—' : `${formatInt(check.durationMs)} ms`} | ${cell(check.detail)} |`,
     ),
   ];
+}
+
+/** `AuditVerdict.dod` when the auditor itemised it, otherwise the plan's unchecked checklist. */
+function renderDod(task: TaskSpec, taskRun: TaskRun | undefined): string[] {
+  const dod = taskRun?.lastVerdict?.dod;
+  if (dod !== undefined && dod.length > 0) {
+    return dod.map((item) => {
+      const evidence = item.evidence === undefined ? '' : ` — _${cell(item.evidence)}_`;
+      return `- [${item.met ? 'x' : ' '}] ${item.item}${evidence}`;
+    });
+  }
+  return [
+    `_The auditor did not itemise the DoD; the plan's checklist is below._`,
+    '',
+    ...checklist(task.definitionOfDone),
+  ];
+}
+
+function renderUsage(taskRun: TaskRun | undefined, localUsage: TokenUsage | undefined): string[] {
+  const api = taskRun?.usage ?? { input: 0, output: 0, cached: 0 };
+  const local = localUsage;
+  return [
+    '| | Input | Output | Cached | USD |',
+    '| --- | ---: | ---: | ---: | ---: |',
+    `| API | ${formatInt(api.input)} | ${formatInt(api.output)} | ${formatInt(api.cached)} | ${formatUsd(taskRun?.costUsd ?? 0)} |`,
+    `| Local | ${local === undefined ? '—' : formatInt(local.input)} | ${local === undefined ? '—' : formatInt(local.output)} | ${local === undefined ? '—' : formatInt(local.cached)} | ${formatUsd(0)} |`,
+  ];
+}
+
+function localCostLabel(localUsage: TokenUsage | undefined): string {
+  return localUsage === undefined ? '$0.0000 (not attributed per task)' : formatUsd(0);
+}
+
+function nodeLabel(taskRun: TaskRun | undefined, nodeName: string | undefined): string {
+  const name = nodeName ?? taskRun?.nodeId;
+  return name === undefined || name === '' ? '_unassigned_' : `\`${name}\``;
+}
+
+function runRef(context: RenderContext, run: Run): string {
+  const repo = context.repo;
+  if (repo === undefined || repo === '') return `\`${run.id}\``;
+  const prefix = context.prefix ?? 'starling';
+  return `[\`${shortId(run.id)}\`](${runSearchUrl(repo, prefix, run.id)})`;
+}
+
+function runLinkSuffix(context: RenderContext, run: Run): string {
+  const repo = context.repo;
+  if (repo === undefined || repo === '') return '';
+  return ` · run ${runRef(context, run)}`;
 }
 
 function bullets(items: string[]): string[] {
