@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { RepoFile, RepoMap } from '@starling/core';
-import { renderRepoMap } from './render';
+import { renderRepoMap, renderRepoMapDetail } from './render';
 
 function makeFile(overrides: Partial<RepoFile> & Pick<RepoFile, 'path'>): RepoFile {
   return { bytes: 100, lang: 'typescript', symbols: [], ...overrides };
@@ -86,5 +86,100 @@ Files (2):
     const text = renderRepoMap(map, { maxTokens: 1000 });
     expect(text).not.toContain('Test:');
     expect(text).not.toContain('Lint:');
+  });
+});
+
+describe('renderRepoMapDetail — lane mode', () => {
+  const files = [
+    makeFile({ path: 'src/features/export/index.ts', symbols: ['exportCsv'], summary: 'CSV export.' }),
+    makeFile({ path: 'src/store/todos.ts', symbols: ['createTodoStore'], summary: 'Todo store.' }),
+    makeFile({ path: 'src/main.ts', symbols: ['mount'], summary: 'Entry point.' }),
+    makeFile({ path: 'src/ui/render.ts', symbols: ['render'], summary: 'Renderer.' }),
+    makeFile({ path: 'src/features/theme/index.ts', symbols: ['toggle'], summary: 'Theme.' }),
+  ];
+  const laneMap = makeMap(files);
+  const lanes = { owns: ['src/features/export/**'], reads: ['src/store/todos.ts'] };
+
+  test('groups editable, read, neighbours and orientation, in that order', () => {
+    const { text } = renderRepoMapDetail(laneMap, {
+      lanes,
+      related: ['src/main.ts'],
+      maxChars: 6000,
+    });
+    const headings = [
+      'In your lane (editable):',
+      'You will read:',
+      'Neighbours (importers, imports, siblings):',
+      'Other files (orientation only):',
+    ];
+    const positions = headings.map((heading) => text.indexOf(heading));
+    for (const [index, position] of positions.entries()) {
+      expect(position).toBeGreaterThanOrEqual(0);
+      if (index > 0) expect(position).toBeGreaterThan(positions[index - 1] as number);
+    }
+  });
+
+  test('puts related files above the rest and gives them symbols', () => {
+    const { text } = renderRepoMapDetail(laneMap, {
+      lanes,
+      related: ['src/main.ts'],
+      maxChars: 6000,
+      bytes: true,
+    });
+    expect(text).toContain('src/main.ts · typescript · 100 B · symbols: mount — Entry point.');
+    expect(text.indexOf('src/main.ts')).toBeLessThan(text.indexOf('src/features/theme/index.ts'));
+    // Orientation files stay one line: no symbols, no summaries.
+    expect(text).not.toContain('src/features/theme/index.ts · typescript · 100 B · symbols');
+  });
+
+  test('never hides an editable file, even at the smallest budget', () => {
+    const { text } = renderRepoMapDetail(laneMap, {
+      lanes,
+      related: ['src/main.ts'],
+      maxChars: 260,
+    });
+    expect(text).toContain('src/features/export/index.ts');
+    expect(text.length).toBeLessThanOrEqual(260);
+  });
+
+  test('reports what it hid and says so in the footer', () => {
+    const small = renderRepoMapDetail(laneMap, { lanes, maxChars: 400 });
+    expect(small.truncated).toBe(true);
+    expect(small.filesShown).toBeLessThan(small.filesTotal);
+    expect(small.text).toContain('more files not shown');
+  });
+
+  test('compact drops summaries and the orientation tail', () => {
+    const full = renderRepoMapDetail(laneMap, { lanes, maxChars: 6000 });
+    const compact = renderRepoMapDetail(laneMap, { lanes, maxChars: 6000, style: 'compact' });
+    expect(compact.text).not.toContain('Todo store.');
+    expect(compact.text).not.toContain('Other files (orientation only):');
+    expect(compact.text).toContain('In your lane (editable):');
+    expect(compact.text.length).toBeLessThan(full.text.length);
+  });
+
+  test('respects per-bucket caps', () => {
+    const many = makeMap(
+      Array.from({ length: 30 }, (_, i) =>
+        makeFile({ path: `src/features/export/file-${i}.ts`, symbols: ['x'] }),
+      ),
+    );
+    const { filesShown } = renderRepoMapDetail(many, {
+      lanes,
+      maxChars: 100_000,
+      caps: { owned: 5 },
+    });
+    expect(filesShown).toBe(5);
+  });
+
+  test('zero budget renders nothing', () => {
+    expect(renderRepoMapDetail(laneMap, { lanes, maxChars: 0 }).text).toBe('');
+  });
+
+  test('is deterministic', () => {
+    const first = renderRepoMapDetail(laneMap, { lanes, related: ['src/main.ts'], maxChars: 6000 });
+    const second = renderRepoMapDetail(laneMap, { lanes, related: ['src/main.ts'], maxChars: 6000 });
+    expect(first.text).toBe(second.text);
+    expect(first.filesShown).toBe(second.filesShown);
   });
 });
