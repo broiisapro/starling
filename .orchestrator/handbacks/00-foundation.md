@@ -22,7 +22,7 @@
 - **Mock scheduling is async by default, with `immediateScheduler` + `FakeClock` for deterministic tests** — covers both event-subscription realism and synchronous assertions.
 - **Fixture data is generated** from the plan fixture and schema-validated before writing, so task keys/dependencies cannot drift.
 - **DeepSeek uncached-input price is a documented placeholder** ($0.28/M); output $0.60/M and cached input $0.003/M are the supplied figures. One table to correct before the demo.
-- **Biome excludes `AGENTS.md` and `starling.config.example.yaml`** — orchestrator-owned, whitespace-sensitive files must not be rewritten by `bun run format`.
+- **Biome excludes `AGENTS.md`, `opencode.json` and `starling.config.example.yaml`** — orchestrator-owned, whitespace-sensitive files must not be rewritten by `bun run format`.
 
 **Verification (exact commands + results):**
 - `bun run test` (root): **173 pass / 0 fail** — summary line: `173 pass, 0 fail, 726 expect() calls. Ran 173 tests across 36 files.`
