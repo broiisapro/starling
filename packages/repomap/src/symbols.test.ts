@@ -80,16 +80,27 @@ type Config struct{}
     expect(extractSymbols(source, 'go')).toEqual(['Run', 'Stop', 'Config']);
   });
 
-  test('Rust captures pub items and ignores private ones', () => {
+  test('Rust captures pub items, methods and private top-level items', () => {
     const source = `pub fn start() {}
 pub(crate) struct Thing;
 pub enum Mode {}
 pub async fn serve() {}
 fn private() {}
-`;
-    expect(extractSymbols(source, 'rust')).toEqual(['start', 'Thing', 'Mode', 'serve']);
-  });
 
+impl Thing {
+    pub fn method(&self) {}
+    fn hidden_method(&self) {}
+}
+`;
+    expect(extractSymbols(source, 'rust')).toEqual([
+      'start',
+      'Thing',
+      'Mode',
+      'serve',
+      'private',
+      'method',
+    ]);
+  });
   test('CSS captures top-level class selectors only', () => {
     const source = `.a { color: red }
 .b, .c:hover { color: blue }
@@ -106,16 +117,14 @@ fn private() {}
     expect(extractSymbols(source, 'css')).toHaveLength(20);
   });
 
-  test('Markdown captures h1 and h2 headings only', () => {
+  test('Markdown headings are prose, not symbols', () => {
     const source = `# Title
 
 ## Section One
 
 ### Not included
-
-## Section **Two**
 `;
-    expect(extractSymbols(source, 'markdown')).toEqual(['Title', 'Section One', 'Section Two']);
+    expect(extractSymbols(source, 'markdown')).toEqual([]);
   });
 
   test('returns nothing for languages without an extractor', () => {
