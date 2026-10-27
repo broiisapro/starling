@@ -52,12 +52,12 @@ export {
   DEFAULT_OLDER_THAN_HOURS,
   isIntegrationBranch,
   type RecoverWorkspaceOptions,
-  recoverWorkspace,
   type RecoveryAction,
   type RecoveryEntry,
   type RecoveryKind,
   type RecoveryReason,
   type RecoveryReport,
+  recoverWorkspace,
   runIdOf,
 } from './recover';
 export {
@@ -67,9 +67,9 @@ export {
   listWorktrees,
   mtimeMs,
   normalizeKey,
+  pruneWorktrees,
   type RepoContext,
   type RepoStatus,
-  pruneWorktrees,
   refCommitTime,
   refCreatedAt,
   refExists,
@@ -78,8 +78,8 @@ export {
   resolveRepo,
   splitNul,
   untrackedFiles,
-  worktreeAdminDir,
   type WorktreeEntry,
+  worktreeAdminDir,
 } from './repo';
 export { applySparseCheckout, normalizeSparseDirs } from './sparse';
 export {

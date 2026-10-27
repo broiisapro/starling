@@ -9,14 +9,9 @@ import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FakeClock } from '@starling/core';
+import { DEFAULT_OLDER_THAN_HOURS, isIntegrationBranch, recoverWorkspace, runIdOf } from './recover.ts';
 import { normalizeKey } from './repo.ts';
-import {
-  DEFAULT_OLDER_THAN_HOURS,
-  isIntegrationBranch,
-  recoverWorkspace,
-  runIdOf,
-} from './recover.ts';
-import { commitFile, git, initRepo, makeTempDir, removeDirs, writeFileIn } from './testing/temp-repo.ts';
+import { commitFile, git, initRepo, makeTempDir, removeDirs } from './testing/temp-repo.ts';
 import { createWorkspace } from './workspace.ts';
 
 const HOUR = 3_600_000;
@@ -192,11 +187,7 @@ describe('integration branches', () => {
     await withRepo(async ({ repo, worktreeRoot }) => {
       const ws = createWorkspace({ worktreeRoot });
       await ws.ensureIntegrationBranch(repo, 'main', 'starling/runA/integration');
-      const integration = await ws.create(
-        repo,
-        'starling/runA/integration',
-        'starling/runA/integration',
-      );
+      const integration = await ws.create(repo, 'starling/runA/integration', 'starling/runA/integration');
 
       const clock = new FakeClock(Date.now() + 96 * HOUR);
       const report = await recoverWorkspace(repo, worktreeRoot, { clock });
@@ -211,11 +202,7 @@ describe('integration branches', () => {
     await withRepo(async ({ repo, worktreeRoot }) => {
       const ws = createWorkspace({ worktreeRoot });
       await ws.ensureIntegrationBranch(repo, 'main', 'starling/runA/integration');
-      const integration = await ws.create(
-        repo,
-        'starling/runA/integration',
-        'starling/runA/integration',
-      );
+      const integration = await ws.create(repo, 'starling/runA/integration', 'starling/runA/integration');
 
       const clock = new FakeClock(Date.now() + 96 * HOUR);
       const report = await recoverWorkspace(repo, worktreeRoot, { clock, includeIntegration: true });

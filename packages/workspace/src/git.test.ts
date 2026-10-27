@@ -130,7 +130,9 @@ describe('Git', () => {
     });
     const git = new Git(exec, new KeyedMutex(), { retryDelayMs: 1, maxConcurrency: 2 });
 
-    await Promise.all(Array.from({ length: 8 }, (_, index) => git.text(['rev-parse', `${index}`], { cwd: '/repo' })));
+    await Promise.all(
+      Array.from({ length: 8 }, (_, index) => git.text(['rev-parse', `${index}`], { cwd: '/repo' })),
+    );
 
     expect(peak).toBe(2);
     expect(exec.calls.length).toBe(8);

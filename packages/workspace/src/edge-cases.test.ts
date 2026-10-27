@@ -185,15 +185,7 @@ describe('submodules', () => {
     await withRoot('starling-edge-submodule-', async (root) => {
       const lib = await initRepo(join(root, 'lib'));
       const repo = await initRepo(join(root, 'app'));
-      await gitWith(
-        repo,
-        ['-c', 'protocol.file.allow=always'],
-        'submodule',
-        'add',
-        '-q',
-        lib,
-        'vendor/lib',
-      );
+      await gitWith(repo, ['-c', 'protocol.file.allow=always'], 'submodule', 'add', '-q', lib, 'vendor/lib');
       await git(repo, 'commit', '-qm', 'add submodule');
       const ws = createWorkspace({ worktreeRoot: join(root, 'worktrees') });
 
@@ -222,15 +214,7 @@ describe('submodules', () => {
     await withRoot('starling-edge-submodule-bump-', async (root) => {
       const lib = await initRepo(join(root, 'lib'));
       const repo = await initRepo(join(root, 'app'));
-      await gitWith(
-        repo,
-        ['-c', 'protocol.file.allow=always'],
-        'submodule',
-        'add',
-        '-q',
-        lib,
-        'vendor/lib',
-      );
+      await gitWith(repo, ['-c', 'protocol.file.allow=always'], 'submodule', 'add', '-q', lib, 'vendor/lib');
       await git(repo, 'commit', '-qm', 'add submodule');
       const ws = createWorkspace({ worktreeRoot: join(root, 'worktrees') });
       const { path } = await ws.create(repo, 'starling/run-1/t01-sub', 'main');
@@ -271,11 +255,7 @@ describe('LFS pointer files', () => {
       const { path } = await ws.create(repo, 'starling/run-1/t01-lfs', 'main');
 
       // A pointer rewrite is a three-line text change, whatever the real object size is.
-      await writeFileIn(
-        path,
-        'assets/logo.png',
-        POINTER.replace('size 123456789', 'size 987654321'),
-      );
+      await writeFileIn(path, 'assets/logo.png', POINTER.replace('size 123456789', 'size 987654321'));
       const summary = await ws.diff(path, 'main');
 
       expect(summary.files).toEqual([{ path: 'assets/logo.png', added: 1, removed: 1 }]);

@@ -41,8 +41,8 @@ import {
   normalizeKey,
   pruneWorktrees,
   type RepoContext,
-  repoStatus,
   refExists,
+  repoStatus,
   resolveRepo,
   splitNul,
 } from './repo';
@@ -283,9 +283,7 @@ export function createWorkspace(opts: CreateWorkspaceOptions): WorkspaceWithBund
     const status = await repoStatus(git, cwd);
     const committed = parseNumstat(await git.text(['diff', '--numstat', `${baseRef}...HEAD`], { cwd }));
 
-    const parts = [
-      await git.stdout(['diff', '--no-color', '--no-ext-diff', `${baseRef}...HEAD`], { cwd }),
-    ];
+    const parts = [await git.stdout(['diff', '--no-color', '--no-ext-diff', `${baseRef}...HEAD`], { cwd })];
 
     // Only ask for the working-tree half when there is one; a clean worktree costs zero extra
     // spawns instead of two (the common case right after an agent commits).

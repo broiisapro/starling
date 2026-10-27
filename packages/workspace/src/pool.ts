@@ -11,7 +11,7 @@
  * never waits behind the first one.
  */
 import { cpus } from 'node:os';
-import { exec as coreExec, StarlingError } from '@starling/core';
+import { type exec as coreExec, StarlingError } from '@starling/core';
 
 /** The shape of core's `exec` (argv array in, captured output out). */
 export type ExecFn = typeof coreExec;
