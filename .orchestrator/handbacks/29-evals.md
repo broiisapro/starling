@@ -89,3 +89,5 @@ trivial-assertion-tests           fail     fail  1.00    ok
 - Should `evals/` become a Bun workspace at checkpoint C1? The path-based core/zod shims work from a clean clone with no extra install, but a real `@starling/core` dependency would be cleaner. Root `workspaces` is orchestrator-owned, so this is left as a C1 decision.
 - The local validator treats only `severity: 'error'` as failure. If the real planner emits `lane-overlap` as a warn after repair, evals will treat the plan as clean — intentional, but worth confirming when Epic 48 lands.
 - `conflict-bait` accepts either a 1-task repair or 2 overlapping tasks because its own expected file calls both acceptable; if the demo later fixes one answer, tighten `taskCount` and `validator.anyOf`.
+
+Closes #23
