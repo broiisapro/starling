@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { PlanIssue } from '@starling/core';
 import { StarlingError } from '@starling/core';
-import { MockAuditor, MockLLM, MockNode, makeTaskSpec } from '@starling/core/testing';
+import { MockAuditor, MockLLM, MockNode, makePlan, makeTaskSpec } from '@starling/core/testing';
 import { buildHarness, FakeTimers, smallPlan, waitFor } from './testing/harness';
 
 const START_ONLY = [{ kind: 'session.started' as const, data: {} }];
@@ -172,6 +172,44 @@ describe('abortTask', () => {
     const run = await h.finish();
     await h.engine.abortTask(run.id, 'a');
     expect(h.engine.getRun(run.id)?.tasks.a?.status).toBe('merged');
+  });
+});
+
+describe('run shapes', () => {
+  test('an empty plan finishes immediately', async () => {
+    const h = buildHarness({ plan: makePlan({ goalId: 'empty', tasks: [] }) });
+    const run = await h.finish();
+    expect(run.status).toBe('finished');
+    expect(Object.keys(run.tasks)).toHaveLength(0);
+    expect(h.ofType('run.finished')[0]?.payload.summary).toContain('0/0 tasks');
+  });
+
+  test('two runs in one engine stay isolated', async () => {
+    const h = buildHarness({ plan: smallPlan([makeTaskSpec({ key: 'placeholder' })]) });
+    h.deps.planner.plan = async (goal) => ({
+      plan: makePlan({
+        goalId: goal.id,
+        tasks: [
+          makeTaskSpec({ key: goal.text === 'left' ? 'a' : 'b', lane: { owns: ['src/**'], reads: [] } }),
+        ],
+      }),
+      issues: [],
+    });
+    const leftId = await h.start({ goal: 'left' });
+    const rightId = await h.start({ goal: 'right' });
+    const [left, right] = await Promise.all([
+      h.engine.waitForFinish(leftId),
+      h.engine.waitForFinish(rightId),
+    ]);
+
+    expect(left.id).not.toBe(right.id);
+    expect(Object.keys(left.tasks)).toEqual(['a']);
+    expect(Object.keys(right.tasks)).toEqual(['b']);
+    expect(left.tasks.a?.status).toBe('merged');
+    expect(right.tasks.b?.status).toBe('merged');
+    expect(h.engine.listRuns()).toHaveLength(2);
+    const runIds = new Set(h.ofType('agent.event').map((event) => event.payload.runId));
+    expect(runIds).toEqual(new Set([leftId, rightId]));
   });
 });
 
