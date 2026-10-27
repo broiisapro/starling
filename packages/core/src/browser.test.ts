@@ -79,6 +79,13 @@ describe('@starling/core/browser', () => {
     }
   });
 
+  test('package.json exposes it as @starling/core/browser', async () => {
+    // The subpath (not the relative file) is what the web app will import, so prove the exports map
+    // resolves it — Bun's workspace self-reference does, and Vite follows the same field.
+    const subpath = await import('@starling/core/browser');
+    expect(subpath.PACKAGE).toBe('@starling/core/browser');
+  });
+
   test('exports the pricing table and the schemas the UI needs', async () => {
     const browser = await import('./browser');
     expect(browser.PRICING['deepseek-v4.1-flash']?.outputPerM).toBeGreaterThan(0);
