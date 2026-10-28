@@ -1,6 +1,6 @@
 ## Epic 115 Handback — Web: lanes map (who owns which files)
 
-**Status:** Complete. Branch `epic/115-web-lanes` @ TBD.
+**Status:** Complete. Branch `epic/115-web-lanes` @ `aa2b47b` (+ the docs/handback commit on top).
 
 **Delivered:**
 - `apps/web/src/features/lanes/derive.ts` — `buildLaneTree` / `buildLaneModel`, `globTarget`, `laneOverlaps`, `laneOverlapIssues`, `laneRows`, `formatLaneSummary`, `primaryLaneOwner`; lane globs → nested `LaneNode` tree, touched aggregation from `agentLog`/`diffs`/structural `task.diff`, conflict and violation flags, deterministic plan-order ownership.
