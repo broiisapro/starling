@@ -1,6 +1,6 @@
 ## Epic 126 Handback — Web: flock leaderboard
 
-**Status:** Complete. Branch `epic/126-web-leaderboard` @ `189cd2f` (this handback lands on top).
+**Status:** Complete. Branch `epic/126-web-leaderboard` @ `51ab08f` (this handback lands on top).
 
 **Delivered:**
 
@@ -26,14 +26,14 @@
 
 **Verification (exact commands + results):**
 
-- `bun install` (worktree): `Checked 172 installs across 225 packages (no changes)` — `bun.lock` untouched.
+- `bun install` (worktree): `Checked 180 installs across 225 packages (no changes)` — `bun.lock` untouched.
 - `cd apps/web && bun test src/features/leaderboard`: **56 pass / 0 fail**, 658 expect() calls, 5 files.
 - `bunx tsc --noEmit -p apps/web`: clean (no output).
 - `bunx biome check apps/web/src/features/leaderboard`: `Checked 15 files … No fixes applied.`
-- `bash .orchestrator/bin/heavy.sh bun run test` (root):
-  - packages/apps/server/cli/tools: `1938 pass, 4 skip, 0 fail` — 1942 tests across 223 files.
+- `bash .orchestrator/bin/heavy.sh bun run test` (root, after rebase onto `origin/main` @ `b493778`):
+  - packages/apps/server/cli/tools: `1974 pass, 5 skip, 0 fail` — 1979 tests across 227 files.
   - apps/web: `637 pass, 0 fail` — 637 tests across 65 files.
-- `bash .orchestrator/bin/heavy.sh bun run check`: `Checked 990 files in 553ms. No fixes applied.` + per-workspace `tsc --noEmit` loop clean.
+- `bash .orchestrator/bin/heavy.sh bun run check`: `Checked 1006 files in 654ms. No fixes applied.` + per-workspace `tsc --noEmit` loop clean.
 - Fixture DoD check is a happy-dom test: `dates-fix` is first on `Fastest bird` (`data-rank-key="fastest:dates-fix"`, `33.4s`) and `MacBook Pro` is first on `Busiest perch` (`perch:hub`, `5 tasks`).
 
 **Dependencies added:** none.
