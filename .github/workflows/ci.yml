@@ -94,9 +94,10 @@ jobs:
           done
 
       # Static tests for the workflows themselves (job timeouts, pinned actions, lockfile, required
-      # check names). They live under .github/, which the root test script does not walk.
+      # check names). They live under .github/, which the root test script does not walk. The `./`
+      # prefix matters: Bun's discovery skips dot-directories for a bare `.github/...` filter.
       - name: Workflow static tests
-        run: bun test .github/workflows/scripts
+        run: bun test ./.github/workflows/scripts
 
   test-packages:
     name: test packages

@@ -158,11 +158,11 @@ export function readSummaryInputs(root: string = process.cwd()): SummaryInputs {
 
 function main(): void {
   const table = `## Nightly\n\n${summaryTable(readSummaryInputs())}`;
+  // Print as well as append: the log is the only place a reviewer of a failed/partial run can read
+  // the table without downloading the artifact.
+  console.log(table);
   const summaryPath = process.env.GITHUB_STEP_SUMMARY;
-  if (summaryPath === undefined) {
-    console.log(table);
-    return;
-  }
+  if (summaryPath === undefined) return;
   appendFileSync(summaryPath, `${table}\n`);
 }
 
