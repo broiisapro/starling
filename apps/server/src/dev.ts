@@ -6,6 +6,7 @@
  * will in production, and the web epics have a real, live-looking run to point at before the engine
  * exists. `POST /api/replay` also works (one pass per call).
  */
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createEventBus, StarlingError } from '@starling/core';
 import { MemoryStore } from '@starling/core/testing';
@@ -15,6 +16,9 @@ import { loadReplayFile, startReplay } from './replay';
 
 /** `apps/server/src` → repo root → the recorded launch-day run. */
 export const DEMO_FIXTURE_PATH = resolve(import.meta.dir, '../../../fixtures/runs/sky-todo-launch-day.jsonl');
+
+/** `apps/web/dist`, when the dashboard has been built. */
+const WEB_DIST = resolve(import.meta.dir, '../../web/dist');
 
 /** 8× real time: the 356 s recording plays in ~45 s, then loops after a short pause. */
 export const DEMO_SPEED = 8;
@@ -88,6 +92,8 @@ export async function runDemoServer(options: DemoServerOptions = {}): Promise<De
       store,
       bus,
       version: VERSION,
+      // Serve the built dashboard too, so other laptops can open http://<this-ip>:7777 and watch.
+      ...(existsSync(resolve(WEB_DIST, 'index.html')) ? { webDist: WEB_DIST } : {}),
       replay: async (path, replaySpeed) => {
         const replayFile = loadReplayFile(path);
         const handle = startReplay({ file: replayFile, store, bus, speed: replaySpeed, loop: false });
