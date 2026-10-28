@@ -36,8 +36,9 @@
   $ curl -s -o /dev/null -w '%{http_code}' 127.0.0.1:7788/perch/health   # no token
   401
   ```
-- `bash .orchestrator/bin/heavy.sh bun run test` (root): first half `2007 pass, 4 skip, 0 fail, 29 snapshots, 8862 expect() calls, Ran 2011 tests across 229 files`; second half (web) `581 pass, 0 fail, 4164 expect() calls, Ran 581 tests across 60 files`.
+- `bash .orchestrator/bin/heavy.sh bun run test` (root, after rebasing onto `origin/main`): first half `2043 pass, 5 skip, 0 fail, 29 snapshots, 8982 expect() calls, Ran 2048 tests across 233 files`; second half (web) `581 pass, 0 fail, 4164 expect() calls, Ran 581 tests across 60 files`.
 - `bash .orchestrator/bin/heavy.sh bun run check`: `Checked 986 files` (biome, no fixes) + `tsc --noEmit` loop over `packages/* apps/*` clean.
+- Note: `bun install` was re-run after the rebase (main added `apps/cli` workspace deps); it reported `Checked 180 installs across 225 packages (no changes)` and left `bun.lock` untouched. Before that refresh, `apps/cli` tests failed to resolve `@starling/store` — an install artefact of the rebase, not a code failure.
 
 **Dependencies added:** none.
 
