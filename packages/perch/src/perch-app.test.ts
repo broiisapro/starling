@@ -86,6 +86,7 @@ describe('Perch API', () => {
     const { url } = setup();
     const routes: Array<[string, string]> = [
       ['GET', '/perch/info'],
+      ['GET', '/perch/health'],
       ['POST', '/perch/tasks'],
       ['POST', '/perch/tasks/run-1/theme/prompt'],
       ['POST', '/perch/tasks/run-1/theme/abort'],

@@ -7,7 +7,10 @@ import {
   systemClock,
 } from '@starling/core';
 import { z } from 'zod';
+import type { DrainOptions, DrainReport } from './drain';
 import type { MdnsAdvertiser } from './handshake';
+import { createPerchHealthProbes, type PerchHealthProbes } from './health';
+import { nextHeartbeatDelay, PERCH_HEARTBEAT_JITTER } from './heartbeat';
 import { randomJoinCode } from './join-code';
 import { findLanIPv4, perchUrl } from './lan';
 import { STARLING_SERVICE_TYPE } from './mdns';
@@ -34,6 +37,13 @@ export interface StartPerchOptions {
   fetch?: typeof fetch;
   /** Heartbeat period. Default 3 s (ARCHITECTURE §1). */
   heartbeatMs?: number;
+  /**
+   * Fraction of `heartbeatMs` to spread each heartbeat by, so ten perches do not call the hub in
+   * lockstep. Default {@link PERCH_HEARTBEAT_JITTER} (0.1 = ±10%); 0 disables jitter.
+   */
+  heartbeatJitter?: number;
+  /** Uniform source in `[0, 1)` for the jitter. Default `Math.random`; injected by tests. */
+  random?: () => number;
   /** First retry delay after a failed hub call. Default 500 ms. */
   backoffMs?: number;
   /** Retry backoff cap. Default 30 s. */
@@ -52,6 +62,19 @@ export interface StartPerchOptions {
    * `127.0.0.1` so they never depend on the machine's Wi-Fi address.
    */
   publicHost?: string;
+  /**
+   * Publish the join code in the mDNS TXT record (SEC-07). Default **false**: anyone on the Wi-Fi
+   * can read a TXT record, and the code is the flock's only secret. Discovery still works without
+   * it — a hub authenticates with the code a human typed once — so this is an explicit opt-in for
+   * a zero-config demo on a trusted network.
+   */
+  advertiseCode?: boolean;
+  /** The perch state root holding worktrees, probed by `GET /perch/health`. */
+  worktreeRoot?: string;
+  /** Override the disk probe used by `/perch/health` (tests never touch a real filesystem). */
+  freeBytes?: () => Promise<number>;
+  /** Override individual health probes (tests). */
+  health?: Partial<PerchHealthProbes>;
 }
 
 export interface PerchHandle {
@@ -61,6 +84,12 @@ export interface PerchHandle {
   readonly nodeId?: string;
   /** Stop the heartbeat, abort in-flight sessions, unpublish mDNS and close the server. Idempotent. */
   stop(): Promise<void>;
+  /**
+   * Drain gracefully, then stop: refuse new tasks, advertise zero free slots, wait for the hub to
+   * delete every task, abort whatever is left at the timeout. Idempotent (a drained perch is
+   * stopped, so a second call resolves with an empty report).
+   */
+  drain(opts?: DrainOptions): Promise<DrainReport>;
 }
 
 const RegisterResponseSchema = z.object({ nodeId: z.string().min(1) });
@@ -77,10 +106,16 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
   const clock = opts.clock ?? systemClock;
   const doFetch = opts.fetch ?? fetch;
   const heartbeatMs = opts.heartbeatMs ?? 3000;
+  const heartbeatJitter = opts.heartbeatJitter ?? PERCH_HEARTBEAT_JITTER;
+  const random = opts.random ?? Math.random;
   const backoffMs = opts.backoffMs ?? 500;
   const maxBackoffMs = opts.maxBackoffMs ?? 30_000;
   const requestTimeoutMs = opts.requestTimeoutMs ?? 5000;
   const hub = opts.hub === undefined ? undefined : normalizeHub(opts.hub);
+  /** Set once `drain()` starts; heartbeats then advertise zero free slots. */
+  let draining = false;
+  /** Injected-clock time of the last successful register/heartbeat (the `hub` health check). */
+  let lastHeartbeatOkAt: number | undefined;
 
   const token = opts.token ?? opts.code ?? (hub === undefined ? randomJoinCode() : undefined);
   if (token === undefined || token.length === 0) {
@@ -113,8 +148,8 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
     ttlMs: 30_000,
   });
 
-  const info = (): Promise<NodeInfo> =>
-    perchInfo({
+  const info = async (): Promise<NodeInfo> => {
+    const base = await perchInfo({
       node: opts.node,
       name: resolvedName,
       maxSessions: opts.maxSessions,
@@ -125,6 +160,26 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
       os: async () => osFacts,
       localModels: modelsProbe,
     });
+    if (!draining) return base;
+    // Zero free slots is how the scheduler learns to stop picking this perch (a new task would get
+    // a 503 anyway). `status` stays honest so the dashboard does not show a drained perch as dead.
+    return { ...base, maxSessions: base.activeSessions };
+  };
+
+  const healthProbes: PerchHealthProbes = {
+    ...createPerchHealthProbes({
+      node: opts.node,
+      ...(opts.worktreeRoot === undefined ? {} : { worktreeRoot: opts.worktreeRoot }),
+      heartbeatMs,
+      hubConfigured: hub !== undefined,
+      lastHeartbeatOkAt: () => lastHeartbeatOkAt,
+      draining: () => draining,
+      now: () => clock.now(),
+      ...(opts.exec === undefined ? {} : { exec: opts.exec }),
+      ...(opts.freeBytes === undefined ? {} : { freeBytes: opts.freeBytes }),
+    }),
+    ...opts.health,
+  };
 
   const app = createPerchApp({
     node: opts.node,
@@ -133,6 +188,7 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
     bus: opts.bus,
     clock,
     keepAliveMs: opts.keepAliveMs,
+    health: healthProbes,
   });
 
   const bindHost = opts.hostname ?? '0.0.0.0';
@@ -164,6 +220,9 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
 
   const retryDelay = (attempt: number): number =>
     Math.min(backoffMs * 2 ** Math.max(0, attempt - 1), maxBackoffMs);
+
+  /** Nominal period ± jitter, so a flock that boots together does not heartbeat in lockstep. */
+  const heartbeatDelay = (): number => nextHeartbeatDelay({ heartbeatMs, jitter: heartbeatJitter, random });
 
   const schedule = (delayMs: number): void => {
     if (stopped) return;
@@ -210,8 +269,9 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
         }
         assignedNodeId = parsed.data.nodeId;
         failures = 0;
+        lastHeartbeatOkAt = clock.now();
         log('info', `perch registered with ${hub} as ${assignedNodeId}`);
-        schedule(heartbeatMs);
+        schedule(heartbeatDelay());
         return;
       }
 
@@ -232,7 +292,8 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
         return;
       }
       failures = 0;
-      schedule(heartbeatMs);
+      lastHeartbeatOkAt = clock.now();
+      schedule(heartbeatDelay());
     } catch (err) {
       failures += 1;
       const detail = err instanceof Error ? err.message : String(err);
@@ -247,9 +308,13 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
         name: resolvedName,
         type: STARLING_SERVICE_TYPE,
         port: actualPort,
-        // The code is published so a hub doing zero-config discovery can authenticate. LAN-only,
-        // matching the no-TLS threat model in ARCHITECTURE L18.
-        txt: { code: token, node: resolvedName },
+        // SEC-07: the code is the flock's only secret, and a TXT record is readable by anyone on the
+        // Wi-Fi. It is published only when the operator explicitly asks (a trusted-network demo);
+        // discovery itself keeps working because the hub authenticates with the code it already has.
+        txt: {
+          node: resolvedName,
+          ...(opts.advertiseCode === true ? { code: token } : {}),
+        },
       });
     } catch (err) {
       log('warn', `mDNS advertisement failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -293,12 +358,55 @@ export async function startPerch(opts: StartPerchOptions): Promise<PerchHandle> 
     server.stop(true);
   };
 
+  /**
+   * Drain then stop. The one extra heartbeat is deliberate: without it the hub keeps dispatching to
+   * this perch for a full interval after the operator pressed Ctrl-C (or ran `starling perch
+   * --drain`), and the task would land on a process that is about to exit.
+   */
+  const runDrain = async (drainOpts: DrainOptions = {}): Promise<DrainReport> => {
+    if (stopped) return { finished: [], aborted: [], waitedMs: 0 };
+
+    draining = true;
+    app.setDraining(true);
+    log('info', 'perch is draining: no new tasks, zero free slots, waiting for the hub');
+
+    if (hub !== undefined && assignedNodeId !== undefined) {
+      try {
+        const res = await call('/api/flock/heartbeat', { nodeId: assignedNodeId, info: await info() });
+        if (res.ok) lastHeartbeatOkAt = clock.now();
+      } catch (err) {
+        log(
+          'debug',
+          `perch could not announce its drain: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    const report = await app.drainTasks({
+      ...drainOpts,
+      now: drainOpts.now ?? ((): number => clock.now()),
+    });
+    log(
+      'info',
+      `perch drained: ${report.finished.length} finished, ${report.aborted.length} aborted in ${report.waitedMs} ms`,
+    );
+    await stop();
+    return report;
+  };
+
+  let drainPromise: Promise<DrainReport> | undefined;
+
   return {
     url,
     get nodeId(): string | undefined {
       return assignedNodeId;
     },
     stop,
+    drain: (drainOpts: DrainOptions = {}): Promise<DrainReport> => {
+      // Idempotent: a second caller (SIGINT twice) awaits the drain already in flight.
+      drainPromise ??= runDrain(drainOpts);
+      return drainPromise;
+    },
   };
 }
 

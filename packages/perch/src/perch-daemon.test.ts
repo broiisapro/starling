@@ -182,7 +182,7 @@ describe('startPerch lifecycle', () => {
     expect(refused).toBe(true);
   });
 
-  test('advertises _starling._tcp with the port and join code, and unpublishes on stop', async () => {
+  test('advertises _starling._tcp with the port and node name, and unpublishes on stop', async () => {
     const advertised: MdnsAdvertiseOptions[] = [];
     let stopped = 0;
     const mdns: MdnsAdvertiser = {
@@ -204,12 +204,36 @@ describe('startPerch lifecycle', () => {
     expect(opts?.name).toBe('Test Perch');
     expect(opts?.type).toBe('_starling._tcp');
     expect(opts?.port).toBe(Number(new URL(perch.url).port));
-    expect(opts?.txt?.code).toBe(TEST_CODE);
     expect(opts?.txt?.node).toBe('Test Perch');
+    // SEC-07: the join code is opt-in, so it is absent by default.
+    expect(opts?.txt?.code).toBeUndefined();
 
     await perch.stop();
     perches.splice(perches.indexOf(perch), 1);
     expect(stopped).toBe(1);
+  });
+
+  test('publishes the join code only when advertiseCode is set', async () => {
+    const advertised: MdnsAdvertiseOptions[] = [];
+    const mdns: MdnsAdvertiser = {
+      advertise: (opts) => {
+        advertised.push(opts);
+      },
+      stop: () => undefined,
+    };
+
+    await launch(
+      baseOptions({
+        hub: 'http://hub.test',
+        code: TEST_CODE,
+        fetch: createHubFetch().fetch,
+        mdns,
+        advertiseCode: true,
+      }),
+    );
+
+    expect(advertised).toHaveLength(1);
+    expect(advertised[0]?.txt).toEqual({ code: TEST_CODE, node: 'Test Perch' });
   });
 
   test('a failing mDNS advertiser does not stop the perch', async () => {

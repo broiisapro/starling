@@ -1,5 +1,6 @@
 import type { AgentEvent, NodeInfo, StartTaskOptions } from '@starling/core';
-import { makeNodeInfo } from '@starling/core/testing';
+import { MockNode, makeNodeInfo } from '@starling/core/testing';
+import { createPerchApp, type PerchApp, type PerchAppDeps } from './perch-app';
 
 /** The join code every test hub and perch shares. */
 export const TEST_CODE = 'TEST-CODE';
@@ -33,6 +34,44 @@ export function staticInfo(overrides: Partial<NodeInfo> = {}): () => Promise<Nod
       lastSeen: 1000,
       ...overrides,
     });
+}
+
+export interface PerchHarness {
+  app: PerchApp;
+  node: MockNode;
+  url: string;
+  /** Close the app and the listener. Idempotent. */
+  close(): Promise<void>;
+}
+
+/**
+ * A running Perch API on an ephemeral loopback port, with a `MockNode` and the join code every test
+ * shares. `close()` is safe to call twice, which keeps `afterEach` hooks simple.
+ */
+export function startPerchApp(
+  deps: Partial<Omit<PerchAppDeps, 'node'>> & { node?: MockNode } = {},
+): PerchHarness {
+  const node = deps.node ?? new MockNode({ id: 'perch-1', info: { maxSessions: 5 } });
+  const app = createPerchApp({
+    info: staticInfo(),
+    keepAliveMs: 25,
+    token: TEST_CODE,
+    ...deps,
+    node,
+  });
+  const server = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: app.fetch });
+  let closed = false;
+  return {
+    app,
+    node,
+    url: `http://127.0.0.1:${server.port}`,
+    async close() {
+      if (closed) return;
+      closed = true;
+      await app.close();
+      server.stop(true);
+    },
+  };
 }
 
 /** Wait until `fn` returns a truthy value, polling every 5 ms. */
