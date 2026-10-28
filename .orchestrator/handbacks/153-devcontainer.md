@@ -8,7 +8,9 @@
 - `.dockerignore` — `.git`, `.orchestrator`, `**/node_modules`, `**/dist`, `.starling`, `**/*.db*`, `**/*.log`, `.env*`/`**/.env*`, `Claude outputs`, `tools/*/results`, `tools/release/dist`, `site/dist`, `apps/web/e2e/__screenshots__`; nothing the Dockerfile copies is excluded.
 - `.devcontainer/Dockerfile` + `.devcontainer/devcontainer.json` — `oven/bun:1.4.4` + apt `git gh bash jq less curl ca-certificates`, `postCreateCommand: bun install --frozen-lockfile`, `forwardPorts [7777, 5173]` with `portsAttributes` labels (Starling dashboard / Vite dev server), Biome + Bun extensions, format on save, `STARLING_LIVE: ""`, three-line `postAttachCommand` (`bun run test`, `bun run dev:web`, `starling try`), `remoteUser: root` (justified in the doc).
 - `tools/docker/smoke.sh` — daemon-aware skip, build, `docker run --publish 127.0.0.1::7777`, `docker port`, 60 s health poll, `/api/runs` + `/` + startup-log assertions, `docker stop` exit-code-0 check, `trap cleanup EXIT` for container and image removal.
-- `tools/docker/static.test.ts` (30 tests) and `tools/docker/demo.test.ts` (10 tests) — 40 hermetic tests, no Docker and no network beyond `127.0.0.1:0`.
+- `tools/docker/static.test.ts` (19 tests), `devcontainer.test.ts` (11) and `demo.test.ts` (10), with
+  the parsing/matching harness in `static-support.ts` — 40 hermetic tests, no Docker and no network
+  beyond `127.0.0.1:0`.
 - `tools/docker/tsconfig.json`, `tools/docker/README.md`, `docs/epic-153-devcontainer.md`.
 
 **Key design decisions:**
@@ -20,7 +22,7 @@
 
 **Verification (exact commands + results):**
 - `bun install` (worktree): `Checked 172 installs across 225 packages (no changes) [13.00ms]`; `git status` clean apart from new docs, `bun.lock` untouched.
-- `bun test tools/docker`: `40 pass, 0 fail, 980 expect() calls, Ran 40 tests across 2 files. [171.00ms]`
+- `bun test tools/docker`: `40 pass, 0 fail, 997 expect() calls, Ran 40 tests across 3 files. [623.00ms]`
 - `bunx tsc --noEmit -p tools/docker`: exit 0, no output.
 - `bash -n tools/docker/smoke.sh`: exit 0.
 - `cd apps/web && bun run build` (through `heavy.sh`): `✓ built in 483ms`, `dist/assets/index-BjsOblSz.js 878.16 kB`.

@@ -67,8 +67,9 @@ catch the boring-but-fatal drift:
   `EXPOSE 7777`, the healthcheck, the entrypoint, and `ENV` defaults. It walks every build-context
   `COPY` source, checks it exists, and matches every file against `.dockerignore` using
   `matchesGlob` from `@starling/core` (Docker-style: ancestors count, ignored directories are pruned).
-  It also parses `devcontainer.json` as JSONC and checks the image tag, tool installs, ports, labels,
-  extensions, live-test posture and welcome text, and runs `bash -n tools/docker/smoke.sh`.
+  `devcontainer.test.ts` parses `devcontainer.json` as JSONC and checks the image tag, tool installs,
+  ports, labels, extensions, live-test posture and welcome text, and runs
+  `bash -n tools/docker/smoke.sh`. The parsing/matching helpers are shared in `static-support.ts`.
 - `tools/docker/smoke.sh` is the live check: build, run on a random host port, poll `/api/health` for
   up to 60 s, assert `/api/runs` lists the run, assert `/` contains the app root, `docker stop`, assert
   exit code 0, and always remove the container and image (`trap cleanup EXIT`). Without a daemon it

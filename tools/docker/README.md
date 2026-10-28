@@ -95,8 +95,9 @@ bash tools/docker/smoke.sh   # builds and runs the image where a Docker daemon e
 cannot: both `FROM` tags equal `.bun-version`, `--frozen-lockfile` is present, every workspace
 manifest is copied before the install, every `COPY` source exists and is **not** excluded by
 `.dockerignore` (matched with `matchesGlob` from `@starling/core`), the runtime runs as `bun`, exposes
-7777, answers `/api/health`, and never installs anything. It also checks `devcontainer.json` (JSONC,
-ports, labels, extensions, the welcome text) and `bash -n` on `smoke.sh`.
+7777, answers `/api/health`, and never installs anything. `devcontainer.test.ts` checks
+`devcontainer.json` (JSONC, ports, labels, extensions, live-test posture, the welcome text) and
+`bash -n` on `smoke.sh`; the parsing and matching helpers live in `static-support.ts`.
 
 `demo.test.ts` runs the same server the image runs: health, `/api/runs`, an SSE backlog frame,
 `index.html`/assets with the SPA fallback, the 501 on `POST /api/runs`, and an idempotent stop.
