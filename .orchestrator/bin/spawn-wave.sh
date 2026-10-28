@@ -97,7 +97,7 @@ export PATH="$PATH"
 cd "$wt"
 printf '\033]0;🐦 epic ${name}\007'
 FIRST="Your assignment is the file ${prompt} in this worktree. Read it completely, then read AGENTS.md and .orchestrator/ARCHITECTURE.md, then execute the assignment end to end. Do not stop to ask questions: decide, document, continue. Finish by opening the PR as AGENTS.md section 6 describes."
-CONT="You are RESUMING epic ${name} after an interruption (provider or transport error, or a restart). Your assignment is the file ${prompt} in this worktree: re-read it. Your earlier work is already here: run git log --oneline origin/main..HEAD and git status first, keep everything that is good, and continue from where it stopped without redoing finished work. Finish exactly as the assignment and AGENTS.md section 6 describe (epic doc, handback, PR)."
+CONT="You are RESUMING epic ${name} after an interruption (provider or transport error, or a restart). Your assignment is the file ${prompt} in this worktree: re-read it. Your earlier work is already here: run git log --oneline origin/main..HEAD and git status first, commit anything worth keeping, then git fetch origin and git rebase origin/main, and read .orchestrator/CONTINUE-NOTE.md (what changed on main while you were stopped). Then keep everything that is good, and continue from where it stopped without redoing finished work. Finish exactly as the assignment and AGENTS.md section 6 describe (epic doc, handback, PR)."
 MSG="\$FIRST"; [ "${CONT}" = 1 ] && MSG="\$CONT"
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
   echo "=== \$(date) :: ${name} :: model ${MODEL} :: ui ${UI} :: attempt \$attempt ===" >> "$LOG_DIR/${name}.log"
