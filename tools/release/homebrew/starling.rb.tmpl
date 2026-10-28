@@ -1,0 +1,41 @@
+# Rendered by tools/release/build.ts from this template; edit the .tmpl, never the rendered file.
+#
+# Asset names and layout are a contract shared with tools/install (Epic 152):
+#   starling-<version>-<os>-<arch>.tar.gz → starling-<version>-<os>-<arch>/{bin/starling,share/starling/web}
+# Publish only a formula rendered from a full `--target all` build.
+class Starling < Formula
+  desc "One goal in, a murmuration of open-weight coding agents out"
+  homepage "https://github.com/{{REPO}}"
+  version "{{VERSION}}"
+  license "MIT"
+
+  on_macos do
+    on_arm do
+      {{DARWIN_ARM64}}
+    end
+
+    on_intel do
+      {{DARWIN_X64}}
+    end
+  end
+
+  on_linux do
+    on_intel do
+      {{LINUX_X64}}
+    end
+
+    on_arm do
+      raise "Starling has no linux-arm64 build yet. Build from source: https://github.com/{{REPO}}#from-source"
+    end
+  end
+
+  def install
+    bin.install "bin/starling"
+    pkgshare.install "share/starling/web"
+  end
+
+  test do
+    system "#{bin}/starling", "--version"
+    system "#{bin}/starling", "--help"
+  end
+end
