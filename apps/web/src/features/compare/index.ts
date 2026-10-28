@@ -43,6 +43,7 @@ export { NodeCounts } from './NodeCounts';
 export type { BarDatum, PairedBarsProps } from './PairedBars';
 export { PairedBars } from './PairedBars';
 export { PlanDiffView } from './PlanDiffView';
+export { Playground } from './Playground';
 export type { PlanDiff, PlanDiffChange, PlanDiffField } from './plan-diff';
 export { describeChangedFields, diffPlanTasks } from './plan-diff';
 export type { CompareParams, CompareSelection, SelectionSource } from './selection';
