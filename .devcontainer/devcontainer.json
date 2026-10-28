@@ -1,0 +1,42 @@
+{
+  // Starling's contributor container: open the repo in VS Code (Dev Containers) or GitHub Codespaces
+  // and get Bun 1.4.4, git, gh and the whole test suite without installing anything locally.
+  // The dashboard and the Vite dev server are forwarded; live model tests stay off inside the box.
+  "name": "Starling 🐦",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+
+  // The lockfile, not `latest`: a fresh container gets exactly the versions CI tests.
+  "postCreateCommand": "bun install --frozen-lockfile",
+
+  // Three commands, no scrolling. `starling try` lands at C3 (Epic 149).
+  "postAttachCommand": "printf '\\n🐦 Starling is ready.\\n  bun run test      — the whole suite (no network, no models)\\n  bun run dev:web   — the dashboard on :5173 (needs a hub on :7777)\\n  starling try      — one command, one murmuration (Epic 149)\\n\\n'",
+
+  // 7777 = `starling dash` / the demo hub; 5173 = the Vite dev server.
+  "forwardPorts": [7777, 5173],
+  "portsAttributes": {
+    "7777": { "label": "Starling dashboard", "onAutoForward": "notify" },
+    "5173": { "label": "Vite dev server", "onAutoForward": "silent" }
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["biomejs.biome", "oven.bun-vscode"],
+      "settings": {
+        "editor.defaultFormatter": "biomejs.biome",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+
+  // The container is root on purpose: bind-mounted workspaces arrive with the host's uid on Linux/WSL,
+  // so a fixed non-root user makes `bun install` fail for some contributors. The demo *image* is the
+  // one that runs unprivileged (see the root Dockerfile). `STARLING_LIVE` is explicitly empty, not "1",
+  // so `*.live.test.ts` stays skipped: no API keys, no Ollama, no opencode in the box.
+  "remoteUser": "root",
+  "remoteEnv": {
+    "STARLING_LIVE": ""
+  }
+}

@@ -1,0 +1,33 @@
+# Build context for the Docker demo image.
+#
+# Everything the Dockerfile copies is checked against this file by `tools/docker/static.test.ts`:
+# a pattern that hides a needed source fails the test suite, not the first `docker build` on a machine
+# that has Docker. Patterns use Docker's own syntax (`**` is supported); no `!` re-includes.
+
+# Version control and orchestrator state
+.git
+.orchestrator
+
+# Installed and generated trees
+**/node_modules
+**/dist
+.starling
+**/*.db*
+**/*.log
+
+# Secrets and local machine config
+.env*
+**/.env*
+
+# Cowork/agent scratch output (contains a space on purpose)
+Claude outputs
+
+# Benchmark, release and screenshot artifacts
+tools/*/results
+tools/release/dist
+site/dist
+apps/web/e2e/__screenshots__
+
+# Not needed by any stage
+.gitignore
+.editorconfig
