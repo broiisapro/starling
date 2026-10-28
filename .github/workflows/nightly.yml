@@ -1,0 +1,101 @@
+name: Nightly
+
+# The slow-but-cheap checks that are not worth blocking every PR on: the mock evals (harness
+# drift), the quick load suite (engine/SSE/reducer budgets), and the swarm stats collector. Their
+# JSON is kept as one artifact and a short table is written to the run summary.
+#
+# No secrets and no STARLING_LIVE: everything here is deterministic and offline (`--impl mock`,
+# `--no-gh`, `--logs none`). `fetch-depth: 0` + tags are required by the stats collector, which
+# derives its timeline from `epic-NN-complete` tags.
+
+on:
+  schedule:
+    # A jittered minute: GitHub's scheduler is busiest on the hour, and a fixed 06:00 is the queue.
+    - cron: "23 6 * * *"
+  workflow_dispatch:
+  # `workflow_dispatch` only exists once the file is on main, so a PR that changes this workflow
+  # proves it by running it. The paths filter keeps that from firing for every PR.
+  pull_request:
+    paths:
+      - ".github/workflows/nightly.yml"
+      - ".github/workflows/scripts/nightly-summary.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.4.4"
+
+jobs:
+  nightly:
+    name: nightly (evals, load, stats)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # The stats collector walks `epic-*-complete` tags and `git grep`s test declarations at
+          # each wave's last merge; a shallow clone or missing tags silently degrades its output.
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Date stamp
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
+
+      - name: Cache Bun install
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # Mock mode validates the harness and its reference answers, not a model: no provider, no key,
+      # no STARLING_LIVE. A drop here means a case and its reference drifted.
+      - name: Mock evals
+        run: |
+          bun evals/run.ts planner --impl mock --out evals/results/nightly/planner.json
+          bun evals/run.ts auditor --impl mock --out evals/results/nightly/auditor.json
+
+      - name: Quick load test
+        run: bun tools/load/index.ts --quick
+
+      - name: Swarm stats
+        run: bun tools/stats/collect.ts --no-gh --logs none --out stats.json
+
+      - name: Step summary
+        run: |
+          echo "### Nightly checks" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          bun .github/workflows/scripts/nightly-summary.ts
+
+      - name: Upload JSON
+        uses: actions/upload-artifact@v7
+        with:
+          name: nightly-${{ steps.date.outputs.date }}
+          path: |
+            evals/results/nightly/planner.json
+            evals/results/nightly/auditor.json
+            tools/load/results/*-quick.json
+            stats.json
+          if-no-files-found: error
+          retention-days: 14

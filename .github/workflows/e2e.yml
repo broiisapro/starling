@@ -1,0 +1,101 @@
+name: Web e2e
+
+# The Playwright suite in apps/web/e2e (Epic 71). It is deliberately not part of `bun run test`:
+# files are `*.pw.ts`, the suite boots a real Vite dev server, and the visual baselines are
+# macOS-rendered (system font stack, dark theme, DPR 1).
+#
+# Runs on `macos-latest` to match those baselines. `continue-on-error` stays on the suite step until
+# Epic 140 settles per-platform snapshot directories (`e2e/__screenshots__/<platform>/`), so a
+# snapshot-only diff cannot block a PR while the suite is still being brought up in CI. A real
+# failure (timeout, missing element) still shows as a red step and uploads traces; the check itself
+# is advisory at this stage.
+
+on:
+  pull_request:
+    paths:
+      - "apps/web/**"
+      - "fixtures/runs/**"
+      - ".github/workflows/e2e.yml"
+  # Catch rot in the suite even when nobody touches apps/web.
+  schedule:
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.4.4"
+
+jobs:
+  playwright:
+    name: playwright (macos-latest)
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Toolchain
+        run: |
+          bun --version
+          git --version
+
+      - name: Cache Bun install
+        uses: actions/cache@v6
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Playwright suite
+        id: e2e
+        continue-on-error: true
+        # Fixed port + TMPDIR in the runner temp dir: playwright.config.ts writes traces and
+        # screenshots to os.tmpdir()/starling-web-e2e/<port>, which must be a known path to upload.
+        # Step-level (not job-level) env: the `runner` context is not available in a job's `env`.
+        env:
+          STARLING_E2E_PORT: "4777"
+          TMPDIR: ${{ runner.temp }}
+        run: bun run --cwd apps/web e2e
+
+      # Traces, screenshots and diffs from a failed run. `steps.e2e.outcome` is the right switch:
+      # the step's continue-on-error keeps the job green, so failure() would never fire.
+      - name: Upload traces and diffs
+        if: steps.e2e.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-artifacts
+          path: ${{ runner.temp }}/starling-web-e2e/4777
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "### Web e2e"
+            echo
+            if [ "${{ steps.e2e.outcome }}" = "success" ]; then
+              echo "Playwright suite passed."
+            else
+              echo "Playwright suite **failed** (non-blocking while Epic 140 settles per-platform snapshots)."
+              echo "Artifacts: \`playwright-artifacts\` (traces under \`\$TMPDIR/starling-web-e2e/4777\`)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

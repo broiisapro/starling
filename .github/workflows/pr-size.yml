@@ -1,0 +1,47 @@
+name: PR size
+
+# Apply a `size/*` label to every pull request so a 4,000-line merge and a 10-line typo fix do not
+# look the same in a 100-PR wave. The threshold and ignore rules live in `sizeLabel` (pure, tested);
+# this workflow only provides the pull request context and a write-scoped token.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  # `gh label create` touches repo labels (issues: write); applying them to a PR needs
+  # pull-requests: write.
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: pr-size-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.4.4"
+
+jobs:
+  label:
+    name: size label
+    # Fork PRs get a read-only token: skip rather than fail every external contribution.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # No `bun install`: the script uses Bun's built-in APIs and the `gh` CLI only.
+      - name: Apply size label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: bun .github/workflows/scripts/pr-size.ts
