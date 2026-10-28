@@ -60,6 +60,12 @@ function numbered(items: readonly string[]): string {
 
 function commandSignal(label: string, command: string | undefined, result: CommandResult): string {
   if (command === undefined || command.trim() === '') return `- ${label}: skipped (no command configured)`;
+  if (result.blockedReason !== undefined) {
+    return `- ${label} \`${command}\`: blocked by command policy (${result.blockedReason})`;
+  }
+  if (result.skippedReason !== undefined) {
+    return `- ${label} \`${command}\`: skipped (${result.skippedReason})`;
+  }
   if (!result.ran) return `- ${label} \`${command}\`: skipped`;
   if (result.timedOut) return `- ${label} \`${command}\`: timed out`;
   if (result.error !== undefined) return `- ${label} \`${command}\`: could not run (${result.error})`;

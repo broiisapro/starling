@@ -59,6 +59,8 @@ export interface FixInstructionInput {
   llmVerdict?: AuditorLlmVerdict;
   /** Set when a configured reviewer did not answer: an infrastructure retry, not a code fix. */
   reviewerFailure?: string;
+  /** Set when `requireWorktree` is on and the task has no worktree (Epic 103). */
+  requireWorktreeFailure?: boolean;
 }
 
 function stripListMarker(line: string): string {
@@ -108,6 +110,15 @@ function commandFailureInstruction(
 }
 
 /**
+ * A command the policy refused is an operator problem, not a code problem: telling the agent to
+ * rewrite working code would waste an attempt and could hide a real fix (Epic 103).
+ */
+function blockedInstruction(label: string, result: CommandResult): string | undefined {
+  if (result.blockedReason === undefined) return undefined;
+  return `The ${label} command \`${result.command}\` was blocked by the command policy: ${result.blockedReason}. This is a configuration problem, not a problem with the diff — an operator must allow the command (or switch \`commandPolicy.mode\`); do not rewrite code to work around it.`;
+}
+
+/**
  * Merge deterministic failures with the reviewer's judgment into one numbered list. Deterministic
  * instructions come first because they are facts; the model's instructions are deduped against them.
  */
@@ -141,10 +152,20 @@ export function buildFixInstructions(input: FixInstructionInput): string | undef
 
   const testsInstruction = commandFailureInstruction(input.testCommand, input.tests, input.commandTimeoutMs);
   if (testsInstruction !== undefined) items.push(testsInstruction);
+  const testsBlocked = blockedInstruction('test', input.tests);
+  if (testsBlocked !== undefined) items.push(testsBlocked);
 
   if (input.lintBlocking) {
     const lintInstruction = commandFailureInstruction(input.lintCommand, input.lint, input.commandTimeoutMs);
     if (lintInstruction !== undefined) items.push(lintInstruction);
+    const lintBlocked = blockedInstruction('lint', input.lint);
+    if (lintBlocked !== undefined) items.push(lintBlocked);
+  }
+
+  if (input.requireWorktreeFailure === true) {
+    items.push(
+      'The task has no worktree, so the tests ran in the hub repo instead of the task branch. This is a harness problem, not a problem with the diff: the audit must run where the task branch is checked out (re-dispatch the task or set `TaskRun.worktreePath`).',
+    );
   }
 
   if (input.llmVerdict !== undefined) {

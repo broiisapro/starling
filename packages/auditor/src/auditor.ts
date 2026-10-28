@@ -1,5 +1,6 @@
 import type { AuditCheck, AuditInput, Auditor, AuditVerdict, LLM, ModelRef } from '@starling/core';
 import { exec as coreExec, isStarlingError, systemClock } from '@starling/core';
+import { resolveCommandPolicy } from './command-policy';
 import type { CommandResult } from './commands';
 import { runShellCommand } from './commands';
 import type { MissingTestsSignal } from './diff';
@@ -80,6 +81,8 @@ function resolveOptions(options: CreateAuditorOptions): ResolvedAuditorOptions {
       options.maxDiffChars !== undefined && Number.isFinite(options.maxDiffChars)
         ? Math.max(0, options.maxDiffChars)
         : DEFAULT_MAX_DIFF_CHARS,
+    commandPolicy: resolveCommandPolicy(options.commandPolicy),
+    requireWorktree: options.requireWorktree ?? false,
   };
 }
 
@@ -100,6 +103,40 @@ function errorMessage(err: unknown): string {
   if (isStarlingError(err)) return `${err.code}: ${err.message}`;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/** The tests check's detail, including where it ran and whether policy changed the outcome. */
+function testsCheckDetail(
+  tests: CommandResult,
+  command: string | undefined,
+  fallbackToHub: boolean,
+  requireWorktree: boolean,
+): string {
+  if (tests.blockedReason !== undefined) {
+    return `blocked by command policy: ${tests.blockedReason}`;
+  }
+  if (tests.skippedReason !== undefined) return `skipped: tests ${tests.skippedReason}`;
+  if (command === undefined || command.trim() === '') {
+    return 'tests: skipped (no testCommand configured)';
+  }
+  const base = commandDetail(tests, 'tests');
+  if (!fallbackToHub) return base;
+  const note = '(no task worktree: ran in the hub repo)';
+  return requireWorktree ? `${base} ${note}; requireWorktree is set, so the audit fails` : `${base} ${note}`;
+}
+
+/** The lint check is advisory by default; say so in the detail so `explainVerdict` can classify it. */
+function lintCheckDetail(lint: CommandResult, command: string | undefined, lintBlocking: boolean): string {
+  if (lint.blockedReason !== undefined) {
+    const suffix = lintBlocking ? '' : '; non-blocking';
+    return `blocked by command policy: ${lint.blockedReason}${suffix}`;
+  }
+  if (lint.skippedReason !== undefined) return `skipped: lint ${lint.skippedReason}`;
+  if (command === undefined || command.trim() === '' || !lint.ran) {
+    return 'lint: skipped (no lintCommand in the repo map)';
+  }
+  const ok = lint.code === 0 && !lint.timedOut && lint.error === undefined;
+  return `${commandDetail(lint, 'lint')}${!lintBlocking && !ok ? '; non-blocking' : ''}`;
 }
 
 async function reviewWithLlm(
@@ -213,13 +250,24 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
 
   // 3. tests — run the detected command in the worktree, never in the hub repo.
   const testStarted = performance.now();
-  const tests = await runShellCommand(opts.exec, ctx.testCommand, worktree, opts.commandTimeoutMs);
-  const testsOk = !tests.ran || (tests.code === 0 && !tests.timedOut && tests.error === undefined);
+  const missingWorktree = run.worktreePath === undefined;
+  const requireWorktreeFailure = opts.requireWorktree && missingWorktree;
+  const tests = await runShellCommand(
+    opts.exec,
+    ctx.testCommand,
+    worktree,
+    opts.commandTimeoutMs,
+    opts.commandPolicy,
+  );
+  const testsOk =
+    tests.blockedReason === undefined &&
+    !requireWorktreeFailure &&
+    (!tests.ran || (tests.code === 0 && !tests.timedOut && tests.error === undefined));
   checks.push(
     makeCheck(
       'tests',
       testsOk,
-      tests.ran ? commandDetail(tests, 'tests') : 'tests: skipped (no testCommand configured)',
+      testsCheckDetail(tests, ctx.testCommand, missingWorktree, opts.requireWorktree),
       performance.now() - testStarted,
     ),
   );
@@ -239,12 +287,24 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
   // 5. lint — advisory unless `lintBlocking`, but the result is always recorded.
   const lintStarted = performance.now();
   const lintCommand = ctx.map.lintCommand;
-  const lint = await runShellCommand(opts.exec, lintCommand, worktree, opts.commandTimeoutMs);
-  const lintOk = !lint.ran || (lint.code === 0 && !lint.timedOut && lint.error === undefined);
-  const lintDetail = lint.ran
-    ? `${commandDetail(lint, 'lint')}${!opts.lintBlocking && !lintOk ? '; non-blocking' : ''}`
-    : 'lint: skipped (no lintCommand in the repo map)';
-  checks.push(makeCheck('lint', lintOk, lintDetail, performance.now() - lintStarted));
+  const lint = await runShellCommand(
+    opts.exec,
+    lintCommand,
+    worktree,
+    opts.commandTimeoutMs,
+    opts.commandPolicy,
+  );
+  const lintOk =
+    lint.blockedReason === undefined &&
+    (!lint.ran || (lint.code === 0 && !lint.timedOut && lint.error === undefined));
+  checks.push(
+    makeCheck(
+      'lint',
+      lintOk,
+      lintCheckDetail(lint, lintCommand, opts.lintBlocking),
+      performance.now() - lintStarted,
+    ),
+  );
 
   // 6. llm-review — judgment against the DoD; skipped (not failed) when unavailable.
   const llmStarted = performance.now();
@@ -287,6 +347,7 @@ async function audit(input: AuditInput, opts: ResolvedAuditorOptions): Promise<A
         ...(reviewerFailed
           ? { reviewerFailure: outcome.skippedReason ?? 'the reviewer did not answer' }
           : {}),
+        ...(requireWorktreeFailure ? { requireWorktreeFailure: true } : {}),
       });
 
   const summary = buildSummary({

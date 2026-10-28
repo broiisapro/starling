@@ -490,3 +490,138 @@ describe('createAuditor — reviewer verdict', () => {
     expect(BRANCH).toBe('starling/run-1/csv-export');
   });
 });
+
+describe('createAuditor — command policy (Epic 103, SEC-11)', () => {
+  test('mode off skips the tests and lint checks without spawning anything', async () => {
+    const fake = fakeExec(() => ({ code: 1, stderr: 'should not run' }));
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'off' },
+    }).audit(makeAuditInput());
+
+    expect(fake.calls).toHaveLength(0);
+    expect(verdict.pass).toBe(true);
+    expect(verdict.checks.find((check) => check.name === 'tests')).toMatchObject({
+      ok: true,
+      detail: 'skipped: tests disabled by policy',
+    });
+    expect(verdict.checks.find((check) => check.name === 'lint')?.detail).toBe(
+      'skipped: lint disabled by policy',
+    );
+  });
+
+  test('an allowlisted test command still runs, with CI=1 in the child environment', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'allowlist' },
+    }).audit(makeAuditInput());
+
+    expect(verdict.pass).toBe(true);
+    expect(fake.calls[0]?.cmd).toEqual(['sh', '-c', 'bun test']);
+    expect(fake.calls[0]?.opts.env?.CI).toBe('1');
+  });
+
+  test('a blocked test command fails the check without suspending the lint check', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'allowlist' },
+    }).audit(makeAuditInput({ testCommand: 'rm -rf .' }));
+
+    expect(verdict.pass).toBe(false);
+    const tests = verdict.checks.find((check) => check.name === 'tests');
+    expect(tests?.ok).toBe(false);
+    expect(tests?.detail).toContain('blocked by command policy');
+    expect(tests?.detail).toContain('not in the allowlist');
+    expect(fake.calls.map((call) => call.cmd[2])).toEqual(['bunx biome check .']);
+    expect(verdict.fixInstructions).toContain('blocked by the command policy');
+    expect(verdict.fixInstructions).toContain('configuration problem, not a problem with the diff');
+  });
+
+  test('shell chaining behind an allowed prefix is blocked', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'allowlist' },
+    }).audit(makeAuditInput({ testCommand: 'bun test && touch pwned' }));
+
+    expect(verdict.pass).toBe(false);
+    expect(fake.calls.map((call) => call.cmd[2])).not.toContain('bun test && touch pwned');
+    expect(verdict.checks.find((check) => check.name === 'tests')?.detail).toContain(
+      'blocked by command policy',
+    );
+  });
+
+  test('a blocked lint command is advisory unless lintBlocking is set', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'allowlist' },
+    }).audit(makeAuditInput({ lintCommand: 'node scripts/lint.js' }));
+
+    expect(verdict.pass).toBe(true);
+    const lint = verdict.checks.find((check) => check.name === 'lint');
+    expect(lint?.ok).toBe(false);
+    expect(lint?.detail).toContain('blocked by command policy');
+    expect(lint?.detail).toContain('non-blocking');
+
+    const blocking = await createAuditor({
+      exec: fakeExec(() => okOutput()).fn,
+      commandPolicy: { mode: 'allowlist' },
+      lintBlocking: true,
+    }).audit(makeAuditInput({ lintCommand: 'node scripts/lint.js' }));
+    expect(blocking.pass).toBe(false);
+    expect(blocking.fixInstructions).toContain('blocked by the command policy');
+  });
+
+  test('a custom allow list is honoured', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({
+      exec: fake.fn,
+      commandPolicy: { mode: 'allowlist', allow: ['custom-test'] },
+    }).audit(makeAuditInput({ testCommand: 'custom-test --ci', lintCommand: null }));
+
+    expect(verdict.pass).toBe(true);
+    expect(fake.calls[0]?.cmd).toEqual(['sh', '-c', 'custom-test --ci']);
+  });
+});
+
+describe('createAuditor — where the tests ran (Epic 103, deliverable 4)', () => {
+  test('without a task worktree the tests check says it ran in the hub repo', async () => {
+    const fake = fakeExec(() => okOutput());
+    const verdict = await createAuditor({ exec: fake.fn, llm: 'off' }).audit(
+      makeAuditInput({ worktreePath: null }),
+    );
+
+    expect(verdict.pass).toBe(true);
+    expect(fake.calls[0]?.opts.cwd).toBe('/tmp/sky-todo');
+    expect(verdict.checks.find((check) => check.name === 'tests')?.detail).toContain(
+      '(no task worktree: ran in the hub repo)',
+    );
+  });
+
+  test('requireWorktree fails the tests check instead, with a harness fix instruction', async () => {
+    const verdict = await createAuditor({
+      exec: fakeExec(() => okOutput()).fn,
+      requireWorktree: true,
+    }).audit(makeAuditInput({ worktreePath: null }));
+
+    expect(verdict.pass).toBe(false);
+    const tests = verdict.checks.find((check) => check.name === 'tests');
+    expect(tests?.ok).toBe(false);
+    expect(tests?.detail).toContain('(no task worktree: ran in the hub repo)');
+    expect(tests?.detail).toContain('requireWorktree is set');
+    expect(verdict.fixInstructions).toContain('no worktree');
+  });
+
+  test('requireWorktree does not fire when the run has a worktree', async () => {
+    const verdict = await createAuditor({
+      exec: fakeExec(() => okOutput()).fn,
+      requireWorktree: true,
+    }).audit(makeAuditInput());
+
+    expect(verdict.pass).toBe(true);
+    expect(verdict.checks.find((check) => check.name === 'tests')?.detail).not.toContain('no task worktree');
+  });
+});

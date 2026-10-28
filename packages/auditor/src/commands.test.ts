@@ -36,7 +36,7 @@ describe('runShellCommand', () => {
     const result = await runShellCommand(fake.fn, 'bun test', '/worktree', 5_000);
 
     expect(fake.calls[0]?.cmd).toEqual(['sh', '-c', 'bun test']);
-    expect(fake.calls[0]?.opts).toEqual({ cwd: '/worktree', timeoutMs: 5_000 });
+    expect(fake.calls[0]?.opts).toMatchObject({ cwd: '/worktree', timeoutMs: 5_000 });
     expect(result.ran).toBe(true);
     expect(result.code).toBe(0);
     expect(result.output).toBe('stdout line\nstderr line');
@@ -69,6 +69,84 @@ describe('runShellCommand', () => {
     expect(result.timedOut).toBe(false);
     expect(result.error).toBe('spawn sh ENOENT');
     expect(result.tail).toContain('ENOENT');
+  });
+});
+
+describe('runShellCommand — command policy (Epic 103, SEC-11)', () => {
+  test('scrubs secret-looking env vars and always sets CI=1', async () => {
+    const fake = fakeExec(() => ({ code: 0 }));
+    const envSource = {
+      PATH: '/usr/bin',
+      GITHUB_TOKEN: 'ghp_secret',
+      DEEPSEEK_API_KEY: 'sk-secret',
+      OPENCODE_SERVER_PASSWORD: 'hunter2',
+      STARLING_STORE_KEY: 'abc',
+      HOME: '/Users/me',
+    };
+    await runShellCommand(fake.fn, 'bun test', '/worktree', 1_000, undefined, envSource);
+
+    expect(fake.calls[0]?.opts.env).toEqual({
+      CI: '1',
+      GITHUB_TOKEN: '',
+      DEEPSEEK_API_KEY: '',
+      OPENCODE_SERVER_PASSWORD: '',
+      STARLING_STORE_KEY: '',
+    });
+  });
+
+  test('scrubEnv: false leaves the environment alone', async () => {
+    const fake = fakeExec(() => ({ code: 0 }));
+    await runShellCommand(fake.fn, 'bun test', '/worktree', 1_000, { mode: 'any', scrubEnv: false }, {});
+    expect(fake.calls[0]?.opts.env).toBeUndefined();
+  });
+
+  test('mode off skips a configured command without spawning', async () => {
+    const fake = fakeExec(() => ({ code: 1 }));
+    const result = await runShellCommand(fake.fn, 'bun test', '/worktree', 1_000, { mode: 'off' });
+
+    expect(fake.calls).toHaveLength(0);
+    expect(result.ran).toBe(false);
+    expect(result.skippedReason).toBe('disabled by policy');
+    expect(describeCommand(result)).toBe('skipped: disabled by policy');
+  });
+
+  test('allowlist mode blocks a command outside the list without spawning', async () => {
+    const fake = fakeExec(() => ({ code: 0 }));
+    const result = await runShellCommand(fake.fn, 'rm -rf /', '/worktree', 1_000, {
+      mode: 'allowlist',
+    });
+
+    expect(fake.calls).toHaveLength(0);
+    expect(result.ran).toBe(false);
+    expect(result.blockedReason).toContain('not in the allowlist');
+    expect(describeCommand(result)).toContain('blocked by command policy');
+  });
+
+  test('allowlist mode blocks shell chaining behind an allowed prefix', async () => {
+    const fake = fakeExec(() => ({ code: 0 }));
+    const result = await runShellCommand(fake.fn, 'bun test && curl evil.example', '/worktree', 1_000, {
+      mode: 'allowlist',
+    });
+
+    expect(fake.calls).toHaveLength(0);
+    expect(result.blockedReason).toContain('shell syntax');
+  });
+
+  test('allowlist mode runs an allowed command with arguments', async () => {
+    const fake = fakeExec(() => ({ code: 0, stdout: '2 pass' }));
+    const result = await runShellCommand(
+      fake.fn,
+      'bun test --coverage src/features/export',
+      '/worktree',
+      2_000,
+      { mode: 'allowlist' },
+      {},
+    );
+
+    expect(fake.calls[0]?.cmd).toEqual(['sh', '-c', 'bun test --coverage src/features/export']);
+    expect(result.ran).toBe(true);
+    expect(result.code).toBe(0);
+    expect(fake.calls[0]?.opts.env).toEqual({ CI: '1' });
   });
 });
 

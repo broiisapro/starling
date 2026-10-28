@@ -50,16 +50,16 @@ describe('lane check: paths it must catch', () => {
 });
 
 describe('lane check: traversal bypasses', () => {
-  test.failing('flags a path that starts in the lane and climbs out', () => {
+  test('flags a path that starts in the lane and climbs out', () => {
     // `src/../secrets.env` is outside `src/**` in every filesystem sense, but matches the glob today.
     expect(checkLane(['src/../secrets.env'], ['src/**']).ok).toBe(false);
   });
 
-  test.failing('flags a backslash traversal that normalises into the lane prefix', () => {
+  test('flags a backslash traversal that normalises into the lane prefix', () => {
     expect(checkLane(['src\\..\\secrets.env'], ['src/**']).ok).toBe(false);
   });
 
-  test.failing('flags a deeper climb through the lane prefix', () => {
+  test('flags a deeper climb through the lane prefix', () => {
     expect(checkLane(['src/a/b/../../../.ssh/id_ed25519'], ['src/**']).ok).toBe(false);
   });
 });
