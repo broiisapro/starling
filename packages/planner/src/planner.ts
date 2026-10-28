@@ -25,7 +25,14 @@ import { type PlanDraft, PlanDraftSchema } from './draft';
 import { assignTaskKeys } from './keys';
 import { buildPlanPrompt, buildRepairMessages, type MapRenderer, type PlanPrompt } from './prompt';
 import { repairPlan } from './repair';
-import { DEFAULT_MAX_TASKS, DEFAULT_MIN_TASKS, hasErrors, validatePlan, warningsOf } from './validate';
+import {
+  DEFAULT_MAX_TASKS,
+  DEFAULT_MIN_TASKS,
+  hasErrors,
+  PLANNER_MAX_TASKS_LIMIT,
+  validatePlan,
+  warningsOf,
+} from './validate';
 
 export interface CreatePlannerOptions {
   /**
@@ -39,13 +46,20 @@ export interface CreatePlannerOptions {
   maxRepairs?: number;
   /** Lowest acceptable task count; below it the plan gets a warning. Default 2. */
   minTasks?: number;
-  /** Highest acceptable task count (2..12); above it the plan gets a warning. Default 12. */
+  /**
+   * Highest acceptable task count (2..`PLANNER_MAX_TASKS_LIMIT`, i.e. 2..100); above it the plan
+   * gets a warning. Default 12 — ask for more explicitly when planning at swarm scale.
+   */
   maxTasks?: number;
   /** Token budget for each planner completion. */
   maxTokens?: number;
   /** 0 by default: planning should be repeatable, not creative. */
   temperature?: number;
-  /** Repo-map renderer embedded in the prompt. Default `repomap` (see `docs/epic-48-planner-quality.md`). */
+  /**
+   * Repo-map renderer embedded in the prompt. Default `repomap` (see `docs/epic-48-planner-quality.md`).
+   *
+   * @deprecated `'verbose'` is kept only for the recorded A/B and will be removed; use the default.
+   */
   mapRenderer?: MapRenderer;
   /** Approximate token budget for the repo-map block. Default 3000. */
   mapTokens?: number;
@@ -138,10 +152,12 @@ export function createPlanner(options: CreatePlannerOptions): Planner {
       details: { minTasks },
     });
   }
-  if (!Number.isInteger(maxTasks) || maxTasks < 2 || maxTasks > 12) {
-    throw new StarlingError('INVALID_ARGUMENT', 'planner maxTasks must be an integer in 2..12', {
-      details: { maxTasks },
-    });
+  if (!Number.isInteger(maxTasks) || maxTasks < 2 || maxTasks > PLANNER_MAX_TASKS_LIMIT) {
+    throw new StarlingError(
+      'INVALID_ARGUMENT',
+      `planner maxTasks must be an integer in 2..${PLANNER_MAX_TASKS_LIMIT}`,
+      { details: { maxTasks } },
+    );
   }
   if (minTasks > maxTasks) {
     throw new StarlingError('INVALID_ARGUMENT', 'planner minTasks cannot exceed maxTasks', {

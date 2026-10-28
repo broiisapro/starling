@@ -10,7 +10,6 @@
  * costs a merge conflict, so `globsOverlap` is intentionally conservative.
  */
 import {
-  globsOverlap,
   matchesGlob,
   normalizeGlobPath,
   type Plan,
@@ -18,10 +17,19 @@ import {
   type RepoMap,
   type TaskSpec,
 } from '@starling/core';
-import { buildDepGraph, canRunConcurrently, findCycles, formatCycle } from './graph';
+import { buildDepGraph, findCycles, formatCycle } from './graph';
+import { overlappingConcurrentPairs, ownedFileCount } from './lanes';
 
 export const DEFAULT_MIN_TASKS = 1;
 export const DEFAULT_MAX_TASKS = 12;
+/**
+ * Hard ceiling for `CreatePlannerOptions.maxTasks`. Wave 3 runs swarms of 30–60 tasks, so the old
+ * advisory ceiling of 12 would warn on every real plan. The default stays 12: a plan that wants
+ * more tasks should ask for it explicitly.
+ */
+export const PLANNER_MAX_TASKS_LIMIT = 100;
+/** Warn when one task's lane matches more files than this in the repo map. */
+export const DEFAULT_OWNED_FILES_WARN_AT = 40;
 /** A task that takes one agent longer than this is a planning smell, not a hard error. */
 export const MAX_ESTIMATE_MIN = 40;
 
@@ -30,6 +38,12 @@ export interface ValidatePlanOptions {
   map?: RepoMap;
   minTasks?: number;
   maxTasks?: number;
+  /**
+   * Warn when a task owns more than this many files in `map`. Default 40: the planner prompt spends
+   * its whole map budget on 60 owned files, so a package-wide lane starves the worker of context.
+   * Ignored without a map. Non-positive or non-finite values fall back to the default.
+   */
+  ownedFilesWarnAt?: number;
 }
 
 function issue(
@@ -43,6 +57,21 @@ function issue(
 
 function isBlank(value: string): boolean {
   return value.trim() === '';
+}
+
+/**
+ * Append a concrete, actionable hint to a validator message. The original message is kept
+ * byte-identical as the prefix: evals and snapshots match on the first clause.
+ */
+function fix(message: string, hint: string): string {
+  return `${message}; fix: ${hint}`;
+}
+
+function ownedFilesThreshold(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value) || value <= 0) {
+    return DEFAULT_OWNED_FILES_WARN_AT;
+  }
+  return Math.floor(value);
 }
 
 function hasWildcard(value: string): boolean {
@@ -105,7 +134,12 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
   for (const [key, count] of counts) {
     if (count > 1) {
       issues.push(
-        issue('error', 'other', `task key "${key}" appears ${count} times; keys must be unique`, [key]),
+        issue(
+          'error',
+          'other',
+          fix(`task key "${key}" appears ${count} times; keys must be unique`, `rename all but one "${key}"`),
+          [key],
+        ),
       );
     }
   }
@@ -114,13 +148,25 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
 
   // ── cycles ─────────────────────────────────────────────────────────────────────────────────
   for (const cycle of findCycles(graph)) {
-    issues.push(issue('error', 'cycle', `dependency cycle: ${formatCycle(cycle)}`, [...cycle]));
+    const [from, to] = cycle;
+    const hint =
+      to === undefined
+        ? `remove one dependsOn edge in ${formatCycle(cycle)}`
+        : `remove "${to}" from "${from}".dependsOn, or remove the reverse edge`;
+    issues.push(issue('error', 'cycle', fix(`dependency cycle: ${formatCycle(cycle)}`, hint), [...cycle]));
   }
 
   // ── per-task checks ────────────────────────────────────────────────────────────────────────
   for (const [index, task] of tasks.entries()) {
     if (isBlank(task.key)) {
-      issues.push(issue('error', 'other', `task #${index + 1} has an empty key`, [task.key]));
+      issues.push(
+        issue(
+          'error',
+          'other',
+          fix(`task #${index + 1} has an empty key`, 'give it a short kebab-case key, e.g. "csv-export"'),
+          [task.key],
+        ),
+      );
     }
     const owns = task.lane.owns.filter((glob) => !isBlank(glob));
     if (owns.length === 0) {
@@ -128,7 +174,10 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
         issue(
           'error',
           'empty-lane',
-          `task "${task.key}" has an empty lane.owns; a worker would have nowhere to write`,
+          fix(
+            `task "${task.key}" has an empty lane.owns; a worker would have nowhere to write`,
+            `add the folder this capability creates, e.g. "src/features/${task.key || 'capability'}/**"`,
+          ),
           [task.key],
         ),
       );
@@ -139,7 +188,10 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
         issue(
           'error',
           'empty-dod',
-          `task "${task.key}" has an empty definitionOfDone; the auditor cannot verify it`,
+          fix(
+            `task "${task.key}" has an empty definitionOfDone; the auditor cannot verify it`,
+            'add the test command plus one observable assertion',
+          ),
           [task.key],
         ),
       );
@@ -148,10 +200,15 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
     for (const dep of task.dependsOn) {
       if (!counts.has(dep)) {
         issues.push(
-          issue('error', 'missing-dep', `task "${task.key}" depends on unknown task "${dep}"`, [
-            task.key,
-            dep,
-          ]),
+          issue(
+            'error',
+            'missing-dep',
+            fix(
+              `task "${task.key}" depends on unknown task "${dep}"`,
+              `add a task with key "${dep}" or remove it from "${task.key}".dependsOn`,
+            ),
+            [task.key, dep],
+          ),
         );
       }
     }
@@ -161,12 +218,25 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
         issue(
           'warn',
           'other',
-          `task "${task.key}" is estimated at ${task.estimateMin} min; split anything over ${MAX_ESTIMATE_MIN}`,
+          fix(
+            `task "${task.key}" is estimated at ${task.estimateMin} min; split anything over ${MAX_ESTIMATE_MIN}`,
+            `split "${task.key}" into two capabilities or lower estimateMin`,
+          ),
           [task.key],
         ),
       );
     } else if (!Number.isFinite(task.estimateMin) || task.estimateMin <= 0) {
-      issues.push(issue('warn', 'other', `task "${task.key}" has a non-positive estimate`, [task.key]));
+      issues.push(
+        issue(
+          'warn',
+          'other',
+          fix(
+            `task "${task.key}" has a non-positive estimate`,
+            'set estimateMin to a realistic 5–25 minutes',
+          ),
+          [task.key],
+        ),
+      );
     }
 
     if (dod.length > 0 && !definitionOfDoneMentionsTests(task)) {
@@ -174,7 +244,10 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
         issue(
           'warn',
           'other',
-          `task "${task.key}" has no test step in definitionOfDone; every task should prove itself with tests`,
+          fix(
+            `task "${task.key}" has no test step in definitionOfDone; every task should prove itself with tests`,
+            'add "<test command> passes" plus one assertion that proves the behaviour',
+          ),
           [task.key],
         ),
       );
@@ -187,46 +260,63 @@ export function validatePlan(plan: Plan, options: ValidatePlanOptions = {}): Pla
             issue(
               'warn',
               'other',
-              `task "${task.key}" owns "${glob}", which matches no file in the repo map and does not look like a new file in an existing directory`,
+              fix(
+                `task "${task.key}" owns "${glob}", which matches no file in the repo map and does not look like a new file in an existing directory`,
+                'point it at an existing folder or the new folder the task creates',
+              ),
               [task.key],
             ),
           );
         }
       }
-    }
-  }
 
-  // ── lane overlap between tasks that can run concurrently ───────────────────────────────────
-  for (let i = 0; i < tasks.length; i += 1) {
-    const a = tasks[i] as TaskSpec;
-    for (let j = i + 1; j < tasks.length; j += 1) {
-      const b = tasks[j] as TaskSpec;
-      if (a.key === b.key) continue;
-      if (!canRunConcurrently(graph, a.key, b.key)) continue;
-      const hits = globsOverlap(
-        a.lane.owns.filter((glob) => !isBlank(glob)),
-        b.lane.owns.filter((glob) => !isBlank(glob)),
-      );
-      if (hits.length > 0) {
+      const owned = ownedFileCount(task, options.map);
+      const warnAt = ownedFilesThreshold(options.ownedFilesWarnAt);
+      if (owned > warnAt) {
         issues.push(
           issue(
-            'error',
-            'lane-overlap',
-            `tasks "${a.key}" and "${b.key}" can run concurrently but their lanes overlap: ${hits.join('; ')}`,
-            [a.key, b.key],
+            'warn',
+            'other',
+            fix(
+              `task "${task.key}" owns ${owned} files in the repo map, above the ${warnAt}-file advisory limit`,
+              'split it into per-capability tasks or narrow its lane',
+            ),
+            [task.key],
           ),
         );
       }
     }
   }
 
+  // ── lane overlap between tasks that can run concurrently ───────────────────────────────────
+  for (const { a, b, hits } of overlappingConcurrentPairs(tasks)) {
+    issues.push(
+      issue(
+        'error',
+        'lane-overlap',
+        fix(
+          `tasks "${a.key}" and "${b.key}" can run concurrently but their lanes overlap: ${hits.join('; ')}`,
+          `add "${a.key}" to ${b.key}.dependsOn or narrow ${b.key}'s lane (${hits.join('; ')})`,
+        ),
+        [a.key, b.key],
+      ),
+    );
+  }
+
   // ── plan size ──────────────────────────────────────────────────────────────────────────────
   if (tasks.length < minTasks || tasks.length > maxTasks) {
+    const hint =
+      tasks.length > maxTasks
+        ? `split the goal into smaller runs or raise maxTasks above ${tasks.length}`
+        : `add a task per capability the goal names or lower minTasks to ${tasks.length}`;
     issues.push(
       issue(
         'warn',
         'other',
-        `plan has ${tasks.length} task${tasks.length === 1 ? '' : 's'}, outside the configured bounds (${minTasks}..${maxTasks})`,
+        fix(
+          `plan has ${tasks.length} task${tasks.length === 1 ? '' : 's'}, outside the configured bounds (${minTasks}..${maxTasks})`,
+          hint,
+        ),
         tasks.map((task) => task.key),
       ),
     );

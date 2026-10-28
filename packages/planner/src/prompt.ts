@@ -74,21 +74,38 @@ export interface PlanPromptOptions {
   /** Approximate token budget for the repo-map block when the `repomap` renderer is used. */
   mapTokens?: number;
   /**
-   * Which repo-map renderer the prompt embeds.
+   * Which repo-map renderer the prompt embeds. Default `DEFAULT_MAP_RENDERER` (`'repomap'`).
    *
-   * `repomap` is `@starling/repomap`'s budgeted renderer (the one the prompt compiler uses too);
-   * `verbose` is the planner's original per-file listing with symbols, byte counts and summaries.
-   * Kept switchable because the two were compared on the real model — see
-   * `docs/epic-48-planner-quality.md` — and the loser is one deleted file away from being gone.
+   * `'repomap'` is `@starling/repomap`'s budgeted renderer (the one the prompt compiler uses too).
+   * `'verbose'` is the planner's original per-file listing, kept only to reproduce the Epic 48 A/B.
+   *
+   * @deprecated Passing `'verbose'` is deprecated: it is the losing side of the A/B, duplicates
+   * `@starling/repomap` and is scheduled for removal. Use the default.
    */
   mapRenderer?: MapRenderer;
 }
 
+/**
+ * Repo-map renderers the planner prompt can embed.
+ *
+ * `'repomap'` delegates to `@starling/repomap`; `'verbose'` selects the planner's legacy renderer
+ * in `src/render-map.ts` (byte counts, symbols, summaries).
+ *
+ * @deprecated The `'verbose'` member is deprecated and will be removed. `@starling/repomap` is the
+ * single renderer for planner and worker prompts; keep `'verbose'` only to reproduce the Epic 48
+ * A/B. New code must use `DEFAULT_MAP_RENDERER`.
+ */
 export type MapRenderer = 'repomap' | 'verbose';
 
 export const DEFAULT_MAP_RENDERER: MapRenderer = 'repomap';
 
-/** Render the map block the planner prompt embeds. */
+/**
+ * Render the map block the planner prompt embeds.
+ *
+ * The `renderer` argument's `'verbose'` value is deprecated: the supported renderer is the default
+ * (`'repomap'`, i.e. `@starling/repomap`'s budgeted renderer). The branch is kept only for A/B
+ * reproducibility and will be removed.
+ */
 export function renderMapFor(
   map: RepoMap,
   renderer: MapRenderer = DEFAULT_MAP_RENDERER,
