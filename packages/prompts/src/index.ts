@@ -7,8 +7,29 @@
  */
 export const PACKAGE = '@starling/prompts' as const;
 
+export {
+  applySectionBudgets,
+  capSections,
+  DEFAULT_SECTION_BUDGETS,
+  type FitSectionsResult,
+  fitSections,
+  type SectionId,
+  type SectionInput,
+  type SectionReport,
+  trimMarker,
+} from './budget';
 export { createPromptCompiler, type ResolverPromptCompiler } from './compiler';
-export { buildFixerPrompt } from './fixer-prompt';
+export {
+  buildExplainPrompt,
+  type ExplainFacts,
+  type ExplainFailureFact,
+  type ExplainOutcomeFacts,
+  type ExplainPrompt,
+  type ExplainTaskFact,
+  explainFacts,
+  renderExplainFacts,
+} from './explain';
+export { buildFixerPrompt, fixerSections } from './fixer-prompt';
 export { handbackInstructions, parseHandback } from './handback';
 export type { WorkerHandback } from './handshake';
 export { HANDBACK_END, HANDBACK_START, WorkerHandbackSchema } from './handshake';
@@ -21,6 +42,23 @@ export {
   conflictingTasks,
   DEFAULT_MAX_HUNK_CHARS,
   type ResolverPromptExtras,
+  resolverSections,
 } from './resolver-prompt';
+export {
+  buildRunSummaryPrompt,
+  type RunSummaryInput,
+  type RunSummaryPrompt,
+  renderRunSummaryFacts,
+} from './summary';
 export { estimateTokens } from './tokens';
-export { buildWorkerPrompt } from './worker-prompt';
+export {
+  detectInjectionMarkers,
+  fenceUntrusted,
+  isUntrustedSource,
+  neutraliseFenceTags,
+  UNTRUSTED_NOTICE,
+  UNTRUSTED_SOURCES,
+  UNTRUSTED_TAG,
+  type UntrustedSource,
+} from './untrusted';
+export { buildWorkerPrompt, workerSections } from './worker-prompt';

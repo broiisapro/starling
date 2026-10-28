@@ -5,9 +5,11 @@
  */
 import type { AuditVerdict, PromptContext } from '@starling/core';
 import { StarlingError } from '@starling/core';
+import { applySectionBudgets, type SectionInput } from './budget';
 import type { ResolvedPromptOptions } from './options';
 import { finishLineSection, laneSection, taskSection, testCommandFor } from './sections';
 import { bullets, code, joinSections } from './text';
+import { fenceUntrusted, UNTRUSTED_NOTICE } from './untrusted';
 
 function checksBlock(verdict: AuditVerdict, options: ResolvedPromptOptions): string {
   const failed = verdict.checks.filter((check) => !check.ok);
@@ -18,11 +20,13 @@ function checksBlock(verdict: AuditVerdict, options: ResolvedPromptOptions): str
     failed.length > 0
       ? joinSections([
           '**Failed checks**',
-          bullets(failed.map((check) => `${code(check.name)} — ${check.detail}`)),
+          bullets(
+            failed.map((check) => fenceUntrusted('test-output', `${code(check.name)} — ${check.detail}`)),
+          ),
         ])
       : 'The auditor failed the task without naming a failing check. Use the summary and the fix instructions below.',
     `**Passed checks:** ${passed.length > 0 ? passed.map((check) => code(check.name)).join(', ') : 'none'}`,
-    `**Audit summary:** ${verdict.summary}`,
+    `**Audit summary:** ${fenceUntrusted('audit-detail', verdict.summary)}`,
     options.style === 'full'
       ? 'The checks above are the whole reason this attempt failed. Ignore anything else that looks improvable.'
       : undefined,
@@ -36,7 +40,7 @@ function laneViolationBlock(verdict: AuditVerdict, ctx: PromptContext): string {
   const owns = ctx.task.lane.owns.map(code).join(', ');
   return joinSections([
     '**Lane violations — revert these before you continue**',
-    bullets(verdict.laneViolations),
+    fenceUntrusted('audit-detail', bullets(verdict.laneViolations)),
     `Your lane is ${owns}. Changes outside it must be reverted, not built on.`,
   ]);
 }
@@ -50,7 +54,7 @@ function fixInstructionBlock(verdict: AuditVerdict): string {
   }
   return joinSections([
     '## Fix instructions',
-    verdict.fixInstructions,
+    fenceUntrusted('audit-detail', verdict.fixInstructions),
     'Follow these instructions literally. They were written after the auditor read your diff.',
   ]);
 }
@@ -77,6 +81,43 @@ function rulesBlock(ctx: PromptContext, verdict: AuditVerdict): string {
   ]);
 }
 
+export function fixerSections(
+  ctx: PromptContext,
+  verdict: AuditVerdict,
+  options: ResolvedPromptOptions,
+): SectionInput[] {
+  return [
+    {
+      id: 'role',
+      text: joinSections([
+        `# Starling fixer — ${ctx.task.key} (audit attempt ${verdict.attempt} failed)`,
+        options.style === 'compact'
+          ? `Your previous attempt on ${code(ctx.branch)} failed the audit. Your work is still in the worktree: fix what is listed, then finish again.`
+          : `Your previous attempt on ${code(ctx.branch)} failed the audit. You are still in the same worktree with your work in place, so fix what is listed below and finish again — do not start over.`,
+        UNTRUSTED_NOTICE,
+      ]),
+      priority: 100,
+    },
+    {
+      id: 'fix-detail',
+      text: joinSections([
+        checksBlock(verdict, options),
+        laneViolationBlock(verdict, ctx),
+        fixInstructionBlock(verdict),
+      ]),
+      priority: 10,
+    },
+    { id: 'git', text: rulesBlock(ctx, verdict), priority: 70 },
+    {
+      id: 'task',
+      text: taskSection(ctx, '## Your task (unchanged, for reference)'),
+      priority: 0,
+    },
+    { id: 'lane', text: laneSection(ctx, options), priority: 0 },
+    { id: 'finish', text: finishLineSection(), priority: 0 },
+  ];
+}
+
 export function buildFixerPrompt(
   ctx: PromptContext,
   verdict: AuditVerdict,
@@ -90,17 +131,5 @@ export function buildFixerPrompt(
     );
   }
 
-  return joinSections([
-    `# Starling fixer — ${ctx.task.key} (audit attempt ${verdict.attempt} failed)`,
-    options.style === 'compact'
-      ? `Your previous attempt on ${code(ctx.branch)} failed the audit. Your work is still in the worktree: fix what is listed, then finish again.`
-      : `Your previous attempt on ${code(ctx.branch)} failed the audit. You are still in the same worktree with your work in place, so fix what is listed below and finish again — do not start over.`,
-    checksBlock(verdict, options),
-    laneViolationBlock(verdict, ctx),
-    fixInstructionBlock(verdict),
-    rulesBlock(ctx, verdict),
-    taskSection(ctx, '## Your task (unchanged, for reference)'),
-    laneSection(ctx, options),
-    finishLineSection(),
-  ]);
+  return applySectionBudgets(fixerSections(ctx, verdict, options), options.budgetTokens).text;
 }

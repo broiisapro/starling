@@ -7,6 +7,7 @@ import { handbackInstructions } from './handback';
 import type { ResolvedPromptOptions } from './options';
 import { renderRepoMap } from './repo-map';
 import { bullets, code, joinSections, numbered, plural } from './text';
+import { fenceUntrusted, UNTRUSTED_NOTICE } from './untrusted';
 
 /** The effective test command: the context override wins, then the map, and `auto` means "unknown". */
 export function testCommandFor(ctx: PromptContext): string | undefined {
@@ -24,6 +25,7 @@ export function workerRoleSection(ctx: PromptContext, options: ResolvedPromptOpt
       ? `You are one of ${total} agents working in parallel on one goal. Work autonomously; do not stop to ask questions.`
       : `You are one of ${total} agents working in parallel on one goal. Each agent owns a lane of files and runs in its own git worktree. Nobody reviews your work in real time: investigate, decide, write down why, and finish. Do not stop to ask questions.`,
     `Branch: ${code(ctx.branch)} — already created and checked out. Do not switch branches.`,
+    UNTRUSTED_NOTICE,
   ]);
 }
 
@@ -143,7 +145,7 @@ export function repoOrientationSection(
     options.style === 'full'
       ? 'A snapshot, not the source of truth: read a file before you edit it.'
       : undefined,
-    rendered.text,
+    fenceUntrusted('repo-map', rendered.text),
   ]);
 }
 
